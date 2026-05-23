@@ -38,8 +38,12 @@ class ProfileSetupViewModel @Inject constructor(
         }
     }
 
-    fun onFullNameChange(v: String) = _state.update { it.copy(fullName = v, error = null) }
-    fun onPhoneChange(v: String) = _state.update { it.copy(phone = v, error = null) }
+    fun onFullNameChange(v: String) = _state.update {
+        it.copy(fullName = v, error = null, saved = false)
+    }
+    fun onPhoneChange(v: String) = _state.update {
+        it.copy(phone = v, error = null, saved = false)
+    }
 
     fun save() {
         val s = _state.value
@@ -48,7 +52,7 @@ class ProfileSetupViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
+            _state.update { it.copy(loading = true, error = null, saved = false) }
             runCatching {
                 profileRepository.updateProfile(
                     fullName = s.fullName.trim(),
@@ -58,7 +62,11 @@ class ProfileSetupViewModel @Inject constructor(
                 .onSuccess { _state.update { it.copy(loading = false, saved = true) } }
                 .onFailure { t ->
                     _state.update {
-                        it.copy(loading = false, error = t.message ?: "Could not save profile")
+                        it.copy(
+                            loading = false,
+                            error = t.message ?: "Could not save profile",
+                            saved = false,
+                        )
                     }
                 }
         }

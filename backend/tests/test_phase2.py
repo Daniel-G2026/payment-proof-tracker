@@ -162,6 +162,28 @@ def test_other_users_business_returns_404(client_for):
     assert resp.status_code == 404
 
 
+def test_member_can_get_business_but_cannot_patch(client_for):
+    alice_id = uuid.uuid4()
+    alice = client_for(alice_id, "alice@example.com")
+    business_id = uuid.uuid4()
+    alice.post("/businesses", json={"id": str(business_id), "name": "Alice Co"})
+
+    bob_id = uuid.uuid4()
+    bob = client_for(bob_id, "bob@example.com")
+
+    db = TestingSessionLocal()
+    db.add(BusinessMember(business_id=business_id, user_id=bob_id, role="member"))
+    db.commit()
+    db.close()
+
+    get_resp = bob.get(f"/businesses/{business_id}")
+    assert get_resp.status_code == 200
+
+    patch_resp = bob.patch(f"/businesses/{business_id}", json={"name": "Renamed"})
+    assert patch_resp.status_code == 403
+    assert patch_resp.json()["detail"] == "Business owner access required."
+
+
 def test_get_me_and_patch_me(client_for):
     user_id = uuid.uuid4()
     client = client_for(user_id, "alice@example.com")

@@ -26,7 +26,7 @@ class AuthInterceptor @Inject constructor(
         }
         Log.d(
             TAG,
-            "intercept ${original.method} ${original.url} token=${token?.take(20)}...",
+            "intercept ${original.method} ${original.url} tokenPresent=${!token.isNullOrBlank()}",
         )
         val request = original.newBuilder().apply {
             if (!token.isNullOrBlank()) {

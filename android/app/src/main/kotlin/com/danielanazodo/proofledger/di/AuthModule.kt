@@ -18,10 +18,19 @@ object AuthModule {
 
     @Provides
     @Singleton
-    fun provideSupabaseClient(sessionManager: SupabaseSessionManager): SupabaseClient =
-        createSupabaseClient(
-            supabaseUrl = BuildConfig.SUPABASE_URL,
-            supabaseKey = BuildConfig.SUPABASE_ANON_KEY,
+    fun provideSupabaseClient(sessionManager: SupabaseSessionManager): SupabaseClient {
+        val supabaseUrl = requireBuildConfigValue(
+            name = "SUPABASE_URL",
+            value = BuildConfig.SUPABASE_URL,
+        )
+        val supabaseAnonKey = requireBuildConfigValue(
+            name = "SUPABASE_ANON_KEY",
+            value = BuildConfig.SUPABASE_ANON_KEY,
+        )
+
+        return createSupabaseClient(
+            supabaseUrl = supabaseUrl,
+            supabaseKey = supabaseAnonKey,
         ) {
             install(Auth) {
                 this.sessionManager = sessionManager
@@ -29,8 +38,17 @@ object AuthModule {
                 autoLoadFromStorage = true
             }
         }
+    }
 
     @Provides
     @Singleton
     fun provideAuth(client: SupabaseClient): Auth = client.auth
+
+    private fun requireBuildConfigValue(name: String, value: String): String {
+        val trimmed = value.trim()
+        require(trimmed.isNotBlank()) {
+            "$name is blank. Set $name in android/local.properties before creating the Supabase client."
+        }
+        return trimmed
+    }
 }

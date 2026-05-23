@@ -39,8 +39,10 @@ class ProfileRepository @Inject constructor(
     }
 
     /** Save locally first, then attempt remote. Phase 10 wires retry on failure. */
-    suspend fun updateProfile(fullName: String?, phone: String?): LocalProfileEntity? {
-        val current = localDao.getFirst() ?: return null
+    suspend fun updateProfile(fullName: String?, phone: String?): LocalProfileEntity {
+        val current = localDao.getFirst()
+            ?: refreshFromRemote()
+            ?: throw IllegalStateException("Could not save profile because no local or remote profile was found.")
         val now = System.currentTimeMillis()
         val updated = current.copy(
             fullName = fullName ?: current.fullName,
@@ -58,6 +60,7 @@ class ProfileRepository @Inject constructor(
         return if (remote != null) {
             cache(remote)
             localDao.getById(remote.id)
+                ?: throw IllegalStateException("Could not load saved profile from local storage.")
         } else {
             updated
         }

@@ -30,6 +30,26 @@ def _require_member(db: Session, profile_id: uuid.UUID, business_id: uuid.UUID) 
     return business
 
 
+def _require_owner(db: Session, profile_id: uuid.UUID, business_id: uuid.UUID) -> Business:
+    business = db.get(Business, business_id)
+    if business is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found.")
+    membership = db.execute(
+        select(BusinessMember).where(
+            BusinessMember.business_id == business_id,
+            BusinessMember.user_id == profile_id,
+        )
+    ).scalar_one_or_none()
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found.")
+    if membership.role != "owner":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Business owner access required.",
+        )
+    return business
+
+
 @router.post("", response_model=BusinessOut, status_code=status.HTTP_200_OK)
 def create_business(
     payload: BusinessCreate,
@@ -100,7 +120,7 @@ def update_business(
     current_user: CurrentUser,
     db: Session = Depends(get_db),
 ) -> BusinessOut:
-    business = _require_member(db, current_user.id, business_id)
+    business = _require_owner(db, current_user.id, business_id)
     data = payload.model_dump(exclude_unset=True)
     for field, value in data.items():
         setattr(business, field, value)
