@@ -1,10 +1,5 @@
-"""Auth placeholder. Real auth lands in Phase 2."""
+"""Auth re-exports. The actual implementation lives in app.core.auth."""
 
-from fastapi import HTTPException, status
+from app.core.auth import AuthError, verify_supabase_jwt
 
-
-async def get_current_user() -> None:
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Auth not implemented in Phase 1.",
-    )
+__all__ = ["AuthError", "verify_supabase_jwt"]

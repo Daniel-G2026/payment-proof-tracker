@@ -1,6 +1,8 @@
 package com.danielanazodo.proofledger.di
 
+import com.danielanazodo.proofledger.BuildConfig
 import com.danielanazodo.proofledger.data.remote.ApiService
+import com.danielanazodo.proofledger.data.remote.AuthInterceptor
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Module
@@ -17,28 +19,27 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    // Phase 1: backend base URL is a placeholder. Wire real config in Phase 2.
-    // 10.0.2.2 maps to the host machine from the Android emulator.
-    private const val BASE_URL = "http://10.0.2.2:8000/"
-
     @Provides
     @Singleton
     fun provideMoshi(): Moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
+    fun provideOkHttpClient(authInterceptor: AuthInterceptor): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
         }
-        return OkHttpClient.Builder().addInterceptor(logging).build()
+        return OkHttpClient.Builder()
+            .addInterceptor(authInterceptor)
+            .addInterceptor(logging)
+            .build()
     }
 
     @Provides
     @Singleton
     fun provideRetrofit(client: OkHttpClient, moshi: Moshi): Retrofit =
         Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(BuildConfig.API_BASE_URL)
             .client(client)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()

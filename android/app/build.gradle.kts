@@ -1,10 +1,22 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
+
+// ---- local.properties (not committed) ----
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+fun localProp(name: String, default: String): String =
+    (localProps.getProperty(name) ?: default).trim()
 
 android {
     namespace = "com.danielanazodo.proofledger"
@@ -15,9 +27,26 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "0.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Phase 2: build-config-driven URLs / keys.
+        buildConfigField(
+            "String",
+            "API_BASE_URL",
+            "\"${localProp("API_BASE_URL", "http://10.0.2.2:8000/")}\"",
+        )
+        buildConfigField(
+            "String",
+            "SUPABASE_URL",
+            "\"${localProp("SUPABASE_URL", "")}\"",
+        )
+        buildConfigField(
+            "String",
+            "SUPABASE_ANON_KEY",
+            "\"${localProp("SUPABASE_ANON_KEY", "")}\"",
+        )
     }
 
     buildTypes {
@@ -38,6 +67,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     sourceSets {
@@ -77,4 +107,11 @@ dependencies {
     implementation(libs.moshi.kotlin)
 
     implementation(libs.androidx.security.crypto)
+
+    // Supabase Auth (Phase 2)
+    implementation(platform(libs.supabase.bom))
+    implementation(libs.supabase.auth)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.coroutines.android)
 }

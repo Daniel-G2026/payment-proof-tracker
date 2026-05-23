@@ -8,5 +8,10 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     environment: str = "development"
 
+    # Supabase Auth (Phase 2). Backend verifies JWTs symmetrically using the project JWT secret.
+    supabase_url: str = ""
+    supabase_jwt_secret: str = ""
+    supabase_anon_key: str = ""
+
 
 settings = Settings()

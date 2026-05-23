@@ -1,11 +1,13 @@
 from fastapi import FastAPI
 
-from app.api.routes import health
+from app.api.routes import businesses, health, profiles
 from app.core.config import settings
 
-app = FastAPI(title="Payment Proof Tracker API", version="0.1.0")
+app = FastAPI(title="Payment Proof Tracker API", version="0.2.0")
 
 app.include_router(health.router)
+app.include_router(profiles.router)
+app.include_router(businesses.router)
 
 
 @app.get("/")

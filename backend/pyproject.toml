@@ -1,6 +1,6 @@
 [project]
 name = "proofledger-backend"
-version = "0.1.0"
+version = "0.2.0"
 description = "Payment Proof Tracker backend (FastAPI)."
 requires-python = ">=3.11"
 dependencies = [
@@ -11,6 +11,7 @@ dependencies = [
     "alembic>=1.14",
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
+    "pyjwt[crypto]>=2.9",
 ]
 
 [dependency-groups]
