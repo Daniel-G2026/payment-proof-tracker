@@ -63,6 +63,12 @@ class ProfileRepository @Inject constructor(
         }
     }
 
+    /** Wipes the cached profile. Call on sign-out or user-id mismatch. */
+    suspend fun clearLocal() {
+        Log.d(TAG, "clearLocal: wiping LocalProfile")
+        localDao.clear()
+    }
+
     private suspend fun cache(dto: ProfileDto) {
         val now = System.currentTimeMillis()
         localDao.upsert(

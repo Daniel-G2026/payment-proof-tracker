@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.danielanazodo.proofledger.data.local.entity.LocalBusinessEntity
 import com.danielanazodo.proofledger.data.repository.AuthRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
+import com.danielanazodo.proofledger.data.repository.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +26,7 @@ data class DashboardUiState(
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val businessRepository: BusinessRepository,
+    private val profileRepository: ProfileRepository,
     private val authRepository: AuthRepository,
 ) : ViewModel() {
 
@@ -39,7 +41,11 @@ class DashboardViewModel @Inject constructor(
 
     fun signOut() {
         viewModelScope.launch {
-            businessRepository.clearSelectedBusiness()
+            // Wipe all cached user data BEFORE killing the Supabase session so
+            // the next user (even if they sign in immediately) doesn't see any
+            // of the previous user's profile/businesses/selected-business.
+            businessRepository.clearAllLocal()
+            profileRepository.clearLocal()
             authRepository.signOut()
             _state.update { it.copy(signedOut = true) }
         }

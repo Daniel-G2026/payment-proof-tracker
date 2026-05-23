@@ -55,11 +55,22 @@ class StartupViewModel @Inject constructor(
         Log.d(TAG, "resolve: start")
         // 1.
         val session = authRepository.currentSession()
-        Log.d(TAG, "resolve: session=${session != null} userId=${session?.user?.id}")
+        val sessionUserId = session?.user?.id
+        Log.d(TAG, "resolve: session=${session != null} userId=$sessionUserId")
         if (session == null) {
             Log.d(TAG, "resolve: -> SignIn")
             _state.value = StartupState.Resolved(Route.SignIn)
             return
+        }
+
+        // 1b. Defensive: if local data belongs to a different user (e.g. someone
+        // signed out badly or installed an old build), wipe the cache so we
+        // don't show the previous user's businesses to the new one.
+        val cachedProfile = profileRepository.getCurrentProfile()
+        if (cachedProfile != null && sessionUserId != null && cachedProfile.id != sessionUserId) {
+            Log.w(TAG, "resolve: user mismatch (cached=${cachedProfile.id} session=$sessionUserId), wiping local")
+            businessRepository.clearAllLocal()
+            profileRepository.clearLocal()
         }
 
         // 2. Ensure we have a local profile mirror (backend auto-creates one on first call).

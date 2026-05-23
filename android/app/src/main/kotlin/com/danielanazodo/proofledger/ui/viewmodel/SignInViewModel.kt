@@ -1,5 +1,6 @@
 package com.danielanazodo.proofledger.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.danielanazodo.proofledger.data.repository.AuthRepository
@@ -10,6 +11,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+private const val TAG = "proofledger.signin"
 
 data class SignInUiState(
     val email: String = "",
@@ -67,12 +70,21 @@ class SignInViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
+            Log.d(TAG, "verifyOtp: submitting code (len=${s.code.length})")
             _state.update { it.copy(loading = true, error = null) }
             runCatching { authRepository.verifyOtp(s.email, s.code) }
-                .onSuccess { _state.update { it.copy(loading = false, signedIn = true) } }
+                .onSuccess {
+                    Log.d(TAG, "verifyOtp: success")
+                    _state.update { it.copy(loading = false, signedIn = true) }
+                }
                 .onFailure { t ->
+                    Log.e(TAG, "verifyOtp: failed", t)
                     _state.update {
-                        it.copy(loading = false, error = t.message ?: "Code did not verify")
+                        it.copy(
+                            loading = false,
+                            error = "Incorrect code. Check the email and try again, " +
+                                "or tap 'Use a different email' to get a new one.",
+                        )
                     }
                 }
         }

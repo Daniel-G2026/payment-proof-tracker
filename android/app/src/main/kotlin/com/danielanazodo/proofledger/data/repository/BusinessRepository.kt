@@ -105,6 +105,13 @@ class BusinessRepository @Inject constructor(
         )
     }
 
+    /** Wipes all cached businesses + selected-business pointer. Call on sign-out
+     *  or user-id mismatch so the next user starts from a clean slate. */
+    suspend fun clearAllLocal() {
+        businessDao.clear()
+        clearSelectedBusiness()
+    }
+
     private fun BusinessDto.toEntity(now: Long, status: SyncStatus): LocalBusinessEntity =
         LocalBusinessEntity(
             id = id,
