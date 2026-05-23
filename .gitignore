@@ -1,0 +1,45 @@
+# ---- Python / backend ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# ---- Android / Gradle ----
+.gradle/
+build/
+*/build/
+local.properties
+*.iml
+.idea/
+.cxx/
+captures/
+release/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.keystore
+*.jks
+
+# ---- IDE / editor ----
+.vscode/
+.fleet/
+.DS_Store
+Thumbs.db
+
+# ---- Misc ----
+*.log
