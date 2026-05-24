@@ -21,6 +21,16 @@ interface LocalTransactionDao {
     @Query(
         """
         SELECT * FROM local_transaction
+        WHERE businessId = :businessId
+          AND syncStatus IN ('PENDING_UPLOAD', 'PENDING_UPDATE', 'PENDING_DELETE', 'FAILED')
+        ORDER BY createdAt ASC
+        """
+    )
+    suspend fun getRowsNeedingSync(businessId: String): List<LocalTransactionEntity>
+
+    @Query(
+        """
+        SELECT * FROM local_transaction
         WHERE businessId = :businessId AND syncStatus = :syncStatus AND deletedAt IS NULL
         ORDER BY createdAt ASC
         """

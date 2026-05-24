@@ -1,12 +1,12 @@
 package com.danielanazodo.proofledger.data.repository
 
-import android.util.Log
 import com.danielanazodo.proofledger.data.local.SyncStatus
 import com.danielanazodo.proofledger.data.local.dao.LocalProfileDao
 import com.danielanazodo.proofledger.data.local.entity.LocalProfileEntity
 import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.dto.ProfileDto
 import com.danielanazodo.proofledger.data.remote.dto.ProfileUpdateDto
+import com.danielanazodo.proofledger.util.DebugLog
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,15 +25,18 @@ class ProfileRepository @Inject constructor(
     }
 
     suspend fun refreshFromRemote(): LocalProfileEntity? {
-        Log.d(TAG, "refreshFromRemote: calling GET /me")
+        DebugLog.d(TAG) { "refreshFromRemote: calling GET /me" }
         val result = runCatching { api.getMe() }
         val dto = result.getOrNull()
         if (dto == null) {
-            Log.e(TAG, "refreshFromRemote: GET /me failed: ${result.exceptionOrNull()?.message}",
-                result.exceptionOrNull())
+            DebugLog.e(
+                TAG,
+                { "refreshFromRemote: GET /me failed: ${result.exceptionOrNull()?.javaClass?.simpleName}" },
+                result.exceptionOrNull(),
+            )
             return null
         }
-        Log.d(TAG, "refreshFromRemote: got profile id=${dto.id}")
+        DebugLog.d(TAG) { "refreshFromRemote: got profile id=${dto.id}" }
         cache(dto)
         return localDao.getById(dto.id)
     }
@@ -68,7 +71,7 @@ class ProfileRepository @Inject constructor(
 
     /** Wipes the cached profile. Call on sign-out or user-id mismatch. */
     suspend fun clearLocal() {
-        Log.d(TAG, "clearLocal: wiping LocalProfile")
+        DebugLog.d(TAG) { "clearLocal: wiping LocalProfile" }
         localDao.clear()
     }
 

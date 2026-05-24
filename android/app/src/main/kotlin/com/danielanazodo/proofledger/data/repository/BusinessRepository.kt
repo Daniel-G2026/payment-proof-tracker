@@ -8,6 +8,7 @@ import com.danielanazodo.proofledger.data.local.entity.LocalBusinessEntity
 import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.dto.BusinessCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.BusinessDto
+import com.danielanazodo.proofledger.data.sync.toSyncErrorMessage
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -58,7 +59,7 @@ class BusinessRepository @Inject constructor(
         )
         businessDao.upsert(local)
 
-        val remote = runCatching {
+        return runCatching {
             api.createBusiness(
                 BusinessCreateDto(
                     id = id,
@@ -66,14 +67,50 @@ class BusinessRepository @Inject constructor(
                     businessType = businessType,
                 )
             )
-        }.getOrNull()
+        }.fold(
+            onSuccess = { remote ->
+                val synced = remote.toEntity(System.currentTimeMillis(), SyncStatus.SYNCED)
+                businessDao.upsert(synced)
+                synced
+            },
+            onFailure = { t ->
+                val failed = local.copy(
+                    syncStatus = SyncStatus.FAILED,
+                    lastSyncAttemptAt = System.currentTimeMillis(),
+                    lastSyncError = t.toSyncErrorMessage(),
+                )
+                businessDao.upsert(failed)
+                failed
+            },
+        )
+    }
 
-        return if (remote != null) {
-            val synced = remote.toEntity(System.currentTimeMillis(), SyncStatus.SYNCED)
-            businessDao.upsert(synced)
-            synced
-        } else {
-            local
+    /** Drain any business rows stuck in PENDING_* or FAILED — only POST/create
+     *  is supported for businesses today. */
+    suspend fun syncPending() {
+        val rows = businessDao.getRowsNeedingSync()
+        rows.forEach { local ->
+            runCatching {
+                api.createBusiness(
+                    BusinessCreateDto(
+                        id = local.id,
+                        name = local.name,
+                        businessType = local.businessType,
+                    )
+                )
+            }
+                .onSuccess { remote ->
+                    businessDao.upsert(remote.toEntity(System.currentTimeMillis(), SyncStatus.SYNCED))
+                }
+                .onFailure { t ->
+                    businessDao.upsert(
+                        local.copy(
+                            syncStatus = SyncStatus.FAILED,
+                            lastSyncAttemptAt = System.currentTimeMillis(),
+                            lastSyncError = t.toSyncErrorMessage(),
+                        )
+                    )
+                }
         }
     }
 

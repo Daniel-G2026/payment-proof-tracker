@@ -51,8 +51,17 @@ android {
 
     buildTypes {
         release {
+            // Minify is intentionally off for now; flipping it on requires a
+            // round of proguard rule discovery (Hilt/Room/Moshi/Supabase).
+            // Tracked separately in the Phase 6.5 audit.
             isMinifyEnabled = false
+            // Explicit so release builds can never be attached to a debugger
+            // even if some future tweak forgets to inherit defaults.
+            isDebuggable = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        debug {
+            isDebuggable = true
         }
     }
 
@@ -74,7 +83,19 @@ android {
         getByName("main") {
             java.srcDirs("src/main/kotlin")
         }
+        getByName("androidTest") {
+            java.srcDirs("src/androidTest/kotlin")
+            // Schemas live under app/schemas/. Exposing them as androidTest
+            // assets lets MigrationTestHelper load any version JSON by name.
+            assets.srcDirs("$projectDir/schemas")
+        }
     }
+}
+
+// Room schema JSON output. Committed under app/schemas/<version>.json so
+// migrations are reviewable in diffs and MigrationTestHelper can validate them.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -118,4 +139,10 @@ dependencies {
     implementation(libs.androidx.hilt.work)
     implementation(libs.coil.compose)
     implementation(libs.okio)
+
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.room.testing)
 }

@@ -23,6 +23,15 @@ interface LocalBusinessDao {
     @Query("SELECT COUNT(*) FROM local_business")
     suspend fun count(): Int
 
+    @Query(
+        """
+        SELECT * FROM local_business
+        WHERE syncStatus IN ('PENDING_UPLOAD', 'PENDING_UPDATE', 'PENDING_DELETE', 'FAILED')
+        ORDER BY createdAt ASC
+        """
+    )
+    suspend fun getRowsNeedingSync(): List<LocalBusinessEntity>
+
     @Query("DELETE FROM local_business")
     suspend fun clear()
 }

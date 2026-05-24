@@ -1,6 +1,6 @@
 package com.danielanazodo.proofledger.data.security
 
-import android.util.Log
+import com.danielanazodo.proofledger.util.DebugLog
 import io.github.jan.supabase.auth.SessionManager
 import io.github.jan.supabase.auth.user.UserSession
 import kotlinx.serialization.json.Json
@@ -30,24 +30,24 @@ class SupabaseSessionManager @Inject constructor(
     override suspend fun saveSession(session: UserSession) {
         val encoded = json.encodeToString(UserSession.serializer(), session)
         store.put(KEY, encoded)
-        Log.d(TAG, "saveSession: stored ${encoded.length} chars, exp=${session.expiresAt}")
+        DebugLog.d(TAG) { "saveSession: stored ${encoded.length} chars" }
     }
 
     override suspend fun loadSession(): UserSession? {
         val raw = store.get(KEY)
         if (raw == null) {
-            Log.d(TAG, "loadSession: nothing stored")
+            DebugLog.d(TAG) { "loadSession: nothing stored" }
             return null
         }
         return runCatching { json.decodeFromString(UserSession.serializer(), raw) }
-            .onSuccess { Log.d(TAG, "loadSession: restored session, exp=${it.expiresAt}") }
-            .onFailure { Log.e(TAG, "loadSession: decode failed (${raw.length} chars stored)", it) }
+            .onSuccess { DebugLog.d(TAG) { "loadSession: restored session" } }
+            .onFailure { DebugLog.e(TAG, { "loadSession: decode failed" }, it) }
             .getOrNull()
     }
 
     override suspend fun deleteSession() {
         store.clear(KEY)
-        Log.d(TAG, "deleteSession: cleared")
+        DebugLog.d(TAG) { "deleteSession: cleared" }
     }
 
     private companion object {

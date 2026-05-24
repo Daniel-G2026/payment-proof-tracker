@@ -1,11 +1,13 @@
 package com.danielanazodo.proofledger.ui.viewmodel
 
-import android.util.Log
+import com.danielanazodo.proofledger.util.DebugLog
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.danielanazodo.proofledger.data.repository.AuthRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
+import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.ProfileRepository
+import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import com.danielanazodo.proofledger.ui.navigation.Route
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +37,8 @@ class StartupViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
     private val businessRepository: BusinessRepository,
+    private val counterpartyRepository: CounterpartyRepository,
+    private val transactionRepository: TransactionRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<StartupState>(StartupState.Loading)
@@ -52,13 +56,13 @@ class StartupViewModel @Inject constructor(
     }
 
     private suspend fun resolve() {
-        Log.d(TAG, "resolve: start")
+        DebugLog.d(TAG) { "resolve: start" }
         // 1.
         val session = authRepository.currentSession()
         val sessionUserId = session?.user?.id
-        Log.d(TAG, "resolve: session=${session != null} userId=$sessionUserId")
+        DebugLog.d(TAG) { "resolve: session=${session != null} userId=$sessionUserId" }
         if (session == null) {
-            Log.d(TAG, "resolve: -> SignIn")
+            DebugLog.d(TAG) { "resolve: -> SignIn" }
             _state.value = StartupState.Resolved(Route.SignIn)
             return
         }
@@ -68,16 +72,23 @@ class StartupViewModel @Inject constructor(
         // don't show the previous user's businesses to the new one.
         val cachedProfile = profileRepository.getCurrentProfile()
         if (cachedProfile != null && sessionUserId != null && cachedProfile.id != sessionUserId) {
-            Log.w(TAG, "resolve: user mismatch (cached=${cachedProfile.id} session=$sessionUserId), wiping local")
+            DebugLog.w(TAG, { "resolve: user mismatch, wiping local" })
+            // Order matters: transactions first triggers proof-file cleanup,
+            // then counterparties, then businesses (which clears the selected-
+            // business pointer), then profile. The previous version skipped
+            // transactions + counterparties, leaving the new user's dashboard
+            // showing the old user's rows.
+            transactionRepository.clearLocal()
+            counterpartyRepository.clearLocal()
             businessRepository.clearAllLocal()
             profileRepository.clearLocal()
         }
 
         // 2. Ensure we have a local profile mirror (backend auto-creates one on first call).
         val profile = profileRepository.getCurrentProfile() ?: profileRepository.refreshFromRemote()
-        Log.d(TAG, "resolve: profile=${profile?.id} fullName='${profile?.fullName}'")
+        DebugLog.d(TAG) { "resolve: profile=${profile?.id} fullName='${profile?.fullName}'" }
         if (profile == null || profile.fullName.isNullOrBlank()) {
-            Log.d(TAG, "resolve: -> ProfileSetup")
+            DebugLog.d(TAG) { "resolve: -> ProfileSetup" }
             _state.value = StartupState.Resolved(Route.ProfileSetup)
             return
         }
@@ -87,9 +98,9 @@ class StartupViewModel @Inject constructor(
         // routing if there is no cached business to make a safe decision from.
         val cachedBusinesses = businessRepository.getLocalBusinesses()
         val businesses = cachedBusinesses.ifEmpty { businessRepository.refreshFromRemote() }
-        Log.d(TAG, "resolve: businesses.size=${businesses.size}")
+        DebugLog.d(TAG) { "resolve: businesses.size=${businesses.size}" }
         if (businesses.isEmpty()) {
-            Log.d(TAG, "resolve: -> CreateBusiness")
+            DebugLog.d(TAG) { "resolve: -> CreateBusiness" }
             _state.value = StartupState.Resolved(Route.CreateBusiness)
             return
         }
@@ -99,11 +110,11 @@ class StartupViewModel @Inject constructor(
         if (selectedId == null || businesses.none { it.id == selectedId }) {
             if (businesses.size == 1) {
                 businessRepository.selectBusiness(businesses.first().id)
-                Log.d(TAG, "resolve: auto-selected only business -> Dashboard")
+                DebugLog.d(TAG) { "resolve: auto-selected only business -> Dashboard" }
                 _state.value = StartupState.Resolved(Route.Dashboard)
                 refreshBusinessesInBackground()
             } else {
-                Log.d(TAG, "resolve: -> BusinessSelect")
+                DebugLog.d(TAG) { "resolve: -> BusinessSelect" }
                 _state.value = StartupState.Resolved(Route.BusinessSelect)
                 refreshBusinessesInBackground()
             }
@@ -111,7 +122,7 @@ class StartupViewModel @Inject constructor(
         }
 
         // 5.
-        Log.d(TAG, "resolve: -> Dashboard")
+        DebugLog.d(TAG) { "resolve: -> Dashboard" }
         _state.value = StartupState.Resolved(Route.Dashboard)
         refreshBusinessesInBackground()
     }

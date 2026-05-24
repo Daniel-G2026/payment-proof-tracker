@@ -41,6 +41,14 @@ data class TransactionFormUiState(
     val referenceNumber: String = "",
     val proofUri: String? = null,
     val proofOriginalSizeBytes: Long? = null,
+    /** Id of the proof row already attached to this transaction when the form
+     *  opened. Used so we can delete the old proof when the user replaces it
+     *  and avoid creating a duplicate row on every save. */
+    val existingProofId: String? = null,
+    /** True once the user has touched the proof field on this form session
+     *  (picked, replaced, or removed). Until then, save() leaves the existing
+     *  proof alone. */
+    val proofDirty: Boolean = false,
     val loading: Boolean = false,
     val error: String? = null,
     val saved: Boolean = false,
@@ -81,6 +89,8 @@ class TransactionFormViewModel @Inject constructor(
                     it.copy(
                         proofUri = item.localUri,
                         proofOriginalSizeBytes = item.sizeBytes,
+                        // Share-sheet intake is always a fresh proof to attach.
+                        proofDirty = true,
                     )
                 }
             }
@@ -95,6 +105,9 @@ class TransactionFormViewModel @Inject constructor(
                     .filterNotNull()
                     .firstOrNull()
                 if (transaction != null) {
+                    val existingProof = proofRepository
+                        .observeProofForTransaction(transactionId)
+                        .firstOrNull()
                     _state.update {
                         it.copy(
                             direction = transaction.direction,
@@ -107,6 +120,13 @@ class TransactionFormViewModel @Inject constructor(
                             note = transaction.note.orEmpty(),
                             bankName = transaction.bankName.orEmpty(),
                             referenceNumber = transaction.referenceNumber.orEmpty(),
+                            // Surface the existing proof in the UI without
+                            // marking dirty, so leaving it untouched on save
+                            // doesn't re-attach a duplicate.
+                            proofUri = existingProof?.localOriginalPath,
+                            proofOriginalSizeBytes = existingProof?.originalFileSizeBytes,
+                            existingProofId = existingProof?.id,
+                            proofDirty = false,
                         )
                     }
                 }
@@ -181,13 +201,24 @@ class TransactionFormViewModel @Inject constructor(
     fun onProofSelected(uri: String, sizeBytes: Long?) {
         clearActiveIntake()
         _state.update {
-            it.copy(proofUri = uri, proofOriginalSizeBytes = sizeBytes, error = null, saved = false)
+            it.copy(
+                proofUri = uri,
+                proofOriginalSizeBytes = sizeBytes,
+                proofDirty = true,
+                error = null,
+                saved = false,
+            )
         }
     }
     fun onProofRemoved() {
         clearActiveIntake()
         _state.update {
-            it.copy(proofUri = null, proofOriginalSizeBytes = null, saved = false)
+            it.copy(
+                proofUri = null,
+                proofOriginalSizeBytes = null,
+                proofDirty = true,
+                saved = false,
+            )
         }
     }
 
@@ -242,8 +273,14 @@ class TransactionFormViewModel @Inject constructor(
                         referenceNumber = current.referenceNumber.clean(),
                     )
                 }
-                current.proofUri?.let { uri ->
-                    proofRepository.attachProof(Uri.parse(uri), savedTransaction)
+                // Only touch proof storage when the user actually changed
+                // something on this form session. Otherwise we'd re-attach the
+                // same proof every save and accumulate duplicate rows + files.
+                if (current.proofDirty) {
+                    current.existingProofId?.let { proofRepository.deleteProof(it) }
+                    current.proofUri?.let { uri ->
+                        proofRepository.attachProof(Uri.parse(uri), savedTransaction)
+                    }
                 }
                 activeIntakeToken?.let { token ->
                     sharedProofIntakeRepository.complete(token)

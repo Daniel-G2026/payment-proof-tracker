@@ -1,6 +1,6 @@
 package com.danielanazodo.proofledger.data.remote
 
-import android.util.Log
+import com.danielanazodo.proofledger.util.DebugLog
 import io.github.jan.supabase.auth.Auth
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
@@ -24,10 +24,9 @@ class AuthInterceptor @Inject constructor(
             auth.awaitInitialization()
             auth.currentSessionOrNull()?.accessToken
         }
-        Log.d(
-            TAG,
-            "intercept ${original.method} ${original.url} tokenPresent=${!token.isNullOrBlank()}",
-        )
+        DebugLog.d(TAG) {
+            "intercept ${original.method} ${original.url} tokenPresent=${!token.isNullOrBlank()}"
+        }
         val request = original.newBuilder().apply {
             if (!token.isNullOrBlank()) {
                 header("Authorization", "Bearer $token")
@@ -35,10 +34,12 @@ class AuthInterceptor @Inject constructor(
         }.build()
         return try {
             val response = chain.proceed(request)
-            Log.d(TAG, "response ${response.code} ${original.url}")
+            DebugLog.d(TAG) { "response ${response.code} ${original.url}" }
             response
         } catch (t: Throwable) {
-            Log.e(TAG, "request failed ${original.url}: ${t.message}", t)
+            // Surface the failure class in release without the URL, which can
+            // contain business/transaction ids.
+            DebugLog.e(TAG, { "request failed: ${t.javaClass.simpleName}" }, t)
             throw t
         }
     }

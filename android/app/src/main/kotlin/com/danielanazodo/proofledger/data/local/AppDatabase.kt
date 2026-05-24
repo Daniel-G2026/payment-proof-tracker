@@ -25,8 +25,8 @@ import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
         LocalScreenshotEntity::class,
         LocalTransactionEntity::class,
     ],
-    version = 5,
-    exportSchema = false,
+    version = 6,
+    exportSchema = true,
 )
 @TypeConverters(SyncStatusConverter::class, ProofStatusConverter::class)
 abstract class AppDatabase : RoomDatabase() {

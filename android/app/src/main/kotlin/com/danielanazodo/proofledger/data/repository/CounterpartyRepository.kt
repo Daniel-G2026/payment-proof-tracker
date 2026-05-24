@@ -7,6 +7,7 @@ import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyUpdateDto
+import com.danielanazodo.proofledger.data.sync.toSyncErrorMessage
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
@@ -42,20 +43,53 @@ class CounterpartyRepository @Inject constructor(
         localDao.upsertAll(remote.map { it.toEntity(SyncStatus.SYNCED) })
     }
 
-    suspend fun syncPendingUploads(businessId: String) {
-        val pending = localDao.getByBusinessAndSyncStatus(
-            businessId = businessId,
-            syncStatus = SyncStatus.PENDING_UPLOAD.name,
-        )
-        pending.forEach { local ->
-            val remote = runCatching {
-                api.createCounterparty(businessId, local.toCreateDto())
-            }.getOrNull()
-            if (remote != null) {
-                localDao.upsert(remote.toEntity(SyncStatus.SYNCED))
+    /** Back-compat alias — sync worker now uses [syncPending]. */
+    suspend fun syncPendingUploads(businessId: String) = syncPending(businessId)
+
+    suspend fun syncPending(businessId: String) {
+        val rows = localDao.getRowsNeedingSync(businessId)
+        rows.forEach { local ->
+            when {
+                local.deletedAt != null || local.syncStatus == SyncStatus.PENDING_DELETE ->
+                    syncDelete(local)
+                local.syncStatus == SyncStatus.PENDING_UPDATE -> syncUpdate(local)
+                else -> syncCreate(businessId, local)
             }
         }
     }
+
+    private suspend fun syncCreate(businessId: String, local: LocalCounterpartyEntity) {
+        runCatching { api.createCounterparty(businessId, local.toCreateDto()) }
+            .onSuccess { remote -> localDao.upsert(remote.toEntity(SyncStatus.SYNCED)) }
+            .onFailure { t -> localDao.upsert(local.toFailed(t)) }
+    }
+
+    private suspend fun syncUpdate(local: LocalCounterpartyEntity) {
+        runCatching { api.updateCounterparty(local.businessId, local.id, local.toUpdateDto()) }
+            .onSuccess { remote -> localDao.upsert(remote.toEntity(SyncStatus.SYNCED)) }
+            .onFailure { t -> localDao.upsert(local.toFailed(t)) }
+    }
+
+    private suspend fun syncDelete(local: LocalCounterpartyEntity) {
+        runCatching { api.deleteCounterparty(local.businessId, local.id) }
+            .onSuccess {
+                localDao.upsert(
+                    local.copy(
+                        syncStatus = SyncStatus.SYNCED,
+                        lastSyncAttemptAt = System.currentTimeMillis(),
+                        lastSyncError = null,
+                    )
+                )
+            }
+            .onFailure { t -> localDao.upsert(local.toFailed(t)) }
+    }
+
+    private fun LocalCounterpartyEntity.toFailed(t: Throwable): LocalCounterpartyEntity =
+        copy(
+            syncStatus = SyncStatus.FAILED,
+            lastSyncAttemptAt = System.currentTimeMillis(),
+            lastSyncError = t.toSyncErrorMessage(),
+        )
 
     suspend fun createCounterparty(
         businessId: String,
@@ -80,16 +114,19 @@ class CounterpartyRepository @Inject constructor(
             lastSyncAttemptAt = now,
         )
         localDao.upsert(local)
-        val remote = runCatching {
-            api.createCounterparty(businessId, local.toCreateDto())
-        }.getOrNull()
-        return if (remote != null) {
-            val synced = remote.toEntity(SyncStatus.SYNCED)
-            localDao.upsert(synced)
-            synced
-        } else {
-            local
-        }
+        return runCatching { api.createCounterparty(businessId, local.toCreateDto()) }
+            .fold(
+                onSuccess = { remote ->
+                    val synced = remote.toEntity(SyncStatus.SYNCED)
+                    localDao.upsert(synced)
+                    synced
+                },
+                onFailure = { t ->
+                    val failed = local.toFailed(t)
+                    localDao.upsert(failed)
+                    failed
+                },
+            )
     }
 
     suspend fun updateCounterparty(
@@ -113,42 +150,38 @@ class CounterpartyRepository @Inject constructor(
             lastSyncAttemptAt = now,
         )
         localDao.upsert(updated)
-        val remote = runCatching {
+        return runCatching {
             api.updateCounterparty(current.businessId, current.id, updated.toUpdateDto())
-        }.getOrNull()
-        return if (remote != null) {
-            val synced = remote.toEntity(SyncStatus.SYNCED)
-            localDao.upsert(synced)
-            synced
-        } else {
-            updated
-        }
+        }.fold(
+            onSuccess = { remote ->
+                val synced = remote.toEntity(SyncStatus.SYNCED)
+                localDao.upsert(synced)
+                synced
+            },
+            onFailure = { t ->
+                val failed = updated.toFailed(t)
+                localDao.upsert(failed)
+                failed
+            },
+        )
     }
 
     suspend fun deleteCounterparty(counterpartyId: String) {
         val current = localDao.getById(counterpartyId)
             ?: throw IllegalStateException("Counterparty not found.")
         val now = System.currentTimeMillis()
-        localDao.upsert(
-            current.copy(
-                deletedAt = now,
-                syncStatus = SyncStatus.PENDING_DELETE,
-                lastSyncAttemptAt = now,
-            )
+        val pending = current.copy(
+            deletedAt = now,
+            syncStatus = SyncStatus.PENDING_DELETE,
+            lastSyncAttemptAt = now,
+            lastSyncError = null,
         )
-        val deletedRemote = runCatching {
-            api.deleteCounterparty(current.businessId, current.id)
-        }.isSuccess
-        if (deletedRemote) {
-            localDao.upsert(
-                current.copy(
-                    deletedAt = now,
-                    updatedAt = now,
-                    syncStatus = SyncStatus.SYNCED,
-                    lastSyncAttemptAt = now,
-                )
-            )
-        }
+        localDao.upsert(pending)
+        runCatching { api.deleteCounterparty(current.businessId, current.id) }
+            .onSuccess {
+                localDao.upsert(pending.copy(updatedAt = now, syncStatus = SyncStatus.SYNCED))
+            }
+            .onFailure { t -> localDao.upsert(pending.toFailed(t)) }
     }
 
     suspend fun clearLocal() {

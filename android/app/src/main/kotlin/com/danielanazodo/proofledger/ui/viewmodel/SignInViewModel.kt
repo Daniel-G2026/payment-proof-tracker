@@ -1,9 +1,9 @@
 package com.danielanazodo.proofledger.ui.viewmodel
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.danielanazodo.proofledger.data.repository.AuthRepository
+import com.danielanazodo.proofledger.util.DebugLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -70,15 +70,15 @@ class SignInViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            Log.d(TAG, "verifyOtp: submitting code (len=${s.code.length})")
+            DebugLog.d(TAG) { "verifyOtp: submitting code (len=${s.code.length})" }
             _state.update { it.copy(loading = true, error = null) }
             runCatching { authRepository.verifyOtp(s.email, s.code) }
                 .onSuccess {
-                    Log.d(TAG, "verifyOtp: success")
+                    DebugLog.d(TAG) { "verifyOtp: success" }
                     _state.update { it.copy(loading = false, signedIn = true) }
                 }
                 .onFailure { t ->
-                    Log.e(TAG, "verifyOtp: failed", t)
+                    DebugLog.e(TAG, { "verifyOtp: failed: ${t.javaClass.simpleName}" }, t)
                     _state.update {
                         it.copy(
                             loading = false,

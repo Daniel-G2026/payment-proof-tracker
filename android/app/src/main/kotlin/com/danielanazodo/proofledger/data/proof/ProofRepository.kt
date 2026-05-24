@@ -106,6 +106,59 @@ class ProofRepository @Inject constructor(
         return row
     }
 
+    /**
+     * Remove a proof row and its on-disk files. Safe to call for rows in any
+     * backup state — the local files always go, the DAO row always goes.
+     * Backend cleanup of an already-uploaded screenshot is a TODO; today the
+     * remote copy is left in place.
+     */
+    suspend fun deleteProof(proofId: String) {
+        screenshotDao.getById(proofId) ?: return
+        fileStore.deleteForId(proofId)
+        screenshotDao.deleteById(proofId)
+    }
+
+    /** Cascade-delete every proof attached to a transaction. Called when the
+     *  user deletes the transaction so we don't accumulate orphan files. */
+    suspend fun deleteForTransaction(transactionId: String) {
+        screenshotDao.findByTransactionId(transactionId).forEach { row ->
+            fileStore.deleteForId(row.id)
+            screenshotDao.deleteById(row.id)
+        }
+    }
+
+    /** Wipe every local proof — files and DAO rows. Called on sign-out so the
+     *  next user (or the same user signing back in) starts clean. */
+    suspend fun clearAllLocal() {
+        screenshotDao.findAll().forEach { row -> fileStore.deleteForId(row.id) }
+        screenshotDao.clear()
+    }
+
+    /**
+     * Reset rows stuck in BACKING_UP (worker killed mid-upload by OOM, system
+     * force-stop, or battery optimization) back to PENDING_BACKUP and re-enqueue
+     * them. Without this, a single bad launch would leave the proof showing a
+     * permanent "backing up..." spinner with no way to retry.
+     *
+     * Idempotent and cheap when there are no stuck rows. Safe to call on every
+     * app start before WorkManager starts dispatching.
+     */
+    suspend fun recoverStuckBackups() {
+        val stuck = screenshotDao.findStuckBackingUp()
+        if (stuck.isEmpty()) return
+        val now = System.currentTimeMillis()
+        stuck.forEach { row ->
+            screenshotDao.upsert(
+                row.copy(
+                    backupStatus = ProofBackupStatus.PENDING_BACKUP,
+                    lastBackupError = "Recovered from interrupted upload.",
+                    updatedAt = now,
+                )
+            )
+            scheduler.enqueue(row.id, wifiOnly = false)
+        }
+    }
+
     suspend fun setBackupPreference(preference: ProofBackupPreference) {
         metadataDao.upsert(
             LocalAppMetadataEntity(

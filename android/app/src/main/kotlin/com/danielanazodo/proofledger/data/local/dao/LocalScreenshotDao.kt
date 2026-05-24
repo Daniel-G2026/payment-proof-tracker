@@ -16,6 +16,15 @@ interface LocalScreenshotDao {
     @Query("SELECT * FROM local_screenshot WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): LocalScreenshotEntity?
 
+    @Query("SELECT * FROM local_screenshot WHERE backupStatus = 'BACKING_UP'")
+    suspend fun findStuckBackingUp(): List<LocalScreenshotEntity>
+
+    @Query("SELECT * FROM local_screenshot WHERE transactionId = :transactionId")
+    suspend fun findByTransactionId(transactionId: String): List<LocalScreenshotEntity>
+
+    @Query("SELECT * FROM local_screenshot")
+    suspend fun findAll(): List<LocalScreenshotEntity>
+
     @Query("SELECT * FROM local_screenshot WHERE transactionId = :transactionId ORDER BY createdAt DESC LIMIT 1")
     fun observeLatestForTransaction(transactionId: String): Flow<LocalScreenshotEntity?>
 
@@ -50,6 +59,9 @@ interface LocalScreenshotDao {
         minAmountMinor: Long?,
         maxAmountMinor: Long?,
     ): List<LocalScreenshotEntity>
+
+    @Query("DELETE FROM local_screenshot WHERE id = :id")
+    suspend fun deleteById(id: String)
 
     @Query("DELETE FROM local_screenshot")
     suspend fun clear()

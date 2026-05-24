@@ -18,4 +18,5 @@ data class LocalBusinessEntity(
     val updatedAt: Long,
     val syncStatus: SyncStatus,
     val lastSyncAttemptAt: Long?,
+    val lastSyncError: String? = null,
 )
