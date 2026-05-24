@@ -21,4 +21,4 @@ This is an Android-native, offline-first payment proof tracker for small busines
 - Keep architecture clean and modular.
 
 ## Current Phase
-Phase 1: Project Foundation.
+Phase 3: Manual Ledger MVP.

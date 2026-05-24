@@ -10,14 +10,19 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.danielanazodo.proofledger.ui.screens.BusinessSelectScreen
 import com.danielanazodo.proofledger.ui.screens.CreateBusinessScreen
 import com.danielanazodo.proofledger.ui.screens.EmptyDashboardScreen
 import com.danielanazodo.proofledger.ui.screens.ProfileSetupScreen
 import com.danielanazodo.proofledger.ui.screens.SignInScreen
+import com.danielanazodo.proofledger.ui.screens.TransactionDetailScreen
+import com.danielanazodo.proofledger.ui.screens.TransactionFormScreen
+import com.danielanazodo.proofledger.ui.screens.TransactionListScreen
 import com.danielanazodo.proofledger.ui.viewmodel.StartupState
 import com.danielanazodo.proofledger.ui.viewmodel.StartupViewModel
 
@@ -63,7 +68,48 @@ private fun ResolvedGraph(
             BusinessSelectScreen(onSelected = onResolveAgain)
         }
         composable(Route.Dashboard.path) {
-            EmptyDashboardScreen(onSignedOut = onResolveAgain)
+            EmptyDashboardScreen(
+                onSignedOut = onResolveAgain,
+                onAddMoneyIn = { navController.navigate(Route.AddTransaction.path("money_in")) },
+                onAddMoneyOut = { navController.navigate(Route.AddTransaction.path("money_out")) },
+                onViewTransactions = { navController.navigate(Route.TransactionList.path) },
+                onTransactionClick = { id -> navController.navigate(Route.TransactionDetail.path(id)) },
+            )
+        }
+        composable(Route.TransactionList.path) {
+            TransactionListScreen(
+                onBack = { navController.popBackStack() },
+                onTransactionClick = { id -> navController.navigate(Route.TransactionDetail.path(id)) },
+            )
+        }
+        composable(
+            route = Route.AddTransaction.path,
+            arguments = listOf(navArgument("direction") { type = NavType.StringType }),
+        ) {
+            TransactionFormScreen(
+                onSaved = {
+                    navController.popBackStack(Route.Dashboard.path, inclusive = false)
+                },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = Route.EditTransaction.path,
+            arguments = listOf(navArgument("transactionId") { type = NavType.StringType }),
+        ) {
+            TransactionFormScreen(
+                onSaved = { navController.popBackStack() },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = Route.TransactionDetail.path,
+            arguments = listOf(navArgument("transactionId") { type = NavType.StringType }),
+        ) {
+            TransactionDetailScreen(
+                onBack = { navController.popBackStack() },
+                onEdit = { id -> navController.navigate(Route.EditTransaction.path(id)) },
+            )
         }
     }
 }
