@@ -2040,6 +2040,11 @@ Make offline-first behavior reliable.
 * Add local-first dashboard updates.
 * Add failed sync screen/list.
 * Handle auth/session expiration gracefully.
+* Coalesce client-side sync events before hitting the server. A queued
+  `create X` followed by `delete X` should collapse to nothing locally
+  rather than POSTing a create the server will later 404 because the row
+  is soft-deleted. Treat any 404 on a queued retry as terminal (stop
+  retrying) instead of looping forever.
 
 ## Backend Tasks
 
@@ -2106,6 +2111,11 @@ Improve product quality, trust, and validation measurement.
 * Add image compression.
 * Add user-visible edit history UI for transactions, backed by the audit
   log written in Phase 10.
+* Escape `%` and `_` in search input before building `LIKE` patterns on
+  both Room (Android) and SQLAlchemy (backend) so a user searching for a
+  literal `%` or `_` does not turn it into a SQL wildcard. Low priority —
+  Nigerian counterparty names rarely contain these — but worth fixing
+  with the rest of the polish pass.
 
 ## Backend Tasks
 
