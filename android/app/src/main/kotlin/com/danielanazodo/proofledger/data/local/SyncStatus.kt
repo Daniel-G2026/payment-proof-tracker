@@ -26,3 +26,34 @@ class SyncStatusConverter {
     @TypeConverter
     fun fromString(value: String): SyncStatus = SyncStatus.valueOf(value)
 }
+
+enum class ProofBackupPreference {
+    WIFI_ONLY,
+    MANUAL,
+    IMPORTANT_ONLY,
+}
+
+enum class ProofBackupStatus {
+    SAVED_ON_PHONE_ONLY,
+    PENDING_BACKUP,
+    WAITING_FOR_WIFI,
+    BACKING_UP,
+    BACKED_UP,
+    BACKUP_FAILED,
+}
+
+class ProofStatusConverter {
+    @TypeConverter
+    fun preferenceToString(value: ProofBackupPreference): String = value.name
+
+    @TypeConverter
+    fun preferenceFromString(value: String): ProofBackupPreference =
+        ProofBackupPreference.valueOf(value)
+
+    @TypeConverter
+    fun backupStatusToString(value: ProofBackupStatus): String = value.name
+
+    @TypeConverter
+    fun backupStatusFromString(value: String): ProofBackupStatus =
+        ProofBackupStatus.valueOf(value)
+}

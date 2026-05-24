@@ -22,6 +22,11 @@ fun formatNaira(amountMinor: Long): String {
     return NumberFormat.getCurrencyInstance(Locale("en", "NG")).format(naira)
 }
 
+// ₦999,999,999,999.99 — well below Long.MAX_VALUE (9.2 * 10^18 minor) so the
+// `whole * 100` multiplication can't silently wrap on the way to the result.
+// Also mirrors the backend cap in MAX_AMOUNT_MINOR.
+private const val MAX_WHOLE_NAIRA = 999_999_999_999L
+
 fun parseNairaToMinor(input: String): Long? {
     val cleaned = input.replace(",", "").trim()
     if (cleaned.isBlank()) return null
@@ -30,6 +35,9 @@ fun parseNairaToMinor(input: String): Long? {
     val whole = parts[0].toLongOrNull() ?: return null
     val fraction = parts.getOrNull(1).orEmpty()
     if (whole < 0 || fraction.length > 2 || fraction.any { !it.isDigit() }) return null
+    // Cap BEFORE the multiplication so we never overflow into a smaller
+    // positive Long that the viewmodel's `<= 0` check would let through.
+    if (whole > MAX_WHOLE_NAIRA) return null
     val paddedFraction = fraction.padEnd(2, '0').ifBlank { "00" }.toLong()
     return whole * 100 + paddedFraction
 }

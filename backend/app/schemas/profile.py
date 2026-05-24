@@ -3,7 +3,10 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+MAX_PROFILE_NAME_LEN = 200
+MAX_PROFILE_PHONE_LEN = 40
 
 
 class ProfileOut(BaseModel):
@@ -18,5 +21,5 @@ class ProfileOut(BaseModel):
 
 
 class ProfileUpdate(BaseModel):
-    full_name: str | None = None
-    phone: str | None = None
+    full_name: str | None = Field(default=None, max_length=MAX_PROFILE_NAME_LEN)
+    phone: str | None = Field(default=None, max_length=MAX_PROFILE_PHONE_LEN)

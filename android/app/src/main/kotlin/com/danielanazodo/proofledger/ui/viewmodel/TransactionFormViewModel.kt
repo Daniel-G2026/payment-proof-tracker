@@ -1,5 +1,6 @@
 package com.danielanazodo.proofledger.ui.viewmodel
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -7,6 +8,7 @@ import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
+import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.ui.format.parseNairaToMinor
 import com.danielanazodo.proofledger.ui.format.todayIsoDate
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -36,6 +38,8 @@ data class TransactionFormUiState(
     val note: String = "",
     val bankName: String = "",
     val referenceNumber: String = "",
+    val proofUri: String? = null,
+    val proofOriginalSizeBytes: Long? = null,
     val loading: Boolean = false,
     val error: String? = null,
     val saved: Boolean = false,
@@ -46,6 +50,7 @@ class TransactionFormViewModel @Inject constructor(
     private val businessRepository: BusinessRepository,
     private val transactionRepository: TransactionRepository,
     private val counterpartyRepository: CounterpartyRepository,
+    private val proofRepository: ProofRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val transactionId: String? = savedStateHandle["transactionId"]
@@ -155,6 +160,12 @@ class TransactionFormViewModel @Inject constructor(
     fun onReferenceNumberChange(value: String) = _state.update {
         it.copy(referenceNumber = value, saved = false)
     }
+    fun onProofSelected(uri: String, sizeBytes: Long?) = _state.update {
+        it.copy(proofUri = uri, proofOriginalSizeBytes = sizeBytes, error = null, saved = false)
+    }
+    fun onProofRemoved() = _state.update {
+        it.copy(proofUri = null, proofOriginalSizeBytes = null, saved = false)
+    }
 
     fun save() {
         val current = _state.value
@@ -176,7 +187,7 @@ class TransactionFormViewModel @Inject constructor(
                 )
                 val counterpartyId = linkedCounterparty?.id ?: current.counterpartyId
                 val counterpartyName = linkedCounterparty?.name ?: current.counterpartyName.clean()
-                if (transactionId == null) {
+                val savedTransaction = if (transactionId == null) {
                     transactionRepository.createTransaction(
                         businessId = selectedBusinessId,
                         amountMinor = amountMinor,
@@ -202,6 +213,9 @@ class TransactionFormViewModel @Inject constructor(
                         bankName = current.bankName.clean(),
                         referenceNumber = current.referenceNumber.clean(),
                     )
+                }
+                current.proofUri?.let { uri ->
+                    proofRepository.attachProof(Uri.parse(uri), savedTransaction)
                 }
             }.onSuccess {
                 _state.update { it.copy(loading = false, saved = true) }

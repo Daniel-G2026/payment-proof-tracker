@@ -8,16 +8,22 @@ import com.danielanazodo.proofledger.data.remote.dto.CounterpartySummaryDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.ProfileDto
 import com.danielanazodo.proofledger.data.remote.dto.ProfileUpdateDto
+import com.danielanazodo.proofledger.data.remote.dto.ScreenshotDto
+import com.danielanazodo.proofledger.data.remote.dto.SignedScreenshotUrlDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionUpdateDto
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.PATCH
+import retrofit2.http.Part
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 
 data class HealthResponse(val status: String)
 
@@ -111,4 +117,21 @@ interface ApiService {
         @Path("businessId") businessId: String,
         @Path("transactionId") transactionId: String,
     )
+
+    @Multipart
+    @POST("businesses/{businessId}/screenshots")
+    suspend fun uploadScreenshot(
+        @Path("businessId") businessId: String,
+        @Part("id") id: RequestBody,
+        @Part("transaction_id") transactionId: RequestBody,
+        @Part("original_file_size") originalFileSize: RequestBody,
+        @Part("width") width: RequestBody,
+        @Part("height") height: RequestBody,
+        @Part file: MultipartBody.Part,
+    ): ScreenshotDto
+
+    @GET("screenshots/{screenshotId}/signed-url")
+    suspend fun getScreenshotSignedUrl(
+        @Path("screenshotId") screenshotId: String,
+    ): SignedScreenshotUrlDto
 }

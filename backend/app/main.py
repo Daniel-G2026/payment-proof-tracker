@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api.routes import businesses, counterparties, health, profiles, transactions
+from app.api.routes import businesses, counterparties, health, profiles, screenshots, transactions
 from app.core.config import settings
 
 app = FastAPI(title="Payment Proof Tracker API", version="0.2.0")
@@ -10,6 +10,7 @@ app.include_router(profiles.router)
 app.include_router(businesses.router)
 app.include_router(counterparties.router)
 app.include_router(transactions.router)
+app.include_router(screenshots.router)
 
 
 @app.get("/")

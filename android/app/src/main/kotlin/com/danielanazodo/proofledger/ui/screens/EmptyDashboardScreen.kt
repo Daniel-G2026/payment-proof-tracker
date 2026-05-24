@@ -41,6 +41,7 @@ fun EmptyDashboardScreen(
     onAddMoneyOut: () -> Unit,
     onViewTransactions: () -> Unit,
     onViewCounterparties: () -> Unit,
+    onViewProofBackup: () -> Unit,
     onTransactionClick: (String) -> Unit,
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
@@ -98,6 +99,12 @@ fun EmptyDashboardScreen(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text("Counterparties")
+                    }
+                    OutlinedButton(
+                        onClick = onViewProofBackup,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Proof backup")
                     }
 
                     Spacer(Modifier.height(24.dp))

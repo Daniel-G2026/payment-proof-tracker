@@ -1550,6 +1550,20 @@ Implement:
 * server-side validation on every write
 * audit logs for financial edits
 
+### Operational hygiene (Phase 12 / deployment-time)
+
+* **Signed-URL log scrubbing.** Proof signed URLs include the HMAC
+  `signature` in the query string, which means reverse-proxy, CDN, and
+  Sentry logs capture working URLs for the link's lifetime (default 15 min).
+  Configure log scrubbing rules (drop `signature` and `expires` params) at
+  the proxy/CDN tier before going live, and keep the TTL short. A web
+  client should prefer posting the signature in a header instead of the
+  query string when one ships.
+* **Slow-body / Slowloris protection.** The upload route streams the body
+  with no per-connection timeout — that's a reverse-proxy concern (nginx
+  `client_body_timeout`, Cloud Run / ALB equivalents), not in the app. Make
+  sure the deploy story includes it.
+
 ## 13.3 Access Control
 
 Every backend route must verify:
@@ -1914,6 +1928,34 @@ Allow users to attach payment proof screenshots to transactions.
 * Link screenshot to transaction.
 * Add signed/private access URLs.
 
+## Phase 5 Hardening Notes
+
+These were applied during the Phase 5 build after an adversarial review and
+do not need to be re-done:
+
+* Image allowlist (`image/jpeg`, `image/png`, `image/webp`) + magic-byte sniff
+  on the uploaded bytes. Explicitly refuses `image/svg+xml` so a future web
+  dashboard rendering proofs in `<img>` tags doesn't inherit a stored-XSS
+  sink, and refuses payloads whose bytes don't match the declared mime so the
+  proof store can't be used to host phishing-friendly executables behind
+  legitimate-looking signed URLs.
+* Pixel-dimension clamp (`[0, 100_000]`) on screenshot `width` / `height`
+  fields before they hit the Postgres INTEGER column.
+* Text-length caps on every free-text field across transactions, counterparties,
+  and profile schemas so an authenticated user can't store megabytes of notes.
+* Per-amount cap on the Android amount parser at ₦999,999,999,999 mirroring
+  `MAX_AMOUNT_MINOR` on the backend, so `whole * 100` can't silently overflow
+  past the viewmodel's `<= 0` check.
+* WorkManager default initializer disabled in `AndroidManifest.xml` so
+  `Configuration.Provider` + Hilt actually wins.
+* Streaming Content-Length cap on uploads so a 100 MB POST is refused before
+  the body is buffered.
+* Storage path traversal hardening (regex allowlist + `..` rejection).
+* Orphan-file cleanup on commit failure (but not on idempotency races, since
+  the winning row references the same key).
+* Signed-URL HMAC secret refuses to fall back to a dev string outside
+  `environment=development`.
+
 ## Deliverables
 
 * User can create transaction with screenshot proof.
@@ -2057,13 +2099,29 @@ Make offline-first behavior reliable.
 
 ## Backend Tasks
 
-* Make CRUD endpoints idempotent where needed.
+* Make CRUD endpoints idempotent where needed. Specifically: wrap
+  `db.commit()` on the **transactions** and **counterparties** `POST`
+  handlers in `try/except IntegrityError` so a client retry that races the
+  original insert returns the existing row (mirror Phase 5's screenshot
+  route pattern) instead of bubbling a 500. The screenshot route already
+  handles this; transactions and counterparties do not.
 * Support client-generated IDs if helpful.
 * Add sync event logs.
 * Add conflict handling basics.
 * Add audit log table + write create/edit/delete events for transactions
   (and any other entities that exist by this phase). Deferred here from
   Phase 3 so the event shape matches the stabilized sync-aware workflows.
+* Add a `transaction_id` filter to `GET /businesses/{id}/screenshots` so a
+  syncing client (or future web dashboard) can pull just the proofs tied to
+  one transaction instead of paging the whole business. Deferred from
+  Phase 5: nothing called the list endpoint with that need yet, but cross-
+  device sync will. Cheap to add — just a `WHERE transaction_id = ?` clause.
+* Replace `limit`/`offset` pagination on the screenshots list with cursor
+  pagination keyed on `(updated_at, id)` — e.g. `?since=<updated_at>&
+  after_id=<uuid>`. `offset` pagination silently repeats or skips rows when
+  new uploads land between pages, which is exactly the regime delta sync
+  operates in. Apply the same pattern to transactions/counterparties lists
+  if they grow large enough to matter.
 
 ## Deliverables
 
@@ -2131,8 +2189,21 @@ Improve product quality, trust, and validation measurement.
 * Add structured logging.
 * Add Sentry backend.
 * Add analytics event ingestion if needed.
-* Add rate limiting.
-* Add better validation.
+* Add rate limiting. The Phase 5 5 MB upload cap blocks single-request abuse,
+  but an authenticated user can still loop POSTs and fill object storage.
+  Per-user-per-route limits (e.g. ≤ N proof uploads per minute) close that.
+* Add better validation. Specifically:
+  * Validate `currency` against an ISO 4217 allowlist (currently any string
+    sticks, so a malicious PATCH like `{"currency": "<script>"}` survives
+    until a web dashboard renders it raw).
+  * Enforce server-side string-length caps on every text column that
+    accepts free input. Phase 5 added Pydantic `max_length` caps to all
+    schemas under `app/schemas/`; the audit-log table (Phase 10) and any
+    later entities must match.
+* Add CORS configuration once the web dashboard (§4.7) is live. Only the
+  dashboard origin should be allowed — never `*`. Bearer-token auth means
+  CSRF is not an issue, but cross-origin reads on signed-URL responses still
+  need the right `Access-Control-Allow-Origin` headers to render.
 * Add backups/retention policy planning.
 
 ## Deliverables
@@ -2206,6 +2277,32 @@ For construction-adjacent businesses, later add:
 * material cost tracking
 * supplier spend by project
 * subcontractor payments by job
+
+## 20.7 Encrypted Local Database
+
+§4.1 specifies Jetpack Security for **auth-token storage only**. The Room
+database (`proofledger.db`) and the proof image files in `filesDir/proofs/`
+are stored in cleartext, so on a rooted device — or a forensic dump from a
+lost phone — every transaction and proof image is readable.
+
+For the target ICP (§2.2 — financial data, distrustful users), this is a
+real gap that v1 explicitly accepts but should not stay open forever.
+Options when this is picked up:
+
+* **SQLCipher for Room.** Drop-in encrypted SQLite. Adds a native lib
+  (~2 MB APK size), needs a passphrase derived from device-keystore-backed
+  material rather than a static string.
+* **File-level encryption for the proof image directory** via
+  `EncryptedFile` from `androidx.security:security-crypto`. Cheaper than
+  SQLCipher, but each open/save has a per-file MAC cost — measure on
+  low-end devices first.
+* **Selective encryption** — only the `reference_number`, `note`, and
+  counterparty fields, leaving structural data unencrypted. Smallest
+  blast radius if performance matters.
+
+Trigger to revisit: first real pilot with a business handling sensitive
+payment data, OR a request from a security-conscious user, whichever
+comes first.
 
 ---
 

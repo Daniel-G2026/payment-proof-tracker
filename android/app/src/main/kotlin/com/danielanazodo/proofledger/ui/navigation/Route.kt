@@ -6,6 +6,7 @@ sealed class Route(val path: String) {
     data object CreateBusiness : Route("create_business")
     data object BusinessSelect : Route("business_select")
     data object Dashboard : Route("dashboard")
+    data object ProofBackup : Route("proof_backup")
     data object CounterpartyList : Route("counterparties")
     data object AddCounterparty : Route("counterparties/add")
     data object EditCounterparty : Route("counterparties/{counterpartyId}/edit") {

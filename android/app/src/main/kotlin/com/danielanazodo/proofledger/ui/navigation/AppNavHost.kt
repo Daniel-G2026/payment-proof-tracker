@@ -22,6 +22,7 @@ import com.danielanazodo.proofledger.ui.screens.CounterpartyFormScreen
 import com.danielanazodo.proofledger.ui.screens.CounterpartyListScreen
 import com.danielanazodo.proofledger.ui.screens.EmptyDashboardScreen
 import com.danielanazodo.proofledger.ui.screens.ProfileSetupScreen
+import com.danielanazodo.proofledger.ui.screens.ProofBackupScreen
 import com.danielanazodo.proofledger.ui.screens.SignInScreen
 import com.danielanazodo.proofledger.ui.screens.TransactionDetailScreen
 import com.danielanazodo.proofledger.ui.screens.TransactionFormScreen
@@ -77,8 +78,12 @@ private fun ResolvedGraph(
                 onAddMoneyOut = { navController.navigate(Route.AddTransaction.path("money_out")) },
                 onViewTransactions = { navController.navigate(Route.TransactionList.path) },
                 onViewCounterparties = { navController.navigate(Route.CounterpartyList.path) },
+                onViewProofBackup = { navController.navigate(Route.ProofBackup.path) },
                 onTransactionClick = { id -> navController.navigate(Route.TransactionDetail.path(id)) },
             )
+        }
+        composable(Route.ProofBackup.path) {
+            ProofBackupScreen(onBack = { navController.popBackStack() })
         }
         composable(Route.CounterpartyList.path) {
             CounterpartyListScreen(

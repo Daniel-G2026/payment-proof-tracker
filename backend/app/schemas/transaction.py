@@ -6,18 +6,34 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+# Field-length caps: Postgres `text` will happily store megabytes per row, but
+# nothing in this product needs that. Caps bound RAM use on list endpoints
+# and block bad-apple users sending 50 MB notes. Sized to be generous for
+# real-world Nigerian payment data (the longest counterparty name we've seen
+# is ~80 chars, the longest reference ~30, etc.).
+MAX_COUNTERPARTY_NAME_LEN = 200
+MAX_CATEGORY_LEN = 120
+MAX_BANK_NAME_LEN = 120
+MAX_REFERENCE_LEN = 120
+MAX_NOTE_LEN = 2_000
+
+# 9.2 * 10^18 minor units = Long.MAX_VALUE; the cap keeps us well below that
+# AND below the largest sane business amount (₦999B). Postgres BIGINT matches.
+MAX_AMOUNT_MINOR = 99_999_999_999_99  # ₦999,999,999,999.99
+
+
 class TransactionCreate(BaseModel):
     id: uuid.UUID
-    amount_minor: int = Field(gt=0)
+    amount_minor: int = Field(gt=0, le=MAX_AMOUNT_MINOR)
     currency: str = "NGN"
     direction: str = Field(pattern="^(money_in|money_out)$")
     transaction_date: date
     counterparty_id: uuid.UUID | None = None
-    counterparty_name: str | None = None
-    category: str | None = None
-    note: str | None = None
-    bank_name: str | None = None
-    reference_number: str | None = None
+    counterparty_name: str | None = Field(default=None, max_length=MAX_COUNTERPARTY_NAME_LEN)
+    category: str | None = Field(default=None, max_length=MAX_CATEGORY_LEN)
+    note: str | None = Field(default=None, max_length=MAX_NOTE_LEN)
+    bank_name: str | None = Field(default=None, max_length=MAX_BANK_NAME_LEN)
+    reference_number: str | None = Field(default=None, max_length=MAX_REFERENCE_LEN)
 
 
 class TransactionUpdate(BaseModel):
@@ -29,16 +45,16 @@ class TransactionUpdate(BaseModel):
     still accept `null` so the user can clear them.
     """
 
-    amount_minor: int | None = Field(default=None, gt=0)
+    amount_minor: int | None = Field(default=None, gt=0, le=MAX_AMOUNT_MINOR)
     currency: str | None = None
     direction: str | None = Field(default=None, pattern="^(money_in|money_out)$")
     transaction_date: date | None = None
     counterparty_id: uuid.UUID | None = None
-    counterparty_name: str | None = None
-    category: str | None = None
-    note: str | None = None
-    bank_name: str | None = None
-    reference_number: str | None = None
+    counterparty_name: str | None = Field(default=None, max_length=MAX_COUNTERPARTY_NAME_LEN)
+    category: str | None = Field(default=None, max_length=MAX_CATEGORY_LEN)
+    note: str | None = Field(default=None, max_length=MAX_NOTE_LEN)
+    bank_name: str | None = Field(default=None, max_length=MAX_BANK_NAME_LEN)
+    reference_number: str | None = Field(default=None, max_length=MAX_REFERENCE_LEN)
 
     @field_validator("amount_minor", "direction")
     @classmethod

@@ -4,17 +4,21 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
+import com.danielanazodo.proofledger.data.local.entity.LocalScreenshotEntity
+import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class TransactionDetailUiState(
     val transaction: LocalTransactionEntity? = null,
+    val proof: LocalScreenshotEntity? = null,
     val deleted: Boolean = false,
     val error: String? = null,
 )
@@ -22,6 +26,7 @@ data class TransactionDetailUiState(
 @HiltViewModel
 class TransactionDetailViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
+    private val proofRepository: ProofRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val transactionId: String = checkNotNull(savedStateHandle["transactionId"])
@@ -30,8 +35,11 @@ class TransactionDetailViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            transactionRepository.observeTransaction(transactionId).collect { transaction ->
-                _state.update { it.copy(transaction = transaction) }
+            combine(
+                transactionRepository.observeTransaction(transactionId),
+                proofRepository.observeProofForTransaction(transactionId),
+            ) { transaction, proof -> transaction to proof }.collect { (transaction, proof) ->
+                _state.update { it.copy(transaction = transaction, proof = proof) }
             }
         }
     }
@@ -43,6 +51,20 @@ class TransactionDetailViewModel @Inject constructor(
                 .onFailure { t ->
                     _state.update { it.copy(error = t.message ?: "Could not delete transaction") }
                 }
+        }
+    }
+
+    fun setProofImportant(important: Boolean) {
+        val proofId = _state.value.proof?.id ?: return
+        viewModelScope.launch {
+            proofRepository.setImportant(proofId, important)
+        }
+    }
+
+    fun backUpProofNow() {
+        val proofId = _state.value.proof?.id ?: return
+        viewModelScope.launch {
+            proofRepository.backupNow(proofId)
         }
     }
 }

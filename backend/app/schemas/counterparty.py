@@ -9,20 +9,26 @@ COUNTERPARTY_TYPE_PATTERN = (
     "^(customer|supplier|subcontractor|employee|driver|landlord|agent|other|unknown)$"
 )
 
+# Generous-but-bounded text caps. Same rationale as the transaction schemas:
+# we never want an authenticated user to be able to store megabytes of notes.
+MAX_COUNTERPARTY_NAME_LEN = 300
+MAX_COUNTERPARTY_PHONE_LEN = 40
+MAX_COUNTERPARTY_NOTES_LEN = 2_000
+
 
 class CounterpartyCreate(BaseModel):
     id: uuid.UUID
-    name: str = Field(min_length=1, max_length=300)
+    name: str = Field(min_length=1, max_length=MAX_COUNTERPARTY_NAME_LEN)
     type: str = Field(pattern=COUNTERPARTY_TYPE_PATTERN)
-    phone: str | None = None
-    notes: str | None = None
+    phone: str | None = Field(default=None, max_length=MAX_COUNTERPARTY_PHONE_LEN)
+    notes: str | None = Field(default=None, max_length=MAX_COUNTERPARTY_NOTES_LEN)
 
 
 class CounterpartyUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=300)
+    name: str | None = Field(default=None, min_length=1, max_length=MAX_COUNTERPARTY_NAME_LEN)
     type: str | None = Field(default=None, pattern=COUNTERPARTY_TYPE_PATTERN)
-    phone: str | None = None
-    notes: str | None = None
+    phone: str | None = Field(default=None, max_length=MAX_COUNTERPARTY_PHONE_LEN)
+    notes: str | None = Field(default=None, max_length=MAX_COUNTERPARTY_NOTES_LEN)
 
     @field_validator("name", "type")
     @classmethod
