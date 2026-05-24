@@ -26,6 +26,20 @@ An even simpler user-facing promise:
 
 > Never lose track of who paid, who you paid, and what money moved.
 
+Longer-term, ProofLedger can expand beyond small-business payment tracking
+into a broader **financial proof capture and organization tool**:
+
+> Capture proof now. Organize later. Export when needed.
+
+In this future direction, ProofLedger helps small businesses, self-employed
+workers, contractors, sales reps, freelancers, side-hustle workers, informal
+sellers, and individuals preserve proof of payments, receipts, and expenses so
+they never lose financial evidence again.
+
+The app should still avoid positioning itself as full accounting software or a
+tax filing app. It should help users store and organize financial proof for
+later review, not make accounting or tax determinations.
+
 ---
 
 ## 1. Product Category and Positioning
@@ -36,9 +50,16 @@ This product is a:
 
 * Payment proof tracker
 * Screenshot-to-ledger tool
+* Financial proof capture and organization tool
+* Proof vault for money events
 * Business money tracker
 * Lightweight financial operations assistant
 * Searchable memory for small-business transactions
+
+Long-term, "proof" can include receipts, work-related expenses, meals, gas,
+supplies, phone bills, subscriptions, travel/mileage, bank or e-transfer proof,
+cash payment notes, invoices, payment screenshots, and customer payment
+confirmations.
 
 ### 1.2 What This Product Is Not in v1
 
@@ -80,6 +101,10 @@ Use human language:
 * supplier payment
 * subcontractor payment
 * expense
+* proof stored
+* captured for review
+* ready for accountant/tax review
+* possible tax review category
 
 ---
 
@@ -2233,6 +2258,130 @@ Improve product quality, trust, and validation measurement.
 ## 20. Later Phases / v2+
 
 Do not build these in v1 unless specifically required.
+
+## 20.0 Financial Proof Vault Direction
+
+ProofLedger can become a broader **proof vault for money events**.
+
+Core idea:
+
+> Any time money moves and the user may need proof later, ProofLedger should
+> help them capture it, categorize it, store the original proof, and retrieve or
+> export it when needed.
+
+This is a future product direction, not an instruction to implement these
+capabilities immediately.
+
+### Positioning
+
+Describe ProofLedger as:
+
+* a financial proof capture and organization tool
+* a proof vault for payments, receipts, and expenses
+* a simple way to preserve financial evidence
+
+Do **not** describe it as:
+
+* full accounting software
+* a tax filing app
+* a tool that decides whether expenses are deductible
+
+Avoid saying:
+
+* "This expense is deductible."
+
+Prefer language like:
+
+* "Captured for review"
+* "Possible tax review category"
+* "Ready for accountant/tax review"
+* "Proof stored"
+
+The UX should feel like:
+
+> Take a picture. Add a label. Done.
+
+### Broader Workspace Concept
+
+Long-term, a workspace should mean an income activity or financial proof
+folder, not only a formal business account.
+
+Examples:
+
+* small business
+* side hustle
+* self-employed work
+* sales/commission work
+* contracting/subcontracting
+* tutoring/freelancing
+* personal tax receipts
+* a seasonal job, such as "Sales Rep Summer 2024"
+
+Future onboarding can feel less corporate by asking:
+
+> What are you tracking?
+
+Possible choices:
+
+* Small business
+* Side hustle
+* Self-employed work
+* Sales/commission work
+* Personal tax receipts
+* Other
+
+### Future Capture Types
+
+Eventually, the app can capture:
+
+* receipt photo
+* payment screenshot
+* invoice
+* bank transfer or e-transfer proof
+* cash payment note
+* mileage/travel proof
+* customer payment confirmation
+
+Eventually, extraction/storage can include:
+
+* date
+* vendor/customer
+* amount
+* tax/HST if visible
+* category
+* workspace
+* payment method
+* notes
+* original proof image
+
+### Future Review and Export
+
+Month-by-month views can eventually show:
+
+* total revenue received
+* total expenses
+* possible tax-review categories
+* missing proof warnings
+* receipt archive
+* export for accountant/tax review
+
+Important example use case:
+
+A self-employed sales rep or contractor may have work-related expenses they
+want to track for accountant or tax review. They may lose physical receipts, so
+ProofLedger should let them take a picture immediately, store the original
+receipt, extract the amount/date/vendor later, and organize everything month by
+month.
+
+### Guardrails
+
+* Do not claim an expense is deductible.
+* Use "tax review" or "possible deduction category" language instead.
+* Preserve original proof images.
+* Keep offline-first behavior.
+* Keep the app simple enough for non-technical users.
+* Avoid becoming bloated accounting software.
+* Keep the core promise simple: "Capture proof now. Organize later. Export when needed."
 
 ## 20.1 Expected Payments / Balances
 
