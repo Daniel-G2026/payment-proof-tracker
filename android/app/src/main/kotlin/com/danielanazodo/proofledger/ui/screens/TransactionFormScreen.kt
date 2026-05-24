@@ -31,13 +31,18 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.ui.format.displayDate
+import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.TransactionFormViewModel
 import coil.compose.AsyncImage
 import java.text.SimpleDateFormat
@@ -52,16 +57,43 @@ fun TransactionFormScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var fullProofOpen by remember { mutableStateOf(false) }
+    var pickerOpen by remember { mutableStateOf(false) }
+    var datePickerOpen by remember { mutableStateOf(false) }
     val leaveForm = {
         viewModel.discardIntakeProof()
         onBack()
     }
-    BackHandler(onBack = leaveForm)
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        pickerOpen = false
         if (uri != null) {
             viewModel.onProofSelected(uri.toString(), querySizeBytes(context, uri))
         }
     }
+    val openImagePicker = rememberDebouncedClick(windowMs = 1000L) {
+        if (!pickerOpen) {
+            pickerOpen = true
+            imagePicker.launch("image/*")
+        }
+    }
+    val back = rememberDebouncedClick(onClick = leaveForm)
+    BackHandler(onBack = back)
+    val openDatePicker = rememberDebouncedClick {
+        if (!datePickerOpen) {
+            datePickerOpen = true
+            showDatePicker(
+                context = context,
+                currentIsoDate = state.transactionDate,
+                onDateSelected = viewModel::onDateChange,
+                onDismiss = { datePickerOpen = false },
+            )
+        }
+    }
+    val selectCounterparty = rememberDebouncedClick(onClick = viewModel::onCounterpartySelect)
+    val addNewCounterparty = rememberDebouncedClick(onClick = viewModel::onAddNewCounterparty)
+    val openFullProof = rememberDebouncedClick { fullProofOpen = true }
+    val removeProof = rememberDebouncedClick(onClick = viewModel::onProofRemoved)
+    val save = rememberDebouncedClick(onClick = viewModel::save)
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
 
     Scaffold { padding ->
@@ -73,7 +105,7 @@ fun TransactionFormScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            TextButton(onClick = leaveForm) { Text("Back") }
+            TextButton(onClick = back) { Text("Back") }
             Text(
                 if (state.transactionId == null) "Add transaction" else "Edit transaction",
                 style = MaterialTheme.typography.headlineSmall,
@@ -99,9 +131,7 @@ fun TransactionFormScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
             Button(
-                onClick = {
-                    showDatePicker(context, state.transactionDate, viewModel::onDateChange)
-                },
+                onClick = openDatePicker,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text("Date: ${displayDate(state.transactionDate)}")
@@ -117,7 +147,7 @@ fun TransactionFormScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     state.suggestions.forEach { counterparty ->
                         TextButton(
-                            onClick = { viewModel.onCounterpartySelect(counterparty) },
+                            onClick = { selectCounterparty(counterparty) },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text("${counterparty.name} - ${counterpartyTypeLabel(counterparty.type)}")
@@ -127,8 +157,8 @@ fun TransactionFormScreen(
             }
             if (state.counterpartyQuery.isNotBlank() && state.counterpartyId == null) {
                 AssistChip(
-                    onClick = viewModel::onAddNewCounterparty,
-                    label = { Text("Add new counterparty") },
+                    onClick = addNewCounterparty,
+                    label = { Text("Save as new counterparty") },
                 )
             }
             if (state.addingNewCounterparty) {
@@ -170,7 +200,7 @@ fun TransactionFormScreen(
             Text("Proof", style = MaterialTheme.typography.labelMedium)
             if (state.proofUri == null) {
                 OutlinedButton(
-                    onClick = { imagePicker.launch("image/*") },
+                    onClick = openImagePicker,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text("Attach screenshot proof")
@@ -187,7 +217,7 @@ fun TransactionFormScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(180.dp)
-                                .clickable { imagePicker.launch("image/*") },
+                                .clickable(onClick = openFullProof),
                         )
                         Text(
                             "Estimated upload: ${formatBytes(state.proofOriginalSizeBytes ?: 0L)} or less after compression",
@@ -195,13 +225,24 @@ fun TransactionFormScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { imagePicker.launch("image/*") }) {
+                            OutlinedButton(onClick = openImagePicker) {
                                 Text("Change")
                             }
-                            TextButton(onClick = viewModel::onProofRemoved) {
+                            TextButton(onClick = removeProof) {
                                 Text("Remove")
                             }
                         }
+                    }
+                }
+            }
+            if (fullProofOpen && state.proofUri != null) {
+                Dialog(onDismissRequest = { fullProofOpen = false }) {
+                    Card {
+                        AsyncImage(
+                            model = state.proofUri,
+                            contentDescription = "Full payment proof",
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
                 }
             }
@@ -210,7 +251,7 @@ fun TransactionFormScreen(
             }
             Spacer(Modifier.height(8.dp))
             Button(
-                onClick = viewModel::save,
+                onClick = save,
                 enabled = !state.loading,
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -224,11 +265,12 @@ private fun showDatePicker(
     context: android.content.Context,
     currentIsoDate: String,
     onDateSelected: (String) -> Unit,
+    onDismiss: () -> Unit,
 ) {
     val format = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     val calendar = Calendar.getInstance()
     runCatching { format.parse(currentIsoDate) }.getOrNull()?.let { calendar.time = it }
-    DatePickerDialog(
+    val dialog = DatePickerDialog(
         context,
         { _, year, month, day ->
             calendar.set(year, month, day)
@@ -237,7 +279,9 @@ private fun showDatePicker(
         calendar.get(Calendar.YEAR),
         calendar.get(Calendar.MONTH),
         calendar.get(Calendar.DAY_OF_MONTH),
-    ).show()
+    )
+    dialog.setOnDismissListener { onDismiss() }
+    dialog.show()
 }
 
 private fun querySizeBytes(context: android.content.Context, uri: Uri): Long? =

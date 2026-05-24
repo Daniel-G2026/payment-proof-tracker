@@ -233,6 +233,12 @@ class TransactionFormViewModel @Inject constructor(
             _state.update { it.copy(error = "Enter a valid amount") }
             return
         }
+        if (!current.hasResolvedCounterparty()) {
+            _state.update {
+                it.copy(error = "Choose a saved counterparty or add this as a new one.")
+            }
+            return
+        }
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null, saved = false) }
             runCatching {
@@ -333,6 +339,11 @@ class TransactionFormViewModel @Inject constructor(
     }
 
     private fun String.clean(): String? = trim().ifBlank { null }
+
+    private fun TransactionFormUiState.hasResolvedCounterparty(): Boolean {
+        val hasTypedName = counterpartyQuery.clean() != null
+        return !hasTypedName || counterpartyId != null || addingNewCounterparty
+    }
 
     private fun clearActiveIntake() {
         activeIntakeToken?.let { token ->

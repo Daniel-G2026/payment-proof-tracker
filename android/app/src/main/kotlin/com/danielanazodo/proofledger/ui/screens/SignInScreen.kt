@@ -24,6 +24,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.SignInUiState
 import com.danielanazodo.proofledger.ui.viewmodel.SignInViewModel
 
@@ -87,6 +88,7 @@ private fun EmailEntry(
     onEmailChange: (String) -> Unit,
     onSubmit: () -> Unit,
 ) {
+    val submit = rememberDebouncedClick(onClick = onSubmit)
     OutlinedTextField(
         value = state.email,
         onValueChange = onEmailChange,
@@ -97,7 +99,7 @@ private fun EmailEntry(
     )
     Spacer(Modifier.height(16.dp))
     Button(
-        onClick = onSubmit,
+        onClick = submit,
         enabled = !state.loading,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -113,6 +115,8 @@ private fun CodeEntry(
     onSubmit: () -> Unit,
     onChangeEmail: () -> Unit,
 ) {
+    val submit = rememberDebouncedClick(onClick = onSubmit)
+    val changeEmail = rememberDebouncedClick(onClick = onChangeEmail)
     Text(
         text = "We sent a 6-digit code to ${state.email}",
         style = MaterialTheme.typography.bodyMedium,
@@ -128,7 +132,7 @@ private fun CodeEntry(
     )
     Spacer(Modifier.height(16.dp))
     Button(
-        onClick = onSubmit,
+        onClick = submit,
         enabled = !state.loading && state.code.length == 6,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -136,5 +140,5 @@ private fun CodeEntry(
         else Text("Verify")
     }
     Spacer(Modifier.height(8.dp))
-    TextButton(onClick = onChangeEmail) { Text("Use a different email") }
+    TextButton(onClick = changeEmail) { Text("Use a different email") }
 }

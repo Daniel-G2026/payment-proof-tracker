@@ -24,6 +24,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.CounterpartyFormViewModel
 
 @Composable
@@ -33,6 +34,8 @@ fun CounterpartyFormScreen(
     viewModel: CounterpartyFormViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val back = rememberDebouncedClick(onClick = onBack)
+    val save = rememberDebouncedClick(onClick = viewModel::save)
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
 
     Scaffold { padding ->
@@ -44,7 +47,7 @@ fun CounterpartyFormScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            TextButton(onClick = onBack) { Text("Back") }
+            TextButton(onClick = back) { Text("Back") }
             Text(
                 if (state.counterpartyId == null) "Add counterparty" else "Edit counterparty",
                 style = MaterialTheme.typography.headlineSmall,
@@ -79,7 +82,7 @@ fun CounterpartyFormScreen(
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Spacer(Modifier.height(8.dp))
             Button(
-                onClick = viewModel::save,
+                onClick = save,
                 enabled = !state.loading,
                 modifier = Modifier.fillMaxWidth(),
             ) {

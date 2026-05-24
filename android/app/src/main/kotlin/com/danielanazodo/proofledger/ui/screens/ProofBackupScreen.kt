@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.data.local.ProofBackupPreference
+import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.ProofBackupViewModel
 import java.util.Locale
 
@@ -33,6 +34,8 @@ fun ProofBackupScreen(
     viewModel: ProofBackupViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val back = rememberDebouncedClick(onClick = onBack)
+    val backUpSelected = rememberDebouncedClick(onClick = viewModel::backUpSelected)
     Scaffold { padding ->
         Column(
             modifier = Modifier
@@ -42,7 +45,7 @@ fun ProofBackupScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            TextButton(onClick = onBack) { Text("Back") }
+            TextButton(onClick = back) { Text("Back") }
             Text("Proof backup", style = MaterialTheme.typography.headlineSmall)
             Text(
                 "${state.pendingCount} proofs • about ${formatBytes(state.estimatedBytes)}",
@@ -116,7 +119,7 @@ fun ProofBackupScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
             Button(
-                onClick = viewModel::backUpSelected,
+                onClick = backUpSelected,
                 enabled = !state.loading && state.pendingCount > 0,
                 modifier = Modifier.fillMaxWidth(),
             ) {

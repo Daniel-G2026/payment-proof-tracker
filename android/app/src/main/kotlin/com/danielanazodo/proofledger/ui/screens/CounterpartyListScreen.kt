@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
+import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.CounterpartyListViewModel
 
 @Composable
@@ -38,18 +39,21 @@ fun CounterpartyListScreen(
     viewModel: CounterpartyListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val back = rememberDebouncedClick(onClick = onBack)
+    val add = rememberDebouncedClick(onClick = onAdd)
+    val counterpartyClick = rememberDebouncedClick(onClick = onCounterpartyClick)
     Scaffold { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            TextButton(onClick = onBack) { Text("Back") }
+            TextButton(onClick = back) { Text("Back") }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text("Counterparties", style = MaterialTheme.typography.headlineSmall)
-                Button(onClick = onAdd) { Text("Add") }
+                Button(onClick = add) { Text("Add") }
             }
             OutlinedTextField(
                 value = state.search,
@@ -72,7 +76,7 @@ fun CounterpartyListScreen(
             } else {
                 LazyColumn {
                     items(state.counterparties, key = { it.id }) { counterparty ->
-                        CounterpartyRow(counterparty = counterparty, onClick = onCounterpartyClick)
+                        CounterpartyRow(counterparty = counterparty, onClick = counterpartyClick)
                     }
                 }
             }

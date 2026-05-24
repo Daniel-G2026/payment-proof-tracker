@@ -32,6 +32,7 @@ import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
 import com.danielanazodo.proofledger.ui.format.displayDate
 import com.danielanazodo.proofledger.ui.format.formatNaira
 import com.danielanazodo.proofledger.ui.format.signedNaira
+import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.DashboardViewModel
 
 @Composable
@@ -46,6 +47,13 @@ fun EmptyDashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val addMoneyIn = rememberDebouncedClick(onClick = onAddMoneyIn)
+    val addMoneyOut = rememberDebouncedClick(onClick = onAddMoneyOut)
+    val viewTransactions = rememberDebouncedClick(onClick = onViewTransactions)
+    val viewCounterparties = rememberDebouncedClick(onClick = onViewCounterparties)
+    val viewProofBackup = rememberDebouncedClick(onClick = onViewProofBackup)
+    val transactionClick = rememberDebouncedClick(onClick = onTransactionClick)
+    val signOut = rememberDebouncedClick(onClick = viewModel::signOut)
     LaunchedEffect(state.signedOut) { if (state.signedOut) onSignedOut() }
 
     Scaffold { padding ->
@@ -92,23 +100,23 @@ fun EmptyDashboardScreen(
 
                     Spacer(Modifier.height(24.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(onClick = onAddMoneyIn, modifier = Modifier.weight(1f)) {
+                        Button(onClick = addMoneyIn, modifier = Modifier.weight(1f)) {
                             Text("Add money in")
                         }
-                        OutlinedButton(onClick = onAddMoneyOut, modifier = Modifier.weight(1f)) {
+                        OutlinedButton(onClick = addMoneyOut, modifier = Modifier.weight(1f)) {
                             Text("Add money out")
                         }
                     }
 
                     Spacer(Modifier.height(12.dp))
                     OutlinedButton(
-                        onClick = onViewCounterparties,
+                        onClick = viewCounterparties,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text("Counterparties")
                     }
                     OutlinedButton(
-                        onClick = onViewProofBackup,
+                        onClick = viewProofBackup,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text("Proof backup")
@@ -120,7 +128,7 @@ fun EmptyDashboardScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Text("Recent activity", style = MaterialTheme.typography.titleMedium)
-                        TextButton(onClick = onViewTransactions) { Text("View all") }
+                        TextButton(onClick = viewTransactions) { Text("View all") }
                     }
                 }
                 if (state.recentTransactions.isEmpty()) {
@@ -133,14 +141,14 @@ fun EmptyDashboardScreen(
                     }
                 } else {
                     items(state.recentTransactions, key = { it.id }) { transaction ->
-                        TransactionRow(transaction = transaction, onClick = onTransactionClick)
+                        TransactionRow(transaction = transaction, onClick = transactionClick)
                     }
                 }
                 item { Spacer(Modifier.height(88.dp)) }
             }
 
             TextButton(
-                onClick = viewModel::signOut,
+                onClick = signOut,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 24.dp),

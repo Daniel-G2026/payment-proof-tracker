@@ -22,6 +22,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.ProfileSetupViewModel
 
 @Composable
@@ -30,6 +31,7 @@ fun ProfileSetupScreen(
     viewModel: ProfileSetupViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val save = rememberDebouncedClick(onClick = viewModel::save)
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
 
     Scaffold { padding ->
@@ -69,7 +71,7 @@ fun ProfileSetupScreen(
 
             Spacer(Modifier.height(24.dp))
             Button(
-                onClick = viewModel::save,
+                onClick = save,
                 enabled = !state.loading,
                 modifier = Modifier.fillMaxWidth(),
             ) {

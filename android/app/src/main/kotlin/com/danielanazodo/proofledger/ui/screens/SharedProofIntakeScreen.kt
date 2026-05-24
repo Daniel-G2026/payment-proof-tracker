@@ -21,6 +21,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.danielanazodo.proofledger.data.proof.SharedProofIntakeItem
+import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 
 @Composable
 fun SharedProofIntakeScreen(
@@ -29,7 +30,10 @@ fun SharedProofIntakeScreen(
     onMoneyOut: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    BackHandler(onBack = onCancel)
+    val moneyIn = rememberDebouncedClick(onClick = onMoneyIn)
+    val moneyOut = rememberDebouncedClick(onClick = onMoneyOut)
+    val cancel = rememberDebouncedClick(onClick = onCancel)
+    BackHandler(onBack = cancel)
     Scaffold { padding ->
         Column(
             modifier = Modifier
@@ -38,7 +42,7 @@ fun SharedProofIntakeScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            TextButton(onClick = onCancel) { Text("Cancel") }
+            TextButton(onClick = cancel) { Text("Cancel") }
             Text("Add shared proof", style = MaterialTheme.typography.headlineSmall)
             if (item == null) {
                 Text(
@@ -46,7 +50,7 @@ fun SharedProofIntakeScreen(
                     color = MaterialTheme.colorScheme.error,
                 )
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = cancel, modifier = Modifier.fillMaxWidth()) {
                     Text("Back")
                 }
             } else {
@@ -67,10 +71,10 @@ fun SharedProofIntakeScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Button(onClick = onMoneyIn, modifier = Modifier.weight(1f)) {
+                    Button(onClick = moneyIn, modifier = Modifier.weight(1f)) {
                         Text("Money in")
                     }
-                    OutlinedButton(onClick = onMoneyOut, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = moneyOut, modifier = Modifier.weight(1f)) {
                         Text("Money out")
                     }
                 }

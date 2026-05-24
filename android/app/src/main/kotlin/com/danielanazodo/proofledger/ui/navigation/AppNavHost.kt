@@ -1,6 +1,8 @@
 package com.danielanazodo.proofledger.ui.navigation
 
+import android.app.Activity
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -95,6 +97,8 @@ private fun ResolvedGraph(
         }
     }
 
+    val context = LocalContext.current
+
     NavHost(navController = navController, startDestination = startRoute) {
         composable(Route.SignIn.path) {
             SignInScreen(onSignedIn = onResolveAgain)
@@ -111,12 +115,12 @@ private fun ResolvedGraph(
         composable(Route.Dashboard.path) {
             EmptyDashboardScreen(
                 onSignedOut = onResolveAgain,
-                onAddMoneyIn = { navController.navigate(Route.AddTransaction.path("money_in")) },
-                onAddMoneyOut = { navController.navigate(Route.AddTransaction.path("money_out")) },
-                onViewTransactions = { navController.navigate(Route.TransactionList.path) },
-                onViewCounterparties = { navController.navigate(Route.CounterpartyList.path) },
-                onViewProofBackup = { navController.navigate(Route.ProofBackup.path) },
-                onTransactionClick = { id -> navController.navigate(Route.TransactionDetail.path(id)) },
+                onAddMoneyIn = { navController.navigateOnce(Route.AddTransaction.path("money_in")) },
+                onAddMoneyOut = { navController.navigateOnce(Route.AddTransaction.path("money_out")) },
+                onViewTransactions = { navController.navigateOnce(Route.TransactionList.path) },
+                onViewCounterparties = { navController.navigateOnce(Route.CounterpartyList.path) },
+                onViewProofBackup = { navController.navigateOnce(Route.ProofBackup.path) },
+                onTransactionClick = { id -> navController.navigateOnce(Route.TransactionDetail.path(id)) },
             )
         }
         composable(Route.ProofBackup.path) {
@@ -149,8 +153,8 @@ private fun ResolvedGraph(
         composable(Route.CounterpartyList.path) {
             CounterpartyListScreen(
                 onBack = { navController.popBackStack() },
-                onAdd = { navController.navigate(Route.AddCounterparty.path) },
-                onCounterpartyClick = { id -> navController.navigate(Route.CounterpartyDetail.path(id)) },
+                onAdd = { navController.navigateOnce(Route.AddCounterparty.path) },
+                onCounterpartyClick = { id -> navController.navigateOnce(Route.CounterpartyDetail.path(id)) },
             )
         }
         composable(Route.AddCounterparty.path) {
@@ -174,14 +178,14 @@ private fun ResolvedGraph(
         ) {
             CounterpartyDetailScreen(
                 onBack = { navController.popBackStack() },
-                onEdit = { id -> navController.navigate(Route.EditCounterparty.path(id)) },
-                onTransactionClick = { id -> navController.navigate(Route.TransactionDetail.path(id)) },
+                onEdit = { id -> navController.navigateOnce(Route.EditCounterparty.path(id)) },
+                onTransactionClick = { id -> navController.navigateOnce(Route.TransactionDetail.path(id)) },
             )
         }
         composable(Route.TransactionList.path) {
             TransactionListScreen(
                 onBack = { navController.popBackStack() },
-                onTransactionClick = { id -> navController.navigate(Route.TransactionDetail.path(id)) },
+                onTransactionClick = { id -> navController.navigateOnce(Route.TransactionDetail.path(id)) },
             )
         }
         composable(
@@ -217,8 +221,35 @@ private fun ResolvedGraph(
         ) {
             TransactionDetailScreen(
                 onBack = { navController.popBackStack() },
-                onEdit = { id -> navController.navigate(Route.EditTransaction.path(id)) },
+                onEdit = { id -> navController.navigateOnce(Route.EditTransaction.path(id)) },
             )
+        }
+    }
+
+    // Single source of truth for back-button behavior. Registered AFTER the
+    // NavHost composable so this callback is on top of the
+    // OnBackPressedDispatcher's LIFO stack and runs FIRST on every back press.
+    //
+    // Important: we compare against the start route directly instead of
+    // checking previousBackStackEntry. Compose Nav inserts an invisible
+    // NavGraph entry under every destination, so previousBackStackEntry is
+    // never actually null even on the start destination — checking it would
+    // pop the start destination and leave NavHost rendering nothing.
+    BackHandler {
+        // Read the live destination at press time. The Compose state wrapper can
+        // lag behind rapid back presses by a frame, which lets a second press
+        // pop the start destination and leave NavHost blank.
+        val onStartDestination = navController.currentDestination?.route == startRoute
+        if (onStartDestination) {
+            (context as? Activity)?.moveTaskToBack(/* nonRoot = */ true)
+        } else {
+            val popped = navController.popBackStack()
+            if (!popped || navController.currentDestination == null) {
+                navController.navigate(startRoute) {
+                    popUpTo(navController.graph.id) { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
         }
     }
 }

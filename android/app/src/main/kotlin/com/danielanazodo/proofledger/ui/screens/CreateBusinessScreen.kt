@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.CreateBusinessViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,6 +38,7 @@ fun CreateBusinessScreen(
     viewModel: CreateBusinessViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val save = rememberDebouncedClick(onClick = viewModel::save)
     LaunchedEffect(state.createdId) { if (state.createdId != null) onCreated() }
 
     var typeExpanded by remember { mutableStateOf(false) }
@@ -100,7 +102,7 @@ fun CreateBusinessScreen(
 
             Spacer(Modifier.height(24.dp))
             Button(
-                onClick = viewModel::save,
+                onClick = save,
                 enabled = !state.loading,
                 modifier = Modifier.fillMaxWidth(),
             ) {

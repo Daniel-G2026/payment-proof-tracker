@@ -34,6 +34,7 @@ import com.danielanazodo.proofledger.data.local.entity.LocalScreenshotEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
 import com.danielanazodo.proofledger.ui.format.displayDate
 import com.danielanazodo.proofledger.ui.format.formatNaira
+import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.TransactionDetailViewModel
 
 @Composable
@@ -43,6 +44,9 @@ fun TransactionDetailScreen(
     viewModel: TransactionDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val back = rememberDebouncedClick(onClick = onBack)
+    val delete = rememberDebouncedClick(onClick = viewModel::delete)
+    val backUpProof = rememberDebouncedClick(onClick = viewModel::backUpProofNow)
     LaunchedEffect(state.deleted) { if (state.deleted) onBack() }
     Scaffold { padding ->
         Column(
@@ -53,7 +57,7 @@ fun TransactionDetailScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            TextButton(onClick = onBack) { Text("Back") }
+            TextButton(onClick = back) { Text("Back") }
             val transaction = state.transaction
             if (transaction == null) {
                 Text("Transaction not found.")
@@ -62,9 +66,9 @@ fun TransactionDetailScreen(
                     transaction = transaction,
                     proof = state.proof,
                     onEdit = { onEdit(transaction.id) },
-                    onDelete = viewModel::delete,
+                    onDelete = delete,
                     onImportantChange = viewModel::setProofImportant,
-                    onBackUpProof = viewModel::backUpProofNow,
+                    onBackUpProof = backUpProof,
                 )
             }
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -82,6 +86,8 @@ private fun TransactionDetailContent(
     onBackUpProof: () -> Unit,
 ) {
     var fullProofOpen by remember { mutableStateOf(false) }
+    val edit = rememberDebouncedClick(onClick = onEdit)
+    val delete = rememberDebouncedClick(onClick = onDelete)
     Text(
         if (transaction.direction == "money_in") "Money in" else "Money out",
         style = MaterialTheme.typography.headlineSmall,
@@ -108,8 +114,8 @@ private fun TransactionDetailContent(
         DetailLine("Proof", "No screenshot attached")
     }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Button(onClick = onEdit, modifier = Modifier.weight(1f)) { Text("Edit") }
-        OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f)) { Text("Delete") }
+        Button(onClick = edit, modifier = Modifier.weight(1f)) { Text("Edit") }
+        OutlinedButton(onClick = delete, modifier = Modifier.weight(1f)) { Text("Delete") }
     }
     if (fullProofOpen && proof != null) {
         Dialog(onDismissRequest = { fullProofOpen = false }) {
@@ -131,6 +137,9 @@ private fun ProofCard(
     onImportantChange: (Boolean) -> Unit,
     onBackUpProof: () -> Unit,
 ) {
+    val open = rememberDebouncedClick(onClick = onOpen)
+    val toggleImportant = rememberDebouncedClick { onImportantChange(!proof.isImportant) }
+    val backUp = rememberDebouncedClick(onClick = onBackUpProof)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Proof", style = MaterialTheme.typography.labelMedium)
@@ -140,18 +149,18 @@ private fun ProofCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(180.dp)
-                    .clickable(onClick = onOpen),
+                    .clickable(onClick = open),
             )
             DetailLine("Backup", proof.backupStatus.userLabel())
             proof.lastBackupError?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { onImportantChange(!proof.isImportant) }) {
+                OutlinedButton(onClick = toggleImportant) {
                     Text(if (proof.isImportant) "Unmark important" else "Mark important")
                 }
                 Button(
-                    onClick = onBackUpProof,
+                    onClick = backUp,
                     enabled = proof.backupStatus != ProofBackupStatus.BACKED_UP &&
                         proof.backupStatus != ProofBackupStatus.BACKING_UP,
                 ) {

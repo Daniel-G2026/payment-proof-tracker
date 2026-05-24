@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.BusinessSelectViewModel
 
 @Composable
@@ -28,6 +29,7 @@ fun BusinessSelectScreen(
     viewModel: BusinessSelectViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val selectBusiness = rememberDebouncedClick<String> { id -> viewModel.select(id) }
     LaunchedEffect(state.selectedId) { if (state.selectedId != null) onSelected() }
 
     Scaffold { padding ->
@@ -53,7 +55,7 @@ fun BusinessSelectScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 6.dp)
-                            .clickable { viewModel.select(biz.id) },
+                            .clickable { selectBusiness(biz.id) },
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(biz.name, style = MaterialTheme.typography.titleLarge)

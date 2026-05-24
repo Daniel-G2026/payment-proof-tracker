@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.TransactionListViewModel
 
 @Composable
@@ -31,12 +32,14 @@ fun TransactionListScreen(
     viewModel: TransactionListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val back = rememberDebouncedClick(onClick = onBack)
+    val transactionClick = rememberDebouncedClick(onClick = onTransactionClick)
     Scaffold { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            TextButton(onClick = onBack) { Text("Back") }
+            TextButton(onClick = back) { Text("Back") }
             Text("Transactions", style = MaterialTheme.typography.headlineSmall)
             OutlinedTextField(
                 value = state.search,
@@ -71,7 +74,7 @@ fun TransactionListScreen(
             } else {
                 LazyColumn {
                     items(state.transactions, key = { it.id }) { transaction ->
-                        TransactionRow(transaction = transaction, onClick = onTransactionClick)
+                        TransactionRow(transaction = transaction, onClick = transactionClick)
                     }
                 }
             }

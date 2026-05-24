@@ -28,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
 import com.danielanazodo.proofledger.ui.format.displayDate
 import com.danielanazodo.proofledger.ui.format.formatNaira
+import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.CounterpartyDetailUiState
 import com.danielanazodo.proofledger.ui.viewmodel.CounterpartyDetailViewModel
 
@@ -39,6 +40,9 @@ fun CounterpartyDetailScreen(
     viewModel: CounterpartyDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val back = rememberDebouncedClick(onClick = onBack)
+    val transactionClick = rememberDebouncedClick(onClick = onTransactionClick)
+    val delete = rememberDebouncedClick(onClick = viewModel::delete)
     LaunchedEffect(state.deleted) { if (state.deleted) onBack() }
     Scaffold { padding ->
         LazyColumn(
@@ -46,7 +50,7 @@ fun CounterpartyDetailScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                TextButton(onClick = onBack) { Text("Back") }
+                TextButton(onClick = back) { Text("Back") }
                 val counterparty = state.counterparty
                 if (counterparty == null) {
                     Text("Counterparty not found.")
@@ -55,7 +59,7 @@ fun CounterpartyDetailScreen(
                         counterparty = counterparty,
                         state = state,
                         onEdit = { onEdit(counterparty.id) },
-                        onDelete = viewModel::delete,
+                        onDelete = delete,
                     )
                 }
                 state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -71,7 +75,7 @@ fun CounterpartyDetailScreen(
             } else {
                 item { Text("Transactions", style = MaterialTheme.typography.titleMedium) }
                 items(state.transactions, key = { it.id }) { transaction ->
-                    TransactionRow(transaction = transaction, onClick = onTransactionClick)
+                    TransactionRow(transaction = transaction, onClick = transactionClick)
                 }
             }
         }
@@ -85,6 +89,7 @@ private fun CounterpartyHeader(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val edit = rememberDebouncedClick(onClick = onEdit)
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(counterparty.name, style = MaterialTheme.typography.headlineSmall)
         DetailLine("Type", counterpartyTypeLabel(counterparty.type))
@@ -93,7 +98,7 @@ private fun CounterpartyHeader(
         DetailLine("Sync", counterparty.syncStatus.name.lowercase().replace("_", " "))
         SummaryCard(state)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = onEdit, modifier = Modifier.weight(1f)) { Text("Edit") }
+            Button(onClick = edit, modifier = Modifier.weight(1f)) { Text("Edit") }
             OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f)) { Text("Delete") }
         }
     }
