@@ -162,6 +162,74 @@ Invoke-WebRequest http://localhost:8000/health -UseBasicParsing
 Test-NetConnection -ComputerName localhost -Port 5432
 ```
 
+## Debug vs Release Builds
+
+There are two builds of this app and they exist for different reasons. Use the right one for the task.
+
+### Debug build — your everyday loop
+
+This is what you get when you press the green ▶ Run button in Android Studio, or run:
+
+```powershell
+cd android
+./gradlew installDebug
+```
+
+- Fast to compile (~10 seconds incremental).
+- Not minified. Logs are visible in `adb logcat`. Reflection works freely.
+- Signed with the Android Studio debug key, which is fine for personal devices.
+- **This is the build you use for 95% of development.**
+
+### Release build — what real users would get
+
+This is the minified, Play-Store-shaped APK. Build with:
+
+```powershell
+cd android
+./gradlew :app:assembleRelease
+```
+
+Install with:
+
+```powershell
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r app\build\outputs\apk\release\app-release.apk
+```
+
+- Slower (~1.5 minutes).
+- Minified by R8: dead code stripped, classes/methods renamed.
+- `BuildConfig.DEBUG`-gated logs are stripped, so `adb logcat` is quieter.
+- Currently signed with the debug key as a convenience — fine for installing on your own device, NOT fine for Play Store submission.
+- Mapping file at `app/build/outputs/mapping/release/mapping.txt` is the only way to decode obfuscated stack traces later. Keep it.
+
+### When to bother with a release build
+
+You do NOT need to rebuild and reinstall the release APK on every change. Use it only when:
+
+- You are about to publish to the Play Store.
+- You added a new library (or upgraded one to a major version) that might use reflection — Moshi, kotlinx.serialization, Hilt, anything new.
+- You changed `proguard-rules.pro` or the R8/minify config.
+- A user reports a crash you cannot reproduce in debug. Release-only crashes are almost always R8 stripping something it shouldn't.
+
+In steady state this is maybe once a month, plus once per release.
+
+### Release-only failure modes to watch for
+
+R8 fails silently in specific ways. If a release smoke test shows any of these, suspect R8 first:
+
+- Dashboard shows zero transactions even though the API returned data → Moshi adapter for a DTO got renamed. Add the DTO class to keep rules.
+- App goes to sign-in on launch even though you were signed in before → Supabase session decode failed because a `@Serializable` class lost its `$serializer`. Add a `-keep @kotlinx.serialization.Serializable class * { *; }` rule if missing.
+- Random `ClassNotFoundException` on startup → a Hilt-generated or reflection-loaded class got stripped. Stack trace will name it; add a keep rule.
+
+Always smoke-test a release build by going through: sign in → see dashboard data → open a transaction → create a transaction → sign out → sign back in → data still there.
+
+### Before Play Store submission
+
+Before the first real release:
+
+- Replace the debug signing config with a real release keystore loaded from `local.properties` (so credentials aren't committed).
+- Confirm `isDebuggable = false` on the release build type (it already is).
+- Upload the `mapping.txt` for that build to Play Console so future crash reports come back de-obfuscated.
+
 ## App Startup UX
 
 Avoid remote-first startup when building offline-first apps.

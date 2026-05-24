@@ -84,13 +84,15 @@ class DashboardViewModel @Inject constructor(
 
     fun signOut() {
         viewModelScope.launch {
-            // Wipe all cached user data BEFORE killing the Supabase session so
-            // the next user (even if they sign in immediately) doesn't see any
-            // of the previous user's profile/businesses/selected-business.
-            transactionRepository.clearLocal()
-            counterpartyRepository.clearLocal()
-            businessRepository.clearAllLocal()
-            profileRepository.clearLocal()
+            // Intentionally do NOT wipe local caches here. Two reasons:
+            //   1. Sign-out + sign-back-in by the SAME user is the common case;
+            //      wiping forces a full re-fetch and (worse) permanently
+            //      destroys proof files we have no way to re-download.
+            //   2. Sign-in by a DIFFERENT user on this device is handled by
+            //      StartupViewModel's user-mismatch detector, which wipes
+            //      everything (including cascading proof cleanup) at that
+            //      point — which is the only point where it's actually unsafe
+            //      to keep the previous user's data around.
             authRepository.signOut()
             _state.update { it.copy(signedOut = true) }
         }

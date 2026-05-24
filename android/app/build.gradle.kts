@@ -49,15 +49,25 @@ android {
         )
     }
 
+    signingConfigs {
+        // TODO(release): replace with a real keystore loaded from local.properties
+        // before publishing to the Play Store. Signing release with the debug
+        // key here is purely so the minified APK can be installed for smoke
+        // testing without a separate apksigner step.
+        getByName("debug") {
+            // Default debug config already points at ~/.android/debug.keystore.
+        }
+    }
+
     buildTypes {
         release {
-            // Minify is intentionally off for now; flipping it on requires a
-            // round of proguard rule discovery (Hilt/Room/Moshi/Supabase).
-            // Tracked separately in the Phase 6.5 audit.
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             // Explicit so release builds can never be attached to a debugger
             // even if some future tweak forgets to inherit defaults.
             isDebuggable = false
+            // Debug-signed for now — see TODO above.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {
@@ -126,6 +136,10 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.moshi)
     implementation(libs.moshi.kotlin)
+    // Generates compile-time adapters for every @JsonClass(generateAdapter=true)
+    // DTO. Without this, Moshi falls back to reflection, which R8 minification
+    // silently breaks by renaming the very fields the reflection looks up.
+    ksp(libs.moshi.kotlin.codegen)
 
     implementation(libs.androidx.security.crypto)
 
