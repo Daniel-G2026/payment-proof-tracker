@@ -6,6 +6,14 @@ sealed class Route(val path: String) {
     data object CreateBusiness : Route("create_business")
     data object BusinessSelect : Route("business_select")
     data object Dashboard : Route("dashboard")
+    data object CounterpartyList : Route("counterparties")
+    data object AddCounterparty : Route("counterparties/add")
+    data object EditCounterparty : Route("counterparties/{counterpartyId}/edit") {
+        fun path(counterpartyId: String): String = "counterparties/$counterpartyId/edit"
+    }
+    data object CounterpartyDetail : Route("counterparties/{counterpartyId}") {
+        fun path(counterpartyId: String): String = "counterparties/$counterpartyId"
+    }
     data object TransactionList : Route("transactions")
     data object AddTransaction : Route("transactions/add/{direction}") {
         fun path(direction: String): String = "transactions/add/$direction"

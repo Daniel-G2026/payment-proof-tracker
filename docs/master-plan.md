@@ -1856,9 +1856,18 @@ Build the simplest useful product before OCR.
 
 # Phase 4: Counterparties
 
+Status: implemented.
+
 ## Goal
 
 Add customers/suppliers/subcontractors so the app becomes useful for relationship-based tracking.
+
+## Phase 4 Decisions
+
+* Keep `counterparty_name` alongside nullable `counterparty_id` so existing rows remain safe and transactions keep a display snapshot.
+* Counterparty selection stays optional in v1. Users can add one inline from the transaction form, but free-text entry still works.
+* Counterparty types are: customer, supplier, subcontractor, employee, driver, landlord, agent, other, unknown.
+* Counterparty merge, search escaping, audit logs, dependency-ordered sync, and currency picking remain deferred to later phases.
 
 ## Android Tasks
 

@@ -18,6 +18,9 @@ class Transaction(Base):
     currency: Mapped[str] = mapped_column(String, nullable=False, default="NGN")
     direction: Mapped[str] = mapped_column(String, nullable=False, index=True)
     transaction_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    counterparty_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("counterparties.id"), nullable=True, index=True
+    )
     counterparty_name: Mapped[str | None] = mapped_column(String, nullable=True)
     category: Mapped[str | None] = mapped_column(String, nullable=True)
     note: Mapped[str | None] = mapped_column(String, nullable=True)

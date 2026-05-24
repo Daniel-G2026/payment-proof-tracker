@@ -11,6 +11,7 @@ import com.danielanazodo.proofledger.data.local.SyncStatus
         Index("businessId"),
         Index("direction"),
         Index("transactionDate"),
+        Index("counterpartyId"),
     ],
 )
 data class LocalTransactionEntity(
@@ -20,6 +21,7 @@ data class LocalTransactionEntity(
     val currency: String,
     val direction: String,
     val transactionDate: String,
+    val counterpartyId: String?,
     val counterpartyName: String?,
     val category: String?,
     val note: String?,

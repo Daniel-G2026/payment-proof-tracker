@@ -12,6 +12,7 @@ class TransactionCreate(BaseModel):
     currency: str = "NGN"
     direction: str = Field(pattern="^(money_in|money_out)$")
     transaction_date: date
+    counterparty_id: uuid.UUID | None = None
     counterparty_name: str | None = None
     category: str | None = None
     note: str | None = None
@@ -32,6 +33,7 @@ class TransactionUpdate(BaseModel):
     currency: str | None = None
     direction: str | None = Field(default=None, pattern="^(money_in|money_out)$")
     transaction_date: date | None = None
+    counterparty_id: uuid.UUID | None = None
     counterparty_name: str | None = None
     category: str | None = None
     note: str | None = None
@@ -55,6 +57,7 @@ class TransactionOut(BaseModel):
     currency: str
     direction: str
     transaction_date: date
+    counterparty_id: uuid.UUID | None
     counterparty_name: str | None
     category: str | None
     note: str | None

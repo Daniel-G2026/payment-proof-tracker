@@ -8,7 +8,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_db
-from app.db.models import Business, BusinessMember, Transaction
+from app.db.models import Business, BusinessMember, Counterparty, Transaction
 from app.schemas.transaction import TransactionCreate, TransactionOut, TransactionUpdate
 
 router = APIRouter(
@@ -45,6 +45,25 @@ def _get_transaction(db: Session, business_id: uuid.UUID, transaction_id: uuid.U
     return transaction
 
 
+def _validate_counterparty_id(
+    db: Session,
+    business_id: uuid.UUID,
+    counterparty_id: uuid.UUID | None,
+) -> None:
+    if counterparty_id is None:
+        return
+    counterparty = db.get(Counterparty, counterparty_id)
+    if (
+        counterparty is None
+        or counterparty.business_id != business_id
+        or counterparty.deleted_at is not None
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Counterparty is not valid for this business.",
+        )
+
+
 @router.post("", response_model=TransactionOut, status_code=status.HTTP_200_OK)
 def create_transaction(
     business_id: uuid.UUID,
@@ -63,6 +82,8 @@ def create_transaction(
             )
         return TransactionOut.model_validate(existing)
 
+    _validate_counterparty_id(db, business_id, payload.counterparty_id)
+
     transaction = Transaction(
         id=payload.id,
         business_id=business_id,
@@ -70,6 +91,7 @@ def create_transaction(
         currency=payload.currency,
         direction=payload.direction,
         transaction_date=payload.transaction_date,
+        counterparty_id=payload.counterparty_id,
         counterparty_name=payload.counterparty_name,
         category=payload.category,
         note=payload.note,
@@ -142,7 +164,10 @@ def update_transaction(
 ) -> TransactionOut:
     _require_member(db, current_user.id, business_id)
     transaction = _get_transaction(db, business_id, transaction_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    if "counterparty_id" in data:
+        _validate_counterparty_id(db, business_id, data["counterparty_id"])
+    for field, value in data.items():
         setattr(transaction, field, value)
     db.commit()
     db.refresh(transaction)

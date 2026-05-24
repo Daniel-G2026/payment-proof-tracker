@@ -53,6 +53,20 @@ interface LocalTransactionDao {
         search: String?,
     ): Flow<List<LocalTransactionEntity>>
 
+    @Query(
+        """
+        SELECT * FROM local_transaction
+        WHERE businessId = :businessId
+          AND counterpartyId = :counterpartyId
+          AND deletedAt IS NULL
+        ORDER BY transactionDate DESC, createdAt DESC, id DESC
+        """
+    )
+    fun observeByCounterparty(
+        businessId: String,
+        counterpartyId: String,
+    ): Flow<List<LocalTransactionEntity>>
+
     @Query("SELECT * FROM local_transaction WHERE id = :id AND deletedAt IS NULL LIMIT 1")
     fun observeById(id: String): Flow<LocalTransactionEntity?>
 

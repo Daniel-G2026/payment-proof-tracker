@@ -17,6 +17,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.danielanazodo.proofledger.ui.screens.BusinessSelectScreen
 import com.danielanazodo.proofledger.ui.screens.CreateBusinessScreen
+import com.danielanazodo.proofledger.ui.screens.CounterpartyDetailScreen
+import com.danielanazodo.proofledger.ui.screens.CounterpartyFormScreen
+import com.danielanazodo.proofledger.ui.screens.CounterpartyListScreen
 import com.danielanazodo.proofledger.ui.screens.EmptyDashboardScreen
 import com.danielanazodo.proofledger.ui.screens.ProfileSetupScreen
 import com.danielanazodo.proofledger.ui.screens.SignInScreen
@@ -73,6 +76,39 @@ private fun ResolvedGraph(
                 onAddMoneyIn = { navController.navigate(Route.AddTransaction.path("money_in")) },
                 onAddMoneyOut = { navController.navigate(Route.AddTransaction.path("money_out")) },
                 onViewTransactions = { navController.navigate(Route.TransactionList.path) },
+                onViewCounterparties = { navController.navigate(Route.CounterpartyList.path) },
+                onTransactionClick = { id -> navController.navigate(Route.TransactionDetail.path(id)) },
+            )
+        }
+        composable(Route.CounterpartyList.path) {
+            CounterpartyListScreen(
+                onBack = { navController.popBackStack() },
+                onAdd = { navController.navigate(Route.AddCounterparty.path) },
+                onCounterpartyClick = { id -> navController.navigate(Route.CounterpartyDetail.path(id)) },
+            )
+        }
+        composable(Route.AddCounterparty.path) {
+            CounterpartyFormScreen(
+                onSaved = { navController.popBackStack() },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = Route.EditCounterparty.path,
+            arguments = listOf(navArgument("counterpartyId") { type = NavType.StringType }),
+        ) {
+            CounterpartyFormScreen(
+                onSaved = { navController.popBackStack() },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = Route.CounterpartyDetail.path,
+            arguments = listOf(navArgument("counterpartyId") { type = NavType.StringType }),
+        ) {
+            CounterpartyDetailScreen(
+                onBack = { navController.popBackStack() },
+                onEdit = { id -> navController.navigate(Route.EditCounterparty.path(id)) },
                 onTransactionClick = { id -> navController.navigate(Route.TransactionDetail.path(id)) },
             )
         }

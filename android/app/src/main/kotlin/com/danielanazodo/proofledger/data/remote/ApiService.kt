@@ -2,6 +2,10 @@ package com.danielanazodo.proofledger.data.remote
 
 import com.danielanazodo.proofledger.data.remote.dto.BusinessCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.BusinessDto
+import com.danielanazodo.proofledger.data.remote.dto.CounterpartyCreateDto
+import com.danielanazodo.proofledger.data.remote.dto.CounterpartyDto
+import com.danielanazodo.proofledger.data.remote.dto.CounterpartySummaryDto
+import com.danielanazodo.proofledger.data.remote.dto.CounterpartyUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.ProfileDto
 import com.danielanazodo.proofledger.data.remote.dto.ProfileUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionCreateDto
@@ -35,6 +39,44 @@ interface ApiService {
 
     @GET("businesses/{id}")
     suspend fun getBusiness(@Path("id") id: String): BusinessDto
+
+    @GET("businesses/{businessId}/counterparties")
+    suspend fun listCounterparties(
+        @Path("businessId") businessId: String,
+        @Query("search") search: String? = null,
+        @Query("type") type: String? = null,
+    ): List<CounterpartyDto>
+
+    @POST("businesses/{businessId}/counterparties")
+    suspend fun createCounterparty(
+        @Path("businessId") businessId: String,
+        @Body body: CounterpartyCreateDto,
+    ): CounterpartyDto
+
+    @GET("businesses/{businessId}/counterparties/{counterpartyId}")
+    suspend fun getCounterparty(
+        @Path("businessId") businessId: String,
+        @Path("counterpartyId") counterpartyId: String,
+    ): CounterpartyDto
+
+    @PATCH("businesses/{businessId}/counterparties/{counterpartyId}")
+    suspend fun updateCounterparty(
+        @Path("businessId") businessId: String,
+        @Path("counterpartyId") counterpartyId: String,
+        @Body body: CounterpartyUpdateDto,
+    ): CounterpartyDto
+
+    @DELETE("businesses/{businessId}/counterparties/{counterpartyId}")
+    suspend fun deleteCounterparty(
+        @Path("businessId") businessId: String,
+        @Path("counterpartyId") counterpartyId: String,
+    )
+
+    @GET("businesses/{businessId}/counterparties/{counterpartyId}/summary")
+    suspend fun getCounterpartySummary(
+        @Path("businessId") businessId: String,
+        @Path("counterpartyId") counterpartyId: String,
+    ): CounterpartySummaryDto
 
     @GET("businesses/{businessId}/transactions")
     suspend fun listTransactions(

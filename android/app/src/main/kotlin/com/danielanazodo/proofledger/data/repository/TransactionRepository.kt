@@ -34,6 +34,12 @@ class TransactionRepository @Inject constructor(
     fun observeTransaction(transactionId: String): Flow<LocalTransactionEntity?> =
         localDao.observeById(transactionId)
 
+    fun observeByCounterparty(
+        businessId: String,
+        counterpartyId: String,
+    ): Flow<List<LocalTransactionEntity>> =
+        localDao.observeByCounterparty(businessId, counterpartyId)
+
     suspend fun refreshFromRemote(businessId: String) {
         val remote = runCatching { api.listTransactions(businessId) }.getOrNull() ?: return
         localDao.upsertAll(remote.map { it.toEntity(SyncStatus.SYNCED) })
@@ -44,6 +50,7 @@ class TransactionRepository @Inject constructor(
         amountMinor: Long,
         direction: String,
         transactionDate: String,
+        counterpartyId: String?,
         counterpartyName: String?,
         category: String?,
         note: String?,
@@ -58,6 +65,7 @@ class TransactionRepository @Inject constructor(
             currency = "NGN",
             direction = direction,
             transactionDate = transactionDate,
+            counterpartyId = counterpartyId,
             counterpartyName = counterpartyName,
             category = category,
             note = note,
@@ -89,6 +97,7 @@ class TransactionRepository @Inject constructor(
         amountMinor: Long,
         direction: String,
         transactionDate: String,
+        counterpartyId: String?,
         counterpartyName: String?,
         category: String?,
         note: String?,
@@ -102,6 +111,7 @@ class TransactionRepository @Inject constructor(
             amountMinor = amountMinor,
             direction = direction,
             transactionDate = transactionDate,
+            counterpartyId = counterpartyId,
             counterpartyName = counterpartyName,
             category = category,
             note = note,
@@ -163,6 +173,7 @@ class TransactionRepository @Inject constructor(
             currency = currency,
             direction = direction,
             transactionDate = transactionDate,
+            counterpartyId = counterpartyId,
             counterpartyName = counterpartyName,
             category = category,
             note = note,
@@ -192,6 +203,7 @@ class TransactionRepository @Inject constructor(
             currency = currency,
             direction = direction,
             transactionDate = transactionDate,
+            counterpartyId = counterpartyId,
             counterpartyName = counterpartyName,
             category = category,
             note = note,
@@ -205,6 +217,7 @@ class TransactionRepository @Inject constructor(
             currency = currency,
             direction = direction,
             transactionDate = transactionDate,
+            counterpartyId = counterpartyId,
             counterpartyName = counterpartyName,
             category = category,
             note = note,

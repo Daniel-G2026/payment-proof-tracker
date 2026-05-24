@@ -6,6 +6,7 @@ import com.danielanazodo.proofledger.data.local.entity.LocalBusinessEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
 import com.danielanazodo.proofledger.data.repository.AuthRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
+import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.ProfileRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import com.danielanazodo.proofledger.ui.format.monthPrefix
@@ -36,6 +37,7 @@ data class DashboardUiState(
 class DashboardViewModel @Inject constructor(
     private val businessRepository: BusinessRepository,
     private val transactionRepository: TransactionRepository,
+    private val counterpartyRepository: CounterpartyRepository,
     private val profileRepository: ProfileRepository,
     private val authRepository: AuthRepository,
 ) : ViewModel() {
@@ -79,6 +81,7 @@ class DashboardViewModel @Inject constructor(
             // the next user (even if they sign in immediately) doesn't see any
             // of the previous user's profile/businesses/selected-business.
             transactionRepository.clearLocal()
+            counterpartyRepository.clearLocal()
             businessRepository.clearAllLocal()
             profileRepository.clearLocal()
             authRepository.signOut()

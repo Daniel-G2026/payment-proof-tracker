@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -87,12 +88,38 @@ fun TransactionFormScreen(
                 Text("Date: ${displayDate(state.transactionDate)}")
             }
             OutlinedTextField(
-                value = state.counterpartyName,
-                onValueChange = viewModel::onCounterpartyNameChange,
+                value = state.counterpartyQuery,
+                onValueChange = viewModel::onCounterpartyQueryChange,
                 label = { Text(if (state.direction == "money_in") "Who paid?" else "Who you paid?") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (state.suggestions.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    state.suggestions.forEach { counterparty ->
+                        TextButton(
+                            onClick = { viewModel.onCounterpartySelect(counterparty) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("${counterparty.name} - ${counterpartyTypeLabel(counterparty.type)}")
+                        }
+                    }
+                }
+            }
+            if (state.counterpartyQuery.isNotBlank() && state.counterpartyId == null) {
+                AssistChip(
+                    onClick = viewModel::onAddNewCounterparty,
+                    label = { Text("Add new counterparty") },
+                )
+            }
+            if (state.addingNewCounterparty) {
+                Text("Counterparty type", style = MaterialTheme.typography.labelMedium)
+                CounterpartyTypeChips(
+                    selectedType = state.newCounterpartyType,
+                    onTypeChange = { type -> type?.let(viewModel::onNewCounterpartyTypeChange) },
+                    includeAll = false,
+                )
+            }
             OutlinedTextField(
                 value = state.category,
                 onValueChange = viewModel::onCategoryChange,

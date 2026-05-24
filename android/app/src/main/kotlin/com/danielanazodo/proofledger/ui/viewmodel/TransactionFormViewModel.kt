@@ -3,12 +3,16 @@ package com.danielanazodo.proofledger.ui.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
+import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import com.danielanazodo.proofledger.ui.format.parseNairaToMinor
 import com.danielanazodo.proofledger.ui.format.todayIsoDate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +26,11 @@ data class TransactionFormUiState(
     val direction: String = "money_in",
     val amount: String = "",
     val transactionDate: String = todayIsoDate(),
+    val counterpartyId: String? = null,
+    val counterpartyQuery: String = "",
+    val suggestions: List<LocalCounterpartyEntity> = emptyList(),
+    val addingNewCounterparty: Boolean = false,
+    val newCounterpartyType: String = defaultCounterpartyType(direction),
     val counterpartyName: String = "",
     val category: String = "",
     val note: String = "",
@@ -36,6 +45,7 @@ data class TransactionFormUiState(
 class TransactionFormViewModel @Inject constructor(
     private val businessRepository: BusinessRepository,
     private val transactionRepository: TransactionRepository,
+    private val counterpartyRepository: CounterpartyRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val transactionId: String? = savedStateHandle["transactionId"]
@@ -45,8 +55,13 @@ class TransactionFormViewModel @Inject constructor(
         TransactionFormUiState(transactionId = transactionId, direction = initialDirection)
     )
     val state: StateFlow<TransactionFormUiState> = _state.asStateFlow()
+    private var businessId: String? = null
+    private var suggestionsJob: Job? = null
 
     init {
+        viewModelScope.launch {
+            businessId = businessRepository.getSelectedBusinessId()
+        }
         if (transactionId != null) {
             // Seed the form once from the local row, then stop collecting.
             // Continuing to collect would let a background dashboard refresh
@@ -62,6 +77,8 @@ class TransactionFormViewModel @Inject constructor(
                             direction = transaction.direction,
                             amount = formatAmountForInput(transaction.amountMinor),
                             transactionDate = transaction.transactionDate,
+                            counterpartyId = transaction.counterpartyId,
+                            counterpartyQuery = transaction.counterpartyName.orEmpty(),
                             counterpartyName = transaction.counterpartyName.orEmpty(),
                             category = transaction.category.orEmpty(),
                             note = transaction.note.orEmpty(),
@@ -74,11 +91,63 @@ class TransactionFormViewModel @Inject constructor(
         }
     }
 
-    fun onDirectionChange(value: String) = _state.update { it.copy(direction = value, saved = false) }
+    fun onDirectionChange(value: String) = _state.update {
+        val previousDefault = defaultCounterpartyType(it.direction)
+        it.copy(
+            direction = value,
+            newCounterpartyType = if (it.newCounterpartyType == previousDefault) {
+                defaultCounterpartyType(value)
+            } else {
+                it.newCounterpartyType
+            },
+            saved = false,
+        )
+    }
     fun onAmountChange(value: String) = _state.update { it.copy(amount = value, error = null, saved = false) }
     fun onDateChange(value: String) = _state.update { it.copy(transactionDate = value, saved = false) }
-    fun onCounterpartyNameChange(value: String) = _state.update {
-        it.copy(counterpartyName = value, saved = false)
+    fun onCounterpartyQueryChange(value: String) {
+        _state.update {
+            it.copy(
+                counterpartyId = null,
+                counterpartyQuery = value,
+                counterpartyName = value,
+                suggestions = emptyList(),
+                addingNewCounterparty = false,
+                saved = false,
+            )
+        }
+        observeSuggestions(value)
+    }
+
+    fun onCounterpartySelect(counterparty: LocalCounterpartyEntity) {
+        suggestionsJob?.cancel()
+        _state.update {
+            it.copy(
+                counterpartyId = counterparty.id,
+                counterpartyQuery = counterparty.name,
+                counterpartyName = counterparty.name,
+                suggestions = emptyList(),
+                addingNewCounterparty = false,
+                newCounterpartyType = counterparty.type,
+                saved = false,
+            )
+        }
+    }
+
+    fun onAddNewCounterparty() {
+        suggestionsJob?.cancel()
+        _state.update {
+            it.copy(
+                addingNewCounterparty = true,
+                suggestions = emptyList(),
+                newCounterpartyType = defaultCounterpartyType(it.direction),
+                saved = false,
+            )
+        }
+    }
+
+    fun onNewCounterpartyTypeChange(value: String) = _state.update {
+        it.copy(newCounterpartyType = value, saved = false)
     }
     fun onCategoryChange(value: String) = _state.update { it.copy(category = value, saved = false) }
     fun onNoteChange(value: String) = _state.update { it.copy(note = value, saved = false) }
@@ -98,15 +167,23 @@ class TransactionFormViewModel @Inject constructor(
             _state.update { it.copy(loading = true, error = null, saved = false) }
             runCatching {
                 val transactionId = current.transactionId
+                val selectedBusinessId = businessId ?: businessRepository.getSelectedBusinessId()
+                    ?: throw IllegalStateException("Select a business first.")
+                businessId = selectedBusinessId
+                val linkedCounterparty = createInlineCounterpartyIfNeeded(
+                    current = current,
+                    businessId = selectedBusinessId,
+                )
+                val counterpartyId = linkedCounterparty?.id ?: current.counterpartyId
+                val counterpartyName = linkedCounterparty?.name ?: current.counterpartyName.clean()
                 if (transactionId == null) {
-                    val businessId = businessRepository.getSelectedBusinessId()
-                        ?: throw IllegalStateException("Select a business first.")
                     transactionRepository.createTransaction(
-                        businessId = businessId,
+                        businessId = selectedBusinessId,
                         amountMinor = amountMinor,
                         direction = current.direction,
                         transactionDate = current.transactionDate,
-                        counterpartyName = current.counterpartyName.clean(),
+                        counterpartyId = counterpartyId,
+                        counterpartyName = counterpartyName,
                         category = current.category.clean(),
                         note = current.note.clean(),
                         bankName = current.bankName.clean(),
@@ -118,7 +195,8 @@ class TransactionFormViewModel @Inject constructor(
                         amountMinor = amountMinor,
                         direction = current.direction,
                         transactionDate = current.transactionDate,
-                        counterpartyName = current.counterpartyName.clean(),
+                        counterpartyId = counterpartyId,
+                        counterpartyName = counterpartyName,
                         category = current.category.clean(),
                         note = current.note.clean(),
                         bankName = current.bankName.clean(),
@@ -135,6 +213,42 @@ class TransactionFormViewModel @Inject constructor(
         }
     }
 
+    private fun observeSuggestions(query: String) {
+        suggestionsJob?.cancel()
+        if (query.trim().isBlank()) {
+            _state.update { it.copy(suggestions = emptyList()) }
+            return
+        }
+        suggestionsJob = viewModelScope.launch {
+            delay(250)
+            val id = businessId ?: businessRepository.getSelectedBusinessId() ?: return@launch
+            businessId = id
+            counterpartyRepository.observeFiltered(
+                businessId = id,
+                search = query,
+                type = null,
+            ).collect { rows ->
+                _state.update { it.copy(suggestions = rows.take(5)) }
+            }
+        }
+    }
+
+    private suspend fun createInlineCounterpartyIfNeeded(
+        current: TransactionFormUiState,
+        businessId: String,
+    ): LocalCounterpartyEntity? {
+        if (!current.addingNewCounterparty) return null
+        val name = current.counterpartyQuery.clean()
+            ?: throw IllegalStateException("Enter who paid or who you paid.")
+        return counterpartyRepository.createCounterparty(
+            businessId = businessId,
+            name = name,
+            type = current.newCounterpartyType,
+            phone = null,
+            notes = null,
+        )
+    }
+
     private fun String.clean(): String? = trim().ifBlank { null }
 
     private fun formatAmountForInput(amountMinor: Long): String {
@@ -143,3 +257,6 @@ class TransactionFormViewModel @Inject constructor(
         return if (fraction == 0L) whole.toString() else "$whole.${fraction.toString().padStart(2, '0')}"
     }
 }
+
+private fun defaultCounterpartyType(direction: String): String =
+    if (direction == "money_out") "supplier" else "customer"

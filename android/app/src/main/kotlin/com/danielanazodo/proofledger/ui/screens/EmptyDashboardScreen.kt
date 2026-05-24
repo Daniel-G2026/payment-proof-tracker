@@ -40,6 +40,7 @@ fun EmptyDashboardScreen(
     onAddMoneyIn: () -> Unit,
     onAddMoneyOut: () -> Unit,
     onViewTransactions: () -> Unit,
+    onViewCounterparties: () -> Unit,
     onTransactionClick: (String) -> Unit,
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
@@ -89,6 +90,14 @@ fun EmptyDashboardScreen(
                         OutlinedButton(onClick = onAddMoneyOut, modifier = Modifier.weight(1f)) {
                             Text("Add money out")
                         }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = onViewCounterparties,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Counterparties")
                     }
 
                     Spacer(Modifier.height(24.dp))
