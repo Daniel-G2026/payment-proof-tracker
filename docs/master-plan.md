@@ -1837,7 +1837,13 @@ Build the simplest useful product before OCR.
 * Implement transaction CRUD.
 * Implement transaction list filters.
 * Implement summary endpoint.
-* Implement audit log for transaction create/edit/delete.
+
+> Note: audit logging for transaction create/edit/delete is intentionally
+> deferred to Phase 10. Logging events before the workflow shape settles
+> would lock us into an event schema we may have to migrate later. Once
+> manual ledger + counterparties stabilize and sync-conflict semantics are
+> being designed in Phase 10, audit records can be added against the real
+> finished workflows.
 
 ## Deliverables
 
@@ -2041,12 +2047,16 @@ Make offline-first behavior reliable.
 * Support client-generated IDs if helpful.
 * Add sync event logs.
 * Add conflict handling basics.
+* Add audit log table + write create/edit/delete events for transactions
+  (and any other entities that exist by this phase). Deferred here from
+  Phase 3 so the event shape matches the stabilized sync-aware workflows.
 
 ## Deliverables
 
 * App remains usable offline.
 * Data syncs reliably later.
 * User never loses local data.
+* Audit log records exist for every financial create/edit/delete.
 
 ---
 
@@ -2094,6 +2104,8 @@ Improve product quality, trust, and validation measurement.
 * Add onboarding tips.
 * Optimize cold start and transaction list performance.
 * Add image compression.
+* Add user-visible edit history UI for transactions, backed by the audit
+  log written in Phase 10.
 
 ## Backend Tasks
 

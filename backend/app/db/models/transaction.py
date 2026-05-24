@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Uuid, func
+from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, String, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -14,7 +14,7 @@ class Transaction(Base):
     business_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("businesses.id"), nullable=False, index=True
     )
-    amount_minor: Mapped[int] = mapped_column(Integer, nullable=False)
+    amount_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
     currency: Mapped[str] = mapped_column(String, nullable=False, default="NGN")
     direction: Mapped[str] = mapped_column(String, nullable=False, index=True)
     transaction_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)

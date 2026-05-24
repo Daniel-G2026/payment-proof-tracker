@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TransactionCreate(BaseModel):
@@ -20,6 +20,14 @@ class TransactionCreate(BaseModel):
 
 
 class TransactionUpdate(BaseModel):
+    """PATCH payload. Omitted fields stay unchanged.
+
+    Required-on-the-row fields (`amount_minor`, `direction`) accept omission
+    but reject explicit `null` — sending `{"direction": null}` would otherwise
+    overwrite a NOT NULL column and 500 inside SQLAlchemy. Optional text fields
+    still accept `null` so the user can clear them.
+    """
+
     amount_minor: int | None = Field(default=None, gt=0)
     currency: str | None = None
     direction: str | None = Field(default=None, pattern="^(money_in|money_out)$")
@@ -29,6 +37,13 @@ class TransactionUpdate(BaseModel):
     note: str | None = None
     bank_name: str | None = None
     reference_number: str | None = None
+
+    @field_validator("amount_minor", "direction")
+    @classmethod
+    def _reject_explicit_null(cls, value, info):
+        if value is None:
+            raise ValueError(f"{info.field_name} cannot be null")
+        return value
 
 
 class TransactionOut(BaseModel):

@@ -12,6 +12,8 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -46,21 +48,26 @@ class TransactionFormViewModel @Inject constructor(
 
     init {
         if (transactionId != null) {
+            // Seed the form once from the local row, then stop collecting.
+            // Continuing to collect would let a background dashboard refresh
+            // (or any other write to this row) overwrite the user's in-progress
+            // edits while they're typing.
             viewModelScope.launch {
-                transactionRepository.observeTransaction(transactionId).collect { transaction ->
-                    if (transaction != null && !_state.value.loading) {
-                        _state.update {
-                            it.copy(
-                                direction = transaction.direction,
-                                amount = formatAmountForInput(transaction.amountMinor),
-                                transactionDate = transaction.transactionDate,
-                                counterpartyName = transaction.counterpartyName.orEmpty(),
-                                category = transaction.category.orEmpty(),
-                                note = transaction.note.orEmpty(),
-                                bankName = transaction.bankName.orEmpty(),
-                                referenceNumber = transaction.referenceNumber.orEmpty(),
-                            )
-                        }
+                val transaction = transactionRepository.observeTransaction(transactionId)
+                    .filterNotNull()
+                    .firstOrNull()
+                if (transaction != null) {
+                    _state.update {
+                        it.copy(
+                            direction = transaction.direction,
+                            amount = formatAmountForInput(transaction.amountMinor),
+                            transactionDate = transaction.transactionDate,
+                            counterpartyName = transaction.counterpartyName.orEmpty(),
+                            category = transaction.category.orEmpty(),
+                            note = transaction.note.orEmpty(),
+                            bankName = transaction.bankName.orEmpty(),
+                            referenceNumber = transaction.referenceNumber.orEmpty(),
+                        )
                     }
                 }
             }
