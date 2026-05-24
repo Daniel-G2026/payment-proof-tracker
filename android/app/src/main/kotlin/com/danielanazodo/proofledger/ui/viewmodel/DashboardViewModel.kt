@@ -26,6 +26,7 @@ data class DashboardUiState(
     val todayMoneyOutMinor: Long = 0,
     val monthMoneyInMinor: Long = 0,
     val monthMoneyOutMinor: Long = 0,
+    val syncing: Boolean = false,
     val signedOut: Boolean = false,
 )
 
@@ -50,7 +51,13 @@ class DashboardViewModel @Inject constructor(
             val business = businessRepository.getSelectedBusiness()
             _state.update { it.copy(business = business) }
             val businessId = business?.id ?: return@launch
-            transactionRepository.refreshFromRemote(businessId)
+            viewModelScope.launch {
+                _state.update { it.copy(syncing = true) }
+                counterpartyRepository.syncPendingUploads(businessId)
+                transactionRepository.syncPendingUploads(businessId)
+                transactionRepository.refreshFromRemote(businessId)
+                _state.update { it.copy(syncing = false) }
+            }
             transactionRepository.observeTransactions(businessId).collect { transactions ->
                 val today = todayIsoDate()
                 val month = monthPrefix(today)

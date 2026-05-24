@@ -45,6 +45,21 @@ class TransactionRepository @Inject constructor(
         localDao.upsertAll(remote.map { it.toEntity(SyncStatus.SYNCED) })
     }
 
+    suspend fun syncPendingUploads(businessId: String) {
+        val pending = localDao.getByBusinessAndSyncStatus(
+            businessId = businessId,
+            syncStatus = SyncStatus.PENDING_UPLOAD.name,
+        )
+        pending.forEach { local ->
+            val remote = runCatching {
+                api.createTransaction(businessId, local.toCreateDto())
+            }.getOrNull()
+            if (remote != null) {
+                localDao.upsert(remote.toEntity(SyncStatus.SYNCED))
+            }
+        }
+    }
+
     suspend fun createTransaction(
         businessId: String,
         amountMinor: Long,

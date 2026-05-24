@@ -19,6 +19,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import retrofit2.HttpException
 
 data class ProofBackupSummary(
     val pendingCount: Int,
@@ -128,7 +129,7 @@ class ProofRepository @Inject constructor(
     }
 
     suspend fun backupNow(proofId: String) {
-        queueProof(proofId, wifiOnly = false)
+        upload(proofId)
     }
 
     suspend fun manualBackupSummary(businessId: String, filter: ManualBackupFilter): ProofBackupSummary {
@@ -159,10 +160,15 @@ class ProofRepository @Inject constructor(
         )
         val result = runCatching {
             val file = File(proof.localUploadPath ?: proof.localOriginalPath)
+            val uploadMimeType = if (proof.localUploadPath != null) {
+                "image/jpeg"
+            } else {
+                proof.mimeType.ifBlank { "image/jpeg" }
+            }
             val part = MultipartBody.Part.createFormData(
                 name = "file",
                 filename = file.name,
-                body = file.asRequestBody((proof.mimeType.ifBlank { "image/jpeg" }).toMediaTypeOrNull()),
+                body = file.asRequestBody(uploadMimeType.toMediaTypeOrNull()),
             )
             api.uploadScreenshot(
                 businessId = proof.businessId,
@@ -182,7 +188,7 @@ class ProofRepository @Inject constructor(
                 latest.copy(
                     backupStatus = ProofBackupStatus.BACKUP_FAILED,
                     lastBackupAttemptAt = System.currentTimeMillis(),
-                    lastBackupError = t.message ?: "Could not back up proof.",
+                    lastBackupError = t.toProofBackupMessage(),
                     updatedAt = System.currentTimeMillis(),
                 )
             )
@@ -235,6 +241,19 @@ class ProofRepository @Inject constructor(
             lastBackupError = null,
             updatedAt = System.currentTimeMillis(),
         )
+
+    private fun Throwable.toProofBackupMessage(): String {
+        val status = (this as? HttpException)?.code()
+        return when (status) {
+            401, 403 -> "Sign in again before backing up proof."
+            404 -> "The transaction is not online yet. Try again after it syncs."
+            413 -> "Proof image is larger than the 5 MB backup limit."
+            415 -> "Proof must be a JPEG, PNG, or WebP image."
+            in 500..599 -> "Server problem while backing up proof. Try again later."
+            null -> message ?: "Could not back up proof."
+            else -> "Could not back up proof. HTTP $status."
+        }
+    }
 
     companion object {
         private const val BACKUP_PREFERENCE_KEY = "proof_backup_preference"

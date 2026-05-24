@@ -21,6 +21,18 @@ interface LocalCounterpartyDao {
     @Query(
         """
         SELECT * FROM local_counterparty
+        WHERE businessId = :businessId AND syncStatus = :syncStatus AND deletedAt IS NULL
+        ORDER BY createdAt ASC
+        """
+    )
+    suspend fun getByBusinessAndSyncStatus(
+        businessId: String,
+        syncStatus: String,
+    ): List<LocalCounterpartyEntity>
+
+    @Query(
+        """
+        SELECT * FROM local_counterparty
         WHERE businessId = :businessId AND deletedAt IS NULL
         ORDER BY normalizedName ASC, createdAt ASC, id ASC
         """

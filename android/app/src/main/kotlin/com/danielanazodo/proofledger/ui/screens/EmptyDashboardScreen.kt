@@ -69,6 +69,13 @@ fun EmptyDashboardScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    if (state.syncing) {
+                        Text(
+                            "Syncing...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
 
                     Spacer(Modifier.height(24.dp))
                     TotalsCard(

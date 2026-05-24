@@ -64,7 +64,12 @@ class TransactionDetailViewModel @Inject constructor(
     fun backUpProofNow() {
         val proofId = _state.value.proof?.id ?: return
         viewModelScope.launch {
-            proofRepository.backupNow(proofId)
+            runCatching { proofRepository.backupNow(proofId) }
+                .onFailure { t ->
+                    _state.update {
+                        it.copy(error = t.message ?: "Could not back up proof")
+                    }
+                }
         }
     }
 }

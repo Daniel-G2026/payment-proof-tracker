@@ -34,9 +34,27 @@ class CounterpartyRepository @Inject constructor(
     fun observeById(counterpartyId: String): Flow<LocalCounterpartyEntity?> =
         localDao.observeById(counterpartyId)
 
+    suspend fun getById(counterpartyId: String): LocalCounterpartyEntity? =
+        localDao.getById(counterpartyId)
+
     suspend fun refreshFromRemote(businessId: String) {
         val remote = runCatching { api.listCounterparties(businessId) }.getOrNull() ?: return
         localDao.upsertAll(remote.map { it.toEntity(SyncStatus.SYNCED) })
+    }
+
+    suspend fun syncPendingUploads(businessId: String) {
+        val pending = localDao.getByBusinessAndSyncStatus(
+            businessId = businessId,
+            syncStatus = SyncStatus.PENDING_UPLOAD.name,
+        )
+        pending.forEach { local ->
+            val remote = runCatching {
+                api.createCounterparty(businessId, local.toCreateDto())
+            }.getOrNull()
+            if (remote != null) {
+                localDao.upsert(remote.toEntity(SyncStatus.SYNCED))
+            }
+        }
     }
 
     suspend fun createCounterparty(

@@ -26,7 +26,7 @@ sealed interface StartupState {
  *
  *   1. No Supabase session         -> SignIn
  *   2. Session but no LocalProfile -> ProfileSetup
- *   3. Profile but 0 businesses    -> refresh remote -> CreateBusiness or fall through
+ *   3. Profile but 0 cached businesses -> refresh remote -> CreateBusiness or fall through
  *   4. >=1 business, none selected -> auto-select if 1, else BusinessSelect
  *   5. Selected business set       -> Dashboard
  */
@@ -82,8 +82,11 @@ class StartupViewModel @Inject constructor(
             return
         }
 
-        // 3. Businesses.
-        val businesses = businessRepository.refreshFromRemote()
+        // 3. Businesses. Prefer the local cache so startup does not block on
+        // the network every time the app opens. Only hit the backend before
+        // routing if there is no cached business to make a safe decision from.
+        val cachedBusinesses = businessRepository.getLocalBusinesses()
+        val businesses = cachedBusinesses.ifEmpty { businessRepository.refreshFromRemote() }
         Log.d(TAG, "resolve: businesses.size=${businesses.size}")
         if (businesses.isEmpty()) {
             Log.d(TAG, "resolve: -> CreateBusiness")
@@ -98,9 +101,11 @@ class StartupViewModel @Inject constructor(
                 businessRepository.selectBusiness(businesses.first().id)
                 Log.d(TAG, "resolve: auto-selected only business -> Dashboard")
                 _state.value = StartupState.Resolved(Route.Dashboard)
+                refreshBusinessesInBackground()
             } else {
                 Log.d(TAG, "resolve: -> BusinessSelect")
                 _state.value = StartupState.Resolved(Route.BusinessSelect)
+                refreshBusinessesInBackground()
             }
             return
         }
@@ -108,5 +113,12 @@ class StartupViewModel @Inject constructor(
         // 5.
         Log.d(TAG, "resolve: -> Dashboard")
         _state.value = StartupState.Resolved(Route.Dashboard)
+        refreshBusinessesInBackground()
+    }
+
+    private fun refreshBusinessesInBackground() {
+        viewModelScope.launch {
+            runCatching { businessRepository.refreshFromRemote() }
+        }
     }
 }

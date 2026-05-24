@@ -18,6 +18,18 @@ interface LocalTransactionDao {
     @Query("SELECT * FROM local_transaction WHERE id = :id AND deletedAt IS NULL LIMIT 1")
     suspend fun getById(id: String): LocalTransactionEntity?
 
+    @Query(
+        """
+        SELECT * FROM local_transaction
+        WHERE businessId = :businessId AND syncStatus = :syncStatus AND deletedAt IS NULL
+        ORDER BY createdAt ASC
+        """
+    )
+    suspend fun getByBusinessAndSyncStatus(
+        businessId: String,
+        syncStatus: String,
+    ): List<LocalTransactionEntity>
+
     @Query("SELECT * FROM local_transaction WHERE id = :id LIMIT 1")
     suspend fun getByIdIncludingDeleted(id: String): LocalTransactionEntity?
 
