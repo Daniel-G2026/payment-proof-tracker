@@ -20,5 +20,20 @@ This is an Android-native, offline-first payment proof tracker for small busines
 - After coding, run the relevant build/tests.
 - Keep architecture clean and modular.
 
+## Architecture Boundaries
+- UI polish and redesign are expected later, including settings, multiple businesses, tabs, and navigation changes.
+- Keep infrastructure explicitly separate from UI so redesigns do not require storage/network rewrites.
+- Compose screens should not call Room DAOs, Retrofit/API services, WorkManager, file storage, or token storage directly.
+- Screens should read ViewModel state and send simple user events.
+- ViewModels may coordinate screen behavior, validation, and repository calls, but heavy data, sync, backup, auth, and file logic belongs in repositories/services.
+- Infrastructure classes must not depend on Compose or screen layout.
+- If UI state becomes complex, add dedicated UI state/models instead of bending database entities around presentation needs.
+
 ## Current Phase
-Phase 3: Manual Ledger MVP.
+Phase 6: Android Share-Sheet Intake (next).
+
+Completed: Phases 1–5 (foundation, auth + business setup, manual ledger MVP,
+counterparties, screenshot attachment). Phase 5 also got an adversarial
+hardening pass — see "Phase 5 Hardening Notes" in `docs/master-plan.md` for
+the specific defenses already in place so they aren't reimplemented or
+regressed.

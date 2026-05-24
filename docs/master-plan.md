@@ -601,6 +601,22 @@ Android App receives update/polls status
 
 ---
 
+## 5.1 Android Layer Boundaries
+
+Future UI polish and redesign are expected, including settings, multiple businesses, tabs, navigation updates, and refined dashboard/transaction flows. Keep the Android infrastructure explicitly separate from the UI so those changes do not require storage, sync, backup, or network rewrites.
+
+Rules:
+
+* Compose screens own layout, visual state, and user interaction.
+* Compose screens should read ViewModel state and call ViewModel events.
+* Compose screens should not call Room DAOs, Retrofit/API services, WorkManager, file storage, or token storage directly.
+* ViewModels coordinate screen state, validation, and repository actions.
+* Repositories/services own data behavior, sync, proof backup, auth/session behavior, and file operations.
+* Infrastructure classes must not depend on Compose or screen layout.
+* If redesigned screens need different display data, add dedicated UI state/models instead of bending database entities around presentation needs.
+
+---
+
 ## 6. Core Data Flow
 
 ### 6.1 Screenshot Upload Flow
