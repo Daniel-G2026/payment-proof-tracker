@@ -25,7 +25,9 @@ class ProofFileStore @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
     fun prepare(uri: Uri, id: String = UUID.randomUUID().toString()): PreparedProofFile {
-        val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+        val mimeType = context.contentResolver.getType(uri)
+            ?: mimeTypeFromPath(uri.path)
+            ?: "image/jpeg"
         val originalDir = File(context.filesDir, "proofs/originals").apply { mkdirs() }
         val originalFile = File(originalDir, "$id${extensionFor(mimeType)}")
         try {
@@ -129,6 +131,14 @@ class ProofFileStore @Inject constructor(
         "image/webp" -> ".webp"
         else -> ".jpg"
     }
+
+    private fun mimeTypeFromPath(path: String?): String? =
+        when (path?.substringAfterLast('.', missingDelimiterValue = "")?.lowercase()) {
+            "png" -> "image/png"
+            "webp" -> "image/webp"
+            "jpg", "jpeg" -> "image/jpeg"
+            else -> null
+        }
 
     private companion object {
         const val COMPRESS_THRESHOLD_BYTES = 500L * 1024L

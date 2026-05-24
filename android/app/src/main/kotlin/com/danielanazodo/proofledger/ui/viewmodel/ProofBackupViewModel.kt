@@ -95,19 +95,19 @@ class ProofBackupViewModel @Inject constructor(
         viewModelScope.launch {
             val businessId = _state.value.businessId ?: return@launch
             _state.update { it.copy(loading = true, error = null, message = null) }
-            runCatching { proofRepository.queueManualBackup(businessId, filter()) }
-                .onSuccess { count ->
+            runCatching { proofRepository.backUpManualNow(businessId, filter()) }
+                .onSuccess { result ->
                     _state.update {
                         it.copy(
                             loading = false,
-                            message = "$count proof${if (count == 1) "" else "s"} queued for backup.",
+                            message = result.userMessage(),
                         )
                     }
                     refreshSummary()
                 }
                 .onFailure { t ->
                     _state.update {
-                        it.copy(loading = false, error = t.message ?: "Could not queue backup.")
+                        it.copy(loading = false, error = t.message ?: "Could not back up proofs.")
                     }
                 }
         }
@@ -135,4 +135,12 @@ class ProofBackupViewModel @Inject constructor(
             maxAmountMinor = parseNairaToMinor(current.maxAmount),
         )
     }
+
+    private fun com.danielanazodo.proofledger.data.proof.ManualBackupResult.userMessage(): String =
+        when {
+            selectedCount == 0 -> "No proofs need backup."
+            failedCount == 0 -> "Backed up $backedUpCount proof${if (backedUpCount == 1) "" else "s"}."
+            backedUpCount == 0 -> "$failedCount proof${if (failedCount == 1) "" else "s"} could not be backed up."
+            else -> "Backed up $backedUpCount proof${if (backedUpCount == 1) "" else "s"}. $failedCount failed."
+        }
 }

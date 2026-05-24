@@ -26,6 +26,12 @@ data class ProofBackupSummary(
     val estimatedBytes: Long,
 )
 
+data class ManualBackupResult(
+    val selectedCount: Int,
+    val backedUpCount: Int,
+    val failedCount: Int,
+)
+
 data class ManualBackupFilter(
     val importantOnly: Boolean = false,
     val direction: String? = null,
@@ -144,6 +150,22 @@ class ProofRepository @Inject constructor(
         val rows = pendingRows(businessId, filter)
         rows.forEach { queueProof(it.id, wifiOnly = false) }
         return rows.size
+    }
+
+    suspend fun backUpManualNow(businessId: String, filter: ManualBackupFilter): ManualBackupResult {
+        val rows = pendingRows(businessId, filter)
+        var backedUp = 0
+        var failed = 0
+        rows.forEach { proof ->
+            runCatching { upload(proof.id) }
+                .onSuccess { backedUp += 1 }
+                .onFailure { failed += 1 }
+        }
+        return ManualBackupResult(
+            selectedCount = rows.size,
+            backedUpCount = backedUp,
+            failedCount = failed,
+        )
     }
 
     suspend fun upload(proofId: String) {

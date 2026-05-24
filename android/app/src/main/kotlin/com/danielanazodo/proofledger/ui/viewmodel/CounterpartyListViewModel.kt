@@ -33,8 +33,8 @@ class CounterpartyListViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             businessId = businessRepository.getSelectedBusinessId()
-            businessId?.let { counterpartyRepository.refreshFromRemote(it) }
             observe()
+            businessId?.let { counterpartyRepository.refreshFromRemote(it) }
         }
     }
 

@@ -120,7 +120,7 @@ fun ProofBackupScreen(
                 enabled = !state.loading && state.pendingCount > 0,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (state.loading) "Queuing..." else "Back up selected proofs")
+                Text(if (state.loading) "Backing up..." else "Back up selected proofs")
             }
             state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }

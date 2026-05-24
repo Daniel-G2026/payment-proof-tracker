@@ -1,11 +1,16 @@
 package com.danielanazodo.proofledger.ui.navigation
 
+import android.net.Uri
+
 sealed class Route(val path: String) {
     data object SignIn : Route("sign_in")
     data object ProfileSetup : Route("profile_setup")
     data object CreateBusiness : Route("create_business")
     data object BusinessSelect : Route("business_select")
     data object Dashboard : Route("dashboard")
+    data object SharedProofIntake : Route("shared-proof/{intakeToken}") {
+        fun path(intakeToken: String): String = "shared-proof/${Uri.encode(intakeToken)}"
+    }
     data object ProofBackup : Route("proof_backup")
     data object CounterpartyList : Route("counterparties")
     data object AddCounterparty : Route("counterparties/add")
@@ -16,8 +21,13 @@ sealed class Route(val path: String) {
         fun path(counterpartyId: String): String = "counterparties/$counterpartyId"
     }
     data object TransactionList : Route("transactions")
-    data object AddTransaction : Route("transactions/add/{direction}") {
-        fun path(direction: String): String = "transactions/add/$direction"
+    data object AddTransaction : Route("transactions/add/{direction}?intakeToken={intakeToken}") {
+        fun path(direction: String, intakeToken: String? = null): String =
+            if (intakeToken == null) {
+                "transactions/add/$direction"
+            } else {
+                "transactions/add/$direction?intakeToken=${Uri.encode(intakeToken)}"
+            }
     }
     data object EditTransaction : Route("transactions/{transactionId}/edit") {
         fun path(transactionId: String): String = "transactions/$transactionId/edit"

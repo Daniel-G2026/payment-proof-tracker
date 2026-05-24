@@ -3,6 +3,7 @@ package com.danielanazodo.proofledger.ui.screens
 import android.app.DatePickerDialog
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -51,6 +52,11 @@ fun TransactionFormScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val leaveForm = {
+        viewModel.discardIntakeProof()
+        onBack()
+    }
+    BackHandler(onBack = leaveForm)
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             viewModel.onProofSelected(uri.toString(), querySizeBytes(context, uri))
@@ -67,7 +73,7 @@ fun TransactionFormScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            TextButton(onClick = onBack) { Text("Back") }
+            TextButton(onClick = leaveForm) { Text("Back") }
             Text(
                 if (state.transactionId == null) "Add transaction" else "Edit transaction",
                 style = MaterialTheme.typography.headlineSmall,

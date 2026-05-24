@@ -9,6 +9,7 @@ import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import com.danielanazodo.proofledger.data.proof.ProofRepository
+import com.danielanazodo.proofledger.data.proof.SharedProofIntakeRepository
 import com.danielanazodo.proofledger.ui.format.parseNairaToMinor
 import com.danielanazodo.proofledger.ui.format.todayIsoDate
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -51,10 +52,12 @@ class TransactionFormViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val counterpartyRepository: CounterpartyRepository,
     private val proofRepository: ProofRepository,
+    private val sharedProofIntakeRepository: SharedProofIntakeRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val transactionId: String? = savedStateHandle["transactionId"]
     private val initialDirection: String = savedStateHandle["direction"] ?: "money_in"
+    private val initialIntakeToken: String? = savedStateHandle["intakeToken"]
 
     private val _state = MutableStateFlow(
         TransactionFormUiState(transactionId = transactionId, direction = initialDirection)
@@ -62,10 +65,25 @@ class TransactionFormViewModel @Inject constructor(
     val state: StateFlow<TransactionFormUiState> = _state.asStateFlow()
     private var businessId: String? = null
     private var suggestionsJob: Job? = null
+    private var activeIntakeToken: String? = null
 
     init {
         viewModelScope.launch {
             businessId = businessRepository.getSelectedBusinessId()
+        }
+        initialIntakeToken?.let { token ->
+            val item = sharedProofIntakeRepository.get(token)
+            if (item == null) {
+                _state.update { it.copy(error = "Shared proof is no longer available.") }
+            } else {
+                activeIntakeToken = token
+                _state.update {
+                    it.copy(
+                        proofUri = item.localUri,
+                        proofOriginalSizeBytes = item.sizeBytes,
+                    )
+                }
+            }
         }
         if (transactionId != null) {
             // Seed the form once from the local row, then stop collecting.
@@ -160,11 +178,21 @@ class TransactionFormViewModel @Inject constructor(
     fun onReferenceNumberChange(value: String) = _state.update {
         it.copy(referenceNumber = value, saved = false)
     }
-    fun onProofSelected(uri: String, sizeBytes: Long?) = _state.update {
-        it.copy(proofUri = uri, proofOriginalSizeBytes = sizeBytes, error = null, saved = false)
+    fun onProofSelected(uri: String, sizeBytes: Long?) {
+        clearActiveIntake()
+        _state.update {
+            it.copy(proofUri = uri, proofOriginalSizeBytes = sizeBytes, error = null, saved = false)
+        }
     }
-    fun onProofRemoved() = _state.update {
-        it.copy(proofUri = null, proofOriginalSizeBytes = null, saved = false)
+    fun onProofRemoved() {
+        clearActiveIntake()
+        _state.update {
+            it.copy(proofUri = null, proofOriginalSizeBytes = null, saved = false)
+        }
+    }
+
+    fun discardIntakeProof() {
+        clearActiveIntake()
     }
 
     fun save() {
@@ -217,6 +245,10 @@ class TransactionFormViewModel @Inject constructor(
                 current.proofUri?.let { uri ->
                     proofRepository.attachProof(Uri.parse(uri), savedTransaction)
                 }
+                activeIntakeToken?.let { token ->
+                    sharedProofIntakeRepository.complete(token)
+                    activeIntakeToken = null
+                }
             }.onSuccess {
                 _state.update { it.copy(loading = false, saved = true) }
             }.onFailure { t ->
@@ -264,6 +296,13 @@ class TransactionFormViewModel @Inject constructor(
     }
 
     private fun String.clean(): String? = trim().ifBlank { null }
+
+    private fun clearActiveIntake() {
+        activeIntakeToken?.let { token ->
+            sharedProofIntakeRepository.cancel(token)
+            activeIntakeToken = null
+        }
+    }
 
     private fun formatAmountForInput(amountMinor: Long): String {
         val whole = amountMinor / 100
