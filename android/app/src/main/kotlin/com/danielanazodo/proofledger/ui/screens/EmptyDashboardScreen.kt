@@ -1,8 +1,7 @@
 package com.danielanazodo.proofledger.ui.screens
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,27 +10,39 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
-import com.danielanazodo.proofledger.ui.format.displayDate
+import com.danielanazodo.proofledger.ui.components.GroupedPanel
+import com.danielanazodo.proofledger.ui.components.MetricLine
+import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
+import com.danielanazodo.proofledger.ui.components.ProofLedgerMainScaffold
+import com.danielanazodo.proofledger.ui.components.RecordListRow
+import com.danielanazodo.proofledger.ui.components.SectionLabel
+import com.danielanazodo.proofledger.ui.components.StatusDot
+import com.danielanazodo.proofledger.ui.components.SummaryPanel
+import com.danielanazodo.proofledger.ui.components.VerticalSpacer
 import com.danielanazodo.proofledger.ui.format.formatNaira
-import com.danielanazodo.proofledger.ui.format.signedNaira
+import com.danielanazodo.proofledger.ui.navigation.MainTab
+import com.danielanazodo.proofledger.ui.theme.NeutralInk
+import com.danielanazodo.proofledger.ui.theme.NeutralMuted
+import com.danielanazodo.proofledger.ui.theme.ProofGrayDot
+import com.danielanazodo.proofledger.ui.theme.ProofAmber
+import com.danielanazodo.proofledger.ui.theme.ProofLime
+import com.danielanazodo.proofledger.ui.theme.SurfaceCard
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.DashboardViewModel
 
@@ -44,163 +55,131 @@ fun EmptyDashboardScreen(
     onViewCounterparties: () -> Unit,
     onViewProofBackup: () -> Unit,
     onTransactionClick: (String) -> Unit,
+    onTabSelected: (MainTab) -> Unit,
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val addMoneyIn = rememberDebouncedClick(onClick = onAddMoneyIn)
-    val addMoneyOut = rememberDebouncedClick(onClick = onAddMoneyOut)
-    val viewTransactions = rememberDebouncedClick(onClick = onViewTransactions)
-    val viewCounterparties = rememberDebouncedClick(onClick = onViewCounterparties)
-    val viewProofBackup = rememberDebouncedClick(onClick = onViewProofBackup)
+    val viewRecords = rememberDebouncedClick(onClick = onViewTransactions)
     val transactionClick = rememberDebouncedClick(onClick = onTransactionClick)
     val signOut = rememberDebouncedClick(onClick = viewModel::signOut)
+
     LaunchedEffect(state.signedOut) { if (state.signedOut) onSignedOut() }
 
-    Scaffold { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            LazyColumn(
+    ProofLedgerMainScaffold(
+        selectedTab = MainTab.Home,
+        onTabSelected = onTabSelected,
+        topBar = {
+            Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.Top,
+                    .fillMaxWidth()
+                    .background(SurfaceCard)
+                    .padding(horizontal = 24.dp, vertical = 20.dp),
             ) {
-                item {
-                    Spacer(Modifier.height(32.dp))
-                    Text(
-                        text = state.business?.name ?: "ProofLedger",
-                        style = MaterialTheme.typography.headlineMedium,
-                    )
-                    state.business?.businessType?.let {
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    if (state.syncing) {
-                        Text(
-                            "Syncing...",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    Spacer(Modifier.height(24.dp))
-                    TotalsCard(
-                        title = "Today",
-                        moneyIn = state.todayMoneyInMinor,
-                        moneyOut = state.todayMoneyOutMinor,
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    TotalsCard(
-                        title = "This month",
-                        moneyIn = state.monthMoneyInMinor,
-                        moneyOut = state.monthMoneyOutMinor,
-                    )
-
-                    Spacer(Modifier.height(24.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(onClick = addMoneyIn, modifier = Modifier.weight(1f)) {
-                            Text("Add money in")
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                state.business?.name ?: "ProofLedger",
+                                color = NeutralInk,
+                                style = MaterialTheme.typography.headlineSmall,
+                            )
+                            androidx.compose.material3.Icon(
+                                imageVector = Icons.Filled.ChevronRight,
+                                contentDescription = null,
+                                tint = NeutralMuted,
+                            )
                         }
-                        OutlinedButton(onClick = addMoneyOut, modifier = Modifier.weight(1f)) {
-                            Text("Add money out")
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                            StatusDot(color = if (state.syncing) ProofGrayDot else ProofLime)
+                            Text(
+                                if (state.syncing) "Syncing records" else "Saved on this device",
+                                color = NeutralMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
-
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedButton(
-                        onClick = viewCounterparties,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text("Counterparties")
-                    }
-                    OutlinedButton(
-                        onClick = viewProofBackup,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text("Proof backup")
-                    }
-
-                    Spacer(Modifier.height(24.dp))
+                    TextButton(onClick = signOut) { Text("Sign out", color = NeutralMuted) }
+                }
+            }
+        },
+    ) { modifier ->
+        LazyColumn(
+            modifier = modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            item {
+                SummaryPanel {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Recent activity", style = MaterialTheme.typography.titleMedium)
-                        TextButton(onClick = viewTransactions) { Text("View all") }
+                        Text("This month", color = NeutralMuted, style = MaterialTheme.typography.bodySmall)
+                        Text("Monthly", color = NeutralInk, style = MaterialTheme.typography.labelMedium)
+                    }
+                    MetricLine("In", formatNaira(state.monthMoneyInMinor), ProofLime)
+                    MetricLine("Out", formatNaira(state.monthMoneyOutMinor), ProofGrayDot)
+                    MetricLine("Net", formatNaira(state.monthMoneyInMinor - state.monthMoneyOutMinor), ProofGrayDot)
+                    Spacer(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(SurfaceCard.copy(alpha = 0.85f))
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("${state.recordCount} records", color = NeutralInk, style = MaterialTheme.typography.bodySmall)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatusDot(color = ProofLime)
+                            Text("${state.recordsWithProofCount} with proof", color = NeutralInk, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatusDot(color = ProofAmber)
+                            Text("${state.missingProofCount} missing", color = NeutralInk, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
-                if (state.recentTransactions.isEmpty()) {
-                    item {
-                        Text(
-                            "No money in or money out yet.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                } else {
-                    items(state.recentTransactions, key = { it.id }) { transaction ->
-                        TransactionRow(transaction = transaction, onClick = transactionClick)
+            }
+
+            item { SectionLabel("Recent records") }
+            if (state.recentTransactions.isEmpty()) {
+                item {
+                    GroupedPanel {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("No records yet.", color = NeutralInk, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "Add money in or money out, then attach proof when you have it.",
+                                color = NeutralMuted,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
                     }
                 }
-                item { Spacer(Modifier.height(88.dp)) }
+            } else {
+                item {
+                    GroupedPanel {
+                        state.recentTransactions.forEachIndexed { index, transaction ->
+                            RecordListRow(
+                                transaction = transaction,
+                                onClick = transactionClick,
+                                showDivider = index != state.recentTransactions.lastIndex,
+                            )
+                        }
+                    }
+                }
             }
-
-            TextButton(
-                onClick = signOut,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp),
-            ) { Text("Sign out") }
-        }
-    }
-}
-
-@Composable
-private fun TotalsCard(title: String, moneyIn: Long, moneyOut: Long) {
-    val net = moneyIn - moneyOut
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text("Money in: ${formatNaira(moneyIn)}")
-            Text("Money out: ${formatNaira(moneyOut)}")
-            Text("Net: ${formatNaira(net)}", style = MaterialTheme.typography.titleSmall)
-        }
-    }
-}
-
-@Composable
-fun TransactionRow(transaction: LocalTransactionEntity, onClick: (String) -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 8.dp)
-            .clickable { onClick(transaction.id) },
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    transaction.counterpartyName
-                        ?: if (transaction.direction == "money_in") "Money in" else "Money out",
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                Text(
-                    displayDate(transaction.transactionDate),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            item {
+                TextButton(onClick = viewRecords) {
+                    Text("View all records", color = NeutralMuted, fontWeight = FontWeight.Medium)
+                }
+                Spacer(Modifier.height(8.dp))
+                PrimaryActionButton(text = "Add record", onClick = addMoneyIn, icon = Icons.Filled.Add)
             }
-            Text(
-                signedNaira(transaction.amountMinor, transaction.direction),
-                style = MaterialTheme.typography.titleSmall,
-            )
+            item { VerticalSpacer(12) }
         }
     }
 }

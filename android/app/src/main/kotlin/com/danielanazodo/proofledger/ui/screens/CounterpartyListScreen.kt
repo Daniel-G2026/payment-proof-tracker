@@ -1,6 +1,5 @@
 package com.danielanazodo.proofledger.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,23 +10,28 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
+import com.danielanazodo.proofledger.ui.components.GroupedPanel
+import com.danielanazodo.proofledger.ui.components.PageHeader
+import com.danielanazodo.proofledger.ui.components.PersonListRow
+import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
+import com.danielanazodo.proofledger.ui.components.ProofLedgerFilterChip
+import com.danielanazodo.proofledger.ui.components.ProofLedgerMainScaffold
+import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
+import com.danielanazodo.proofledger.ui.components.SectionLabel
+import com.danielanazodo.proofledger.ui.navigation.MainTab
+import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.CounterpartyListViewModel
 
@@ -36,79 +40,59 @@ fun CounterpartyListScreen(
     onBack: () -> Unit,
     onAdd: () -> Unit,
     onCounterpartyClick: (String) -> Unit,
+    onTabSelected: (MainTab) -> Unit,
     viewModel: CounterpartyListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val back = rememberDebouncedClick(onClick = onBack)
     val add = rememberDebouncedClick(onClick = onAdd)
-    val counterpartyClick = rememberDebouncedClick(onClick = onCounterpartyClick)
-    Scaffold { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+    val personClick = rememberDebouncedClick(onClick = onCounterpartyClick)
+
+    ProofLedgerMainScaffold(
+        selectedTab = MainTab.People,
+        onTabSelected = onTabSelected,
+        topBar = { PageHeader(title = "People", subtitle = "Customers, suppliers, and everyone you pay") },
+    ) { modifier ->
+        LazyColumn(
+            modifier = modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            TextButton(onClick = back) { Text("Back") }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text("Counterparties", style = MaterialTheme.typography.headlineSmall)
-                Button(onClick = add) { Text("Add") }
-            }
-            OutlinedTextField(
-                value = state.search,
-                onValueChange = viewModel::onSearchChange,
-                label = { Text("Search") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            CounterpartyTypeChips(
-                selectedType = state.type,
-                onTypeChange = viewModel::onTypeChange,
-                includeAll = true,
-            )
-            if (state.counterparties.isEmpty()) {
-                Spacer(Modifier.height(24.dp))
-                Text(
-                    "No matching counterparties.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            item { PrimaryActionButton(text = "Add person", onClick = add, icon = Icons.Filled.PersonAdd) }
+            item {
+                ProofLedgerTextField(
+                    value = state.search,
+                    onValueChange = viewModel::onSearchChange,
+                    label = "Search people",
+                    leadingIcon = Icons.Filled.Search,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                 )
+            }
+            item {
+                CounterpartyTypeChips(
+                    selectedType = state.type,
+                    onTypeChange = viewModel::onTypeChange,
+                    includeAll = true,
+                )
+            }
+            item { SectionLabel("Saved people") }
+            if (state.counterparties.isEmpty()) {
+                item {
+                    Spacer(Modifier.height(18.dp))
+                    Text("No matching people.", color = NeutralMuted, style = MaterialTheme.typography.bodyMedium)
+                }
             } else {
-                LazyColumn {
-                    items(state.counterparties, key = { it.id }) { counterparty ->
-                        CounterpartyRow(counterparty = counterparty, onClick = counterpartyClick)
+                item {
+                    GroupedPanel {
+                        state.counterparties.forEachIndexed { index, person ->
+                            PersonListRow(
+                                counterparty = person,
+                                onClick = personClick,
+                                showDivider = index != state.counterparties.lastIndex,
+                            )
+                        }
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun CounterpartyRow(counterparty: LocalCounterpartyEntity, onClick: (String) -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 8.dp)
-            .clickable { onClick(counterparty.id) },
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(counterparty.name, style = MaterialTheme.typography.titleSmall)
-                Text(
-                    counterpartyTypeLabel(counterparty.type),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Text(
-                counterparty.syncStatus.name.lowercase().replace("_", " "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
@@ -136,17 +120,17 @@ fun CounterpartyTypeChips(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (includeAll) {
-                FilterChip(
+                ProofLedgerFilterChip(
                     selected = selectedType == null,
                     onClick = { onTypeChange(null) },
-                    label = { Text("All") },
+                    label = "All",
                 )
             }
             types.take(4).forEach { type ->
-                FilterChip(
+                ProofLedgerFilterChip(
                     selected = selectedType == type,
                     onClick = { onTypeChange(type) },
-                    label = { Text(counterpartyTypeLabel(type)) },
+                    label = counterpartyTypeLabel(type),
                 )
             }
         }
@@ -155,10 +139,10 @@ fun CounterpartyTypeChips(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             types.drop(4).forEach { type ->
-                FilterChip(
+                ProofLedgerFilterChip(
                     selected = selectedType == type,
                     onClick = { onTypeChange(type) },
-                    label = { Text(counterpartyTypeLabel(type)) },
+                    label = counterpartyTypeLabel(type),
                 )
             }
         }

@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -21,6 +24,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.danielanazodo.proofledger.data.proof.SharedProofIntakeItem
+import com.danielanazodo.proofledger.ui.components.GroupedPanel
+import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
+import com.danielanazodo.proofledger.ui.components.QuietButton
+import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 
 @Composable
@@ -50,33 +57,40 @@ fun SharedProofIntakeScreen(
                     color = MaterialTheme.colorScheme.error,
                 )
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = cancel, modifier = Modifier.fillMaxWidth()) {
-                    Text("Back")
-                }
+                PrimaryActionButton(text = "Back", onClick = cancel)
             } else {
-                AsyncImage(
-                    model = item.localUri,
-                    contentDescription = "Shared payment proof preview",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(320.dp),
-                )
+                GroupedPanel {
+                    AsyncImage(
+                        model = item.localUri,
+                        contentDescription = "Shared payment proof preview",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(320.dp)
+                            .padding(12.dp),
+                    )
+                }
                 Text(
                     "Choose how to save this proof.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = NeutralMuted,
                 )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Button(onClick = moneyIn, modifier = Modifier.weight(1f)) {
-                        Text("Money in")
-                    }
-                    OutlinedButton(onClick = moneyOut, modifier = Modifier.weight(1f)) {
-                        Text("Money out")
-                    }
+                    PrimaryActionButton(
+                        text = "Money in",
+                        onClick = moneyIn,
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Filled.ArrowDownward,
+                    )
+                    QuietButton(
+                        text = "Money out",
+                        onClick = moneyOut,
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Filled.ArrowUpward,
+                    )
                 }
             }
         }

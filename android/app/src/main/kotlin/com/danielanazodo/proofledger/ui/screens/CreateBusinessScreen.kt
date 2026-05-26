@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -18,6 +16,7 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,6 +27,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
+import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
+import com.danielanazodo.proofledger.ui.components.proofTextFieldColors
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.CreateBusinessViewModel
 
@@ -61,10 +63,10 @@ fun CreateBusinessScreen(
             )
             Spacer(Modifier.height(24.dp))
 
-            OutlinedTextField(
+            ProofLedgerTextField(
                 value = state.name,
                 onValueChange = viewModel::onNameChange,
-                label = { Text("Business name") },
+                label = "Business name",
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -80,6 +82,8 @@ fun CreateBusinessScreen(
                     readOnly = true,
                     label = { Text("Type (optional)") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
+                    shape = RoundedCornerShape(18.dp),
+                    colors = proofTextFieldColors(),
                     modifier = Modifier
                         .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
                         .fillMaxWidth(),
@@ -101,14 +105,12 @@ fun CreateBusinessScreen(
             }
 
             Spacer(Modifier.height(24.dp))
-            Button(
+            PrimaryActionButton(
+                text = if (state.loading) "Creating..." else "Create business",
                 onClick = save,
                 enabled = !state.loading,
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (state.loading) CircularProgressIndicator(strokeWidth = 2.dp)
-                else Text("Create business")
-            }
+            )
 
             state.error?.let { err ->
                 Spacer(Modifier.height(12.dp))

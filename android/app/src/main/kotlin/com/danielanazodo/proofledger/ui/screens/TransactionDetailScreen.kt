@@ -10,13 +10,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,10 +32,24 @@ import coil.compose.AsyncImage
 import com.danielanazodo.proofledger.data.local.ProofBackupStatus
 import com.danielanazodo.proofledger.data.local.entity.LocalScreenshotEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
+import com.danielanazodo.proofledger.ui.components.DetailLine
+import com.danielanazodo.proofledger.ui.components.GroupedPanel
+import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
+import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
+import com.danielanazodo.proofledger.ui.components.ProofStatusDot
+import com.danielanazodo.proofledger.ui.components.QuietButton
+import com.danielanazodo.proofledger.ui.components.SectionLabel
+import com.danielanazodo.proofledger.ui.components.SyncLabel
+import com.danielanazodo.proofledger.ui.components.recordDirectionLabel
 import com.danielanazodo.proofledger.ui.format.displayDate
 import com.danielanazodo.proofledger.ui.format.formatNaira
+import com.danielanazodo.proofledger.ui.theme.MoneyOutRed
+import com.danielanazodo.proofledger.ui.theme.NeutralInk
+import com.danielanazodo.proofledger.ui.theme.NeutralMuted
+import com.danielanazodo.proofledger.ui.theme.SurfacePanel
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.TransactionDetailViewModel
+import java.io.File
 
 @Composable
 fun TransactionDetailScreen(
@@ -48,19 +62,15 @@ fun TransactionDetailScreen(
     val delete = rememberDebouncedClick(onClick = viewModel::delete)
     val backUpProof = rememberDebouncedClick(onClick = viewModel::backUpProofNow)
     LaunchedEffect(state.deleted) { if (state.deleted) onBack() }
-    Scaffold { padding ->
+
+    ProofLedgerScreen(title = "Record", onBack = back) { modifier ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            TextButton(onClick = back) { Text("Back") }
             val transaction = state.transaction
             if (transaction == null) {
-                Text("Transaction not found.")
+                Text("Record not found.", color = NeutralMuted)
             } else {
                 TransactionDetailContent(
                     transaction = transaction,
@@ -85,24 +95,34 @@ private fun TransactionDetailContent(
     onImportantChange: (Boolean) -> Unit,
     onBackUpProof: () -> Unit,
 ) {
-    var fullProofOpen by remember { mutableStateOf(false) }
     val edit = rememberDebouncedClick(onClick = onEdit)
     val delete = rememberDebouncedClick(onClick = onDelete)
-    Text(
-        if (transaction.direction == "money_in") "Money in" else "Money out",
-        style = MaterialTheme.typography.headlineSmall,
-    )
-    Text(formatNaira(transaction.amountMinor), style = MaterialTheme.typography.headlineMedium)
-    DetailLine("Date", displayDate(transaction.transactionDate))
-    DetailLine(
-        if (transaction.direction == "money_in") "Who paid" else "Who you paid",
-        transaction.counterpartyName ?: "Not set",
-    )
-    DetailLine("Category", transaction.category ?: "Not set")
-    DetailLine("Bank or provider", transaction.bankName ?: "Not set")
-    DetailLine("Reference", transaction.referenceNumber ?: "Not set")
-    DetailLine("Note", transaction.note ?: "Not set")
-    DetailLine("Sync", transaction.syncStatus.name.lowercase().replace("_", " "))
+    var fullProofOpen by remember { mutableStateOf(false) }
+
+    GroupedPanel {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text(recordDirectionLabel(transaction.direction), color = NeutralMuted, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        formatNaira(transaction.amountMinor),
+                        color = if (transaction.direction == "money_out") MoneyOutRed else NeutralInk,
+                        style = MaterialTheme.typography.headlineMedium,
+                    )
+                }
+                ProofStatusDot(if (proof == null) "missing proof" else "proof attached")
+            }
+            DetailLine("Date", displayDate(transaction.transactionDate))
+            DetailLine(if (transaction.direction == "money_in") "Who paid" else "Who you paid", transaction.counterpartyName ?: "Not set")
+            DetailLine("Category", transaction.category ?: "Not set")
+            DetailLine("Bank or provider", transaction.bankName ?: "Not set")
+            DetailLine("Reference", transaction.referenceNumber ?: "Not set")
+            DetailLine("Note", transaction.note ?: "Not set")
+            DetailLine("Sync", SyncLabel(transaction.syncStatus.name))
+        }
+    }
+
+    SectionLabel("Proof")
     if (proof != null) {
         ProofCard(
             proof = proof,
@@ -111,17 +131,22 @@ private fun TransactionDetailContent(
             onBackUpProof = onBackUpProof,
         )
     } else {
-        DetailLine("Proof", "No screenshot attached")
+        GroupedPanel {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("No proof attached", color = NeutralInk, style = MaterialTheme.typography.titleMedium)
+                Text("Edit this record to add a screenshot or receipt.", color = NeutralMuted)
+            }
+        }
     }
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Button(onClick = edit, modifier = Modifier.weight(1f)) { Text("Edit") }
-        OutlinedButton(onClick = delete, modifier = Modifier.weight(1f)) { Text("Delete") }
-    }
+
+    PrimaryActionButton("Edit record", onClick = edit, icon = Icons.Filled.Edit)
+    QuietButton("Delete record", onClick = delete, contentColor = MoneyOutRed, icon = Icons.Filled.Delete)
+
     if (fullProofOpen && proof != null) {
         Dialog(onDismissRequest = { fullProofOpen = false }) {
             Card {
                 AsyncImage(
-                    model = java.io.File(proof.localOriginalPath),
+                    model = File(proof.localOriginalPath),
                     contentDescription = "Full payment proof",
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -140,50 +165,39 @@ private fun ProofCard(
     val open = rememberDebouncedClick(onClick = onOpen)
     val toggleImportant = rememberDebouncedClick { onImportantChange(!proof.isImportant) }
     val backUp = rememberDebouncedClick(onClick = onBackUpProof)
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Proof", style = MaterialTheme.typography.labelMedium)
+    GroupedPanel {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             AsyncImage(
-                model = java.io.File(proof.localOriginalPath),
+                model = File(proof.localOriginalPath),
                 contentDescription = "Payment proof preview",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .clickable(onClick = open),
+                modifier = Modifier.fillMaxWidth().height(190.dp).clickable(onClick = open),
             )
             DetailLine("Backup", proof.backupStatus.userLabel())
-            proof.lastBackupError?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = toggleImportant) {
-                    Text(if (proof.isImportant) "Unmark important" else "Mark important")
-                }
-                Button(
+            proof.lastBackupError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                QuietButton(
+                    text = if (proof.isImportant) "Unmark important" else "Mark important",
+                    onClick = toggleImportant,
+                    modifier = Modifier.weight(1f),
+                )
+                QuietButton(
+                    text = "Back up proof",
                     onClick = backUp,
                     enabled = proof.backupStatus != ProofBackupStatus.BACKED_UP &&
                         proof.backupStatus != ProofBackupStatus.BACKING_UP,
-                ) {
-                    Text("Back up proof")
-                }
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Filled.CloudUpload,
+                )
             }
         }
     }
 }
 
 private fun ProofBackupStatus.userLabel(): String = when (this) {
-    ProofBackupStatus.SAVED_ON_PHONE_ONLY -> "Saved on phone only"
-    ProofBackupStatus.PENDING_BACKUP -> "Pending backup"
+    ProofBackupStatus.SAVED_ON_PHONE_ONLY -> "Saved on this device"
+    ProofBackupStatus.PENDING_BACKUP -> "Waiting to back up"
     ProofBackupStatus.WAITING_FOR_WIFI -> "Waiting for Wi-Fi"
     ProofBackupStatus.BACKING_UP -> "Backing up"
     ProofBackupStatus.BACKED_UP -> "Backed up"
-    ProofBackupStatus.BACKUP_FAILED -> "Backup failed"
-}
-
-@Composable
-private fun DetailLine(label: String, value: String) {
-    Column {
-        Text(label, style = MaterialTheme.typography.labelMedium)
-        Text(value, style = MaterialTheme.typography.bodyLarge)
-    }
+    ProofBackupStatus.BACKUP_FAILED -> "Backup issue"
 }

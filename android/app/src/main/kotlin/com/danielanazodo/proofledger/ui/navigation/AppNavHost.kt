@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -98,6 +99,39 @@ private fun ResolvedGraph(
     }
 
     val context = LocalContext.current
+    val onTabSelected: (MainTab) -> Unit = tabHandler@ { tab ->
+        val currentRoute = navController.currentDestination?.route
+        val canNavigate = navController.currentBackStackEntry?.lifecycle?.currentState == Lifecycle.State.RESUMED
+        if (!canNavigate) {
+            return@tabHandler
+        }
+
+        if (tab == MainTab.Home) {
+            if (currentRoute != Route.Dashboard.path) {
+                val poppedToHome = navController.popBackStack(Route.Dashboard.path, inclusive = false)
+                if (!poppedToHome) {
+                    navController.navigate(Route.Dashboard.path) {
+                        launchSingleTop = true
+                    }
+                }
+            }
+            return@tabHandler
+        }
+
+        val route = when (tab) {
+            MainTab.Home -> Route.Dashboard.path
+            MainTab.Records -> Route.TransactionList.path
+            MainTab.People -> Route.CounterpartyList.path
+            MainTab.Proofs -> Route.ProofBackup.path
+        }
+        if (currentRoute != route) {
+            navController.navigate(route) {
+                popUpTo(Route.Dashboard.path) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
 
     NavHost(navController = navController, startDestination = startRoute) {
         composable(Route.SignIn.path) {
@@ -121,10 +155,14 @@ private fun ResolvedGraph(
                 onViewCounterparties = { navController.navigateOnce(Route.CounterpartyList.path) },
                 onViewProofBackup = { navController.navigateOnce(Route.ProofBackup.path) },
                 onTransactionClick = { id -> navController.navigateOnce(Route.TransactionDetail.path(id)) },
+                onTabSelected = onTabSelected,
             )
         }
         composable(Route.ProofBackup.path) {
-            ProofBackupScreen(onBack = { navController.popBackStack() })
+            ProofBackupScreen(
+                onBack = { navController.popBackStack() },
+                onTabSelected = onTabSelected,
+            )
         }
         composable(
             route = Route.SharedProofIntake.path,
@@ -155,6 +193,7 @@ private fun ResolvedGraph(
                 onBack = { navController.popBackStack() },
                 onAdd = { navController.navigateOnce(Route.AddCounterparty.path) },
                 onCounterpartyClick = { id -> navController.navigateOnce(Route.CounterpartyDetail.path(id)) },
+                onTabSelected = onTabSelected,
             )
         }
         composable(Route.AddCounterparty.path) {
@@ -185,7 +224,9 @@ private fun ResolvedGraph(
         composable(Route.TransactionList.path) {
             TransactionListScreen(
                 onBack = { navController.popBackStack() },
+                onAdd = { navController.navigateOnce(Route.AddTransaction.path("money_in")) },
                 onTransactionClick = { id -> navController.navigateOnce(Route.TransactionDetail.path(id)) },
+                onTabSelected = onTabSelected,
             )
         }
         composable(

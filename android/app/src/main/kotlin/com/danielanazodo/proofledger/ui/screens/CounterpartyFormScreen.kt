@@ -10,12 +10,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,6 +21,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
+import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
+import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.CounterpartyFormViewModel
 
@@ -38,24 +38,21 @@ fun CounterpartyFormScreen(
     val save = rememberDebouncedClick(onClick = viewModel::save)
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
 
-    Scaffold { padding ->
+    ProofLedgerScreen(
+        title = if (state.counterpartyId == null) "Add person" else "Edit person",
+        onBack = back,
+    ) { modifier ->
         Column(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxSize()
-                .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            TextButton(onClick = back) { Text("Back") }
-            Text(
-                if (state.counterpartyId == null) "Add counterparty" else "Edit counterparty",
-                style = MaterialTheme.typography.headlineSmall,
-            )
-            OutlinedTextField(
+            ProofLedgerTextField(
                 value = state.name,
                 onValueChange = viewModel::onNameChange,
-                label = { Text("Name") },
+                label = "Name",
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -64,30 +61,31 @@ fun CounterpartyFormScreen(
                 onTypeChange = { type -> type?.let(viewModel::onTypeChange) },
                 includeAll = false,
             )
-            OutlinedTextField(
+            ProofLedgerTextField(
                 value = state.phone,
                 onValueChange = viewModel::onPhoneChange,
-                label = { Text("Phone") },
+                label = "Phone",
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedTextField(
+            ProofLedgerTextField(
                 value = state.notes,
                 onValueChange = viewModel::onNotesChange,
-                label = { Text("Notes") },
+                label = "Notes",
+                singleLine = false,
                 minLines = 3,
                 modifier = Modifier.fillMaxWidth(),
             )
-            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            state.error?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error) }
             Spacer(Modifier.height(8.dp))
-            Button(
+            PrimaryActionButton(
+                text = if (state.loading) "Saving..." else "Save person",
                 onClick = save,
                 enabled = !state.loading,
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(if (state.loading) "Saving..." else "Save")
-            }
+                icon = Icons.Filled.Check,
+            )
         }
     }
 }

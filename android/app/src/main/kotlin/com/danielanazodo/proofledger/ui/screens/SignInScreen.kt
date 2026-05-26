@@ -8,10 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -24,6 +21,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
+import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.SignInUiState
 import com.danielanazodo.proofledger.ui.viewmodel.SignInViewModel
@@ -89,23 +88,21 @@ private fun EmailEntry(
     onSubmit: () -> Unit,
 ) {
     val submit = rememberDebouncedClick(onClick = onSubmit)
-    OutlinedTextField(
+    ProofLedgerTextField(
         value = state.email,
         onValueChange = onEmailChange,
-        label = { Text("Email") },
+        label = "Email",
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.height(16.dp))
-    Button(
+    PrimaryActionButton(
+        text = if (state.loading) "Sending..." else "Send code",
         onClick = submit,
         enabled = !state.loading,
         modifier = Modifier.fillMaxWidth(),
-    ) {
-        if (state.loading) CircularProgressIndicator(strokeWidth = 2.dp)
-        else Text("Send code")
-    }
+    )
 }
 
 @Composable
@@ -122,23 +119,21 @@ private fun CodeEntry(
         style = MaterialTheme.typography.bodyMedium,
     )
     Spacer(Modifier.height(16.dp))
-    OutlinedTextField(
+    ProofLedgerTextField(
         value = state.code,
         onValueChange = onCodeChange,
-        label = { Text("6-digit code") },
+        label = "6-digit code",
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.height(16.dp))
-    Button(
+    PrimaryActionButton(
+        text = if (state.loading) "Verifying..." else "Verify",
         onClick = submit,
         enabled = !state.loading && state.code.length == 6,
         modifier = Modifier.fillMaxWidth(),
-    ) {
-        if (state.loading) CircularProgressIndicator(strokeWidth = 2.dp)
-        else Text("Verify")
-    }
+    )
     Spacer(Modifier.height(8.dp))
     TextButton(onClick = changeEmail) { Text("Use a different email") }
 }

@@ -9,6 +9,7 @@ import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.ProfileRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
+import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.ui.format.monthPrefix
 import com.danielanazodo.proofledger.ui.format.todayIsoDate
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,6 +27,9 @@ data class DashboardUiState(
     val todayMoneyOutMinor: Long = 0,
     val monthMoneyInMinor: Long = 0,
     val monthMoneyOutMinor: Long = 0,
+    val recordCount: Int = 0,
+    val recordsWithProofCount: Int = 0,
+    val missingProofCount: Int = 0,
     val syncing: Boolean = false,
     val signedOut: Boolean = false,
 )
@@ -41,6 +45,7 @@ class DashboardViewModel @Inject constructor(
     private val counterpartyRepository: CounterpartyRepository,
     private val profileRepository: ProfileRepository,
     private val authRepository: AuthRepository,
+    private val proofRepository: ProofRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DashboardUiState())
@@ -61,6 +66,7 @@ class DashboardViewModel @Inject constructor(
             transactionRepository.observeTransactions(businessId).collect { transactions ->
                 val today = todayIsoDate()
                 val month = monthPrefix(today)
+                val currentProofCount = _state.value.recordsWithProofCount
                 _state.update {
                     it.copy(
                         recentTransactions = transactions.take(5),
@@ -76,6 +82,21 @@ class DashboardViewModel @Inject constructor(
                         monthMoneyOutMinor = transactions.sumDirection("money_out") { row ->
                             row.transactionDate.startsWith(month)
                         },
+                        recordCount = transactions.size,
+                        missingProofCount = (transactions.size - currentProofCount).coerceAtLeast(0),
+                    )
+                }
+            }
+        }
+        viewModelScope.launch {
+            val business = businessRepository.getSelectedBusiness()
+            val businessId = business?.id ?: return@launch
+            proofRepository.observeProofs(businessId).collect { proofs ->
+                val recordsWithProof = proofs.map { it.transactionId }.toSet().size
+                _state.update {
+                    it.copy(
+                        recordsWithProofCount = recordsWithProof,
+                        missingProofCount = (it.recordCount - recordsWithProof).coerceAtLeast(0),
                     )
                 }
             }

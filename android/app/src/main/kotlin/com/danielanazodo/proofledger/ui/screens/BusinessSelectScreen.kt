@@ -20,6 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danielanazodo.proofledger.ui.components.GroupedPanel
+import com.danielanazodo.proofledger.ui.theme.NeutralInk
+import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.BusinessSelectViewModel
 
@@ -51,19 +54,19 @@ fun BusinessSelectScreen(
 
             LazyColumn {
                 items(state.businesses, key = { it.id }) { biz ->
-                    Card(
+                    GroupedPanel(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 6.dp)
                             .clickable { selectBusiness(biz.id) },
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text(biz.name, style = MaterialTheme.typography.titleLarge)
+                            Text(biz.name, style = MaterialTheme.typography.titleLarge, color = NeutralInk)
                             biz.businessType?.let {
                                 Text(
                                     it,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = NeutralMuted,
                                 )
                             }
                         }

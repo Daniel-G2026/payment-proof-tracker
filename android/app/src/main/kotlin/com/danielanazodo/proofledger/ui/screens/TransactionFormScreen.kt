@@ -18,10 +18,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -42,6 +44,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.ui.format.displayDate
+import com.danielanazodo.proofledger.ui.components.GroupedPanel
+import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
+import com.danielanazodo.proofledger.ui.components.ProofLedgerFilterChip
+import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
+import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
+import com.danielanazodo.proofledger.ui.components.QuietButton
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.TransactionFormViewModel
 import coil.compose.AsyncImage
@@ -96,50 +104,45 @@ fun TransactionFormScreen(
     val save = rememberDebouncedClick(onClick = viewModel::save)
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
 
-    Scaffold { padding ->
+    ProofLedgerScreen(
+        title = if (state.transactionId == null) "Add record" else "Edit record",
+        onBack = back,
+    ) { modifier ->
         Column(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxSize()
-                .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            TextButton(onClick = back) { Text("Back") }
-            Text(
-                if (state.transactionId == null) "Add transaction" else "Edit transaction",
-                style = MaterialTheme.typography.headlineSmall,
-            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
+                ProofLedgerFilterChip(
                     selected = state.direction == "money_in",
                     onClick = { viewModel.onDirectionChange("money_in") },
-                    label = { Text("Money in") },
+                    label = "Money in",
                 )
-                FilterChip(
+                ProofLedgerFilterChip(
                     selected = state.direction == "money_out",
                     onClick = { viewModel.onDirectionChange("money_out") },
-                    label = { Text("Money out") },
+                    label = "Money out",
                 )
             }
-            OutlinedTextField(
+            ProofLedgerTextField(
                 value = state.amount,
                 onValueChange = viewModel::onAmountChange,
-                label = { Text("Amount") },
+                label = "Amount",
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Button(
+            QuietButton(
+                text = "Date: ${displayDate(state.transactionDate)}",
                 onClick = openDatePicker,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Date: ${displayDate(state.transactionDate)}")
-            }
-            OutlinedTextField(
+            )
+            ProofLedgerTextField(
                 value = state.counterpartyQuery,
                 onValueChange = viewModel::onCounterpartyQueryChange,
-                label = { Text(if (state.direction == "money_in") "Who paid?" else "Who you paid?") },
+                label = if (state.direction == "money_in") "Who paid?" else "Who you paid?",
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -158,55 +161,56 @@ fun TransactionFormScreen(
             if (state.counterpartyQuery.isNotBlank() && state.counterpartyId == null) {
                 AssistChip(
                     onClick = addNewCounterparty,
-                    label = { Text("Save as new counterparty") },
+                    label = { Text("Save as new person") },
                 )
             }
             if (state.addingNewCounterparty) {
-                Text("Counterparty type", style = MaterialTheme.typography.labelMedium)
+                Text("Person type", style = MaterialTheme.typography.labelMedium)
                 CounterpartyTypeChips(
                     selectedType = state.newCounterpartyType,
                     onTypeChange = { type -> type?.let(viewModel::onNewCounterpartyTypeChange) },
                     includeAll = false,
                 )
             }
-            OutlinedTextField(
+            ProofLedgerTextField(
                 value = state.category,
                 onValueChange = viewModel::onCategoryChange,
-                label = { Text("Category") },
+                label = "Category",
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedTextField(
+            ProofLedgerTextField(
                 value = state.bankName,
                 onValueChange = viewModel::onBankNameChange,
-                label = { Text("Bank or provider") },
+                label = "Bank or provider",
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedTextField(
+            ProofLedgerTextField(
                 value = state.referenceNumber,
                 onValueChange = viewModel::onReferenceNumberChange,
-                label = { Text("Reference number") },
+                label = "Reference number",
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedTextField(
+            ProofLedgerTextField(
                 value = state.note,
                 onValueChange = viewModel::onNoteChange,
-                label = { Text("Note") },
+                label = "Note",
+                singleLine = false,
                 minLines = 3,
                 modifier = Modifier.fillMaxWidth(),
             )
             Text("Proof", style = MaterialTheme.typography.labelMedium)
             if (state.proofUri == null) {
-                OutlinedButton(
+                QuietButton(
+                    text = "Attach screenshot proof",
                     onClick = openImagePicker,
                     modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Attach screenshot proof")
-                }
+                    icon = Icons.Filled.Image,
+                )
             } else {
-                Card(modifier = Modifier.fillMaxWidth()) {
+                GroupedPanel {
                     Column(
                         modifier = Modifier.padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -225,9 +229,12 @@ fun TransactionFormScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = openImagePicker) {
-                                Text("Change")
-                            }
+                            QuietButton(
+                                text = "Change",
+                                onClick = openImagePicker,
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Filled.Image,
+                            )
                             TextButton(onClick = removeProof) {
                                 Text("Remove")
                             }
@@ -250,13 +257,13 @@ fun TransactionFormScreen(
                 Text(it, color = MaterialTheme.colorScheme.error)
             }
             Spacer(Modifier.height(8.dp))
-            Button(
+            PrimaryActionButton(
+                text = if (state.loading) "Saving..." else "Save record",
                 onClick = save,
                 enabled = !state.loading,
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(if (state.loading) "Saving..." else "Save")
-            }
+                icon = Icons.Filled.Check,
+            )
         }
     }
 }
