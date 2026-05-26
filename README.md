@@ -25,3 +25,4 @@ Small Nigerian construction-adjacent businesses, suppliers, subcontractors, and 
 ## Docs
 
 See `docs/master-plan.md` for the full product and architecture plan.
+See `docs/mobile-development-things-to-know.md` for local mobile/backend development notes.

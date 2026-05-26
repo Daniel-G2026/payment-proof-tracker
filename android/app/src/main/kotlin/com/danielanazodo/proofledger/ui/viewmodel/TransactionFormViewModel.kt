@@ -8,6 +8,9 @@ import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
+import com.danielanazodo.proofledger.data.ocr.OcrDraft
+import com.danielanazodo.proofledger.data.ocr.OcrDraftParser
+import com.danielanazodo.proofledger.data.ocr.OcrService
 import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.data.proof.SharedProofIntakeRepository
 import com.danielanazodo.proofledger.ui.format.parseNairaToMinor
@@ -41,6 +44,20 @@ data class TransactionFormUiState(
     val referenceNumber: String = "",
     val proofUri: String? = null,
     val proofOriginalSizeBytes: Long? = null,
+    /** Raw OCR text captured from the currently-attached proof. Persisted onto
+     *  the proof row at save time so future server OCR can compare. */
+    val proofOcrText: String? = null,
+    /** True after the OCR parser pre-filled at least one field on this form
+     *  session. Drives the "Draft from screenshot — please review" banner.
+     *  Reset when proof is removed/replaced. */
+    val ocrDraftApplied: Boolean = false,
+    /** True while OCR is running against a freshly-attached proof. */
+    val ocrRunning: Boolean = false,
+    /** Names of form fields most recently populated by the OCR parser
+     *  (not by the user). When the user replaces the proof, the new OCR
+     *  results are allowed to *overwrite* these fields — but a field the
+     *  user has edited by hand will never be clobbered. */
+    val ocrFilledFields: Set<String> = emptySet(),
     /** Id of the proof row already attached to this transaction when the form
      *  opened. Used so we can delete the old proof when the user replaces it
      *  and avoid creating a duplicate row on every save. */
@@ -61,6 +78,8 @@ class TransactionFormViewModel @Inject constructor(
     private val counterpartyRepository: CounterpartyRepository,
     private val proofRepository: ProofRepository,
     private val sharedProofIntakeRepository: SharedProofIntakeRepository,
+    private val ocrService: OcrService,
+    private val ocrDraftParser: OcrDraftParser,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val transactionId: String? = savedStateHandle["transactionId"]
@@ -93,6 +112,7 @@ class TransactionFormViewModel @Inject constructor(
                         proofDirty = true,
                     )
                 }
+                runOcrInBackground(Uri.parse(item.localUri))
             }
         }
         if (transactionId != null) {
@@ -146,8 +166,12 @@ class TransactionFormViewModel @Inject constructor(
             saved = false,
         )
     }
-    fun onAmountChange(value: String) = _state.update { it.copy(amount = value, error = null, saved = false) }
-    fun onDateChange(value: String) = _state.update { it.copy(transactionDate = value, saved = false) }
+    fun onAmountChange(value: String) = _state.update {
+        it.copy(amount = value, error = null, saved = false, ocrFilledFields = it.ocrFilledFields - FIELD_AMOUNT)
+    }
+    fun onDateChange(value: String) = _state.update {
+        it.copy(transactionDate = value, saved = false, ocrFilledFields = it.ocrFilledFields - FIELD_DATE)
+    }
     fun onCounterpartyQueryChange(value: String) {
         _state.update {
             it.copy(
@@ -194,29 +218,51 @@ class TransactionFormViewModel @Inject constructor(
     }
     fun onCategoryChange(value: String) = _state.update { it.copy(category = value, saved = false) }
     fun onNoteChange(value: String) = _state.update { it.copy(note = value, saved = false) }
-    fun onBankNameChange(value: String) = _state.update { it.copy(bankName = value, saved = false) }
+    fun onBankNameChange(value: String) = _state.update {
+        it.copy(bankName = value, saved = false, ocrFilledFields = it.ocrFilledFields - FIELD_BANK)
+    }
     fun onReferenceNumberChange(value: String) = _state.update {
-        it.copy(referenceNumber = value, saved = false)
+        it.copy(referenceNumber = value, saved = false, ocrFilledFields = it.ocrFilledFields - FIELD_REFERENCE)
     }
     fun onProofSelected(uri: String, sizeBytes: Long?) {
         clearActiveIntake()
-        _state.update {
-            it.copy(
+        _state.update { current ->
+            // When the user replaces the proof, clear any field values that
+            // came from the previous proof's OCR. Otherwise a wrong reading
+            // would stick even after they swap in a clearer image. Fields
+            // the user has typed (i.e. not in ocrFilledFields) are kept.
+            current.copy(
                 proofUri = uri,
                 proofOriginalSizeBytes = sizeBytes,
                 proofDirty = true,
+                proofOcrText = null,
+                ocrDraftApplied = false,
+                amount = if (FIELD_AMOUNT in current.ocrFilledFields) "" else current.amount,
+                transactionDate = if (FIELD_DATE in current.ocrFilledFields) todayIsoDate() else current.transactionDate,
+                referenceNumber = if (FIELD_REFERENCE in current.ocrFilledFields) "" else current.referenceNumber,
+                bankName = if (FIELD_BANK in current.ocrFilledFields) "" else current.bankName,
+                ocrFilledFields = emptySet(),
                 error = null,
                 saved = false,
             )
         }
+        runOcrInBackground(Uri.parse(uri))
     }
     fun onProofRemoved() {
         clearActiveIntake()
-        _state.update {
-            it.copy(
+        _state.update { current ->
+            current.copy(
                 proofUri = null,
                 proofOriginalSizeBytes = null,
                 proofDirty = true,
+                proofOcrText = null,
+                ocrDraftApplied = false,
+                ocrRunning = false,
+                amount = if (FIELD_AMOUNT in current.ocrFilledFields) "" else current.amount,
+                transactionDate = if (FIELD_DATE in current.ocrFilledFields) todayIsoDate() else current.transactionDate,
+                referenceNumber = if (FIELD_REFERENCE in current.ocrFilledFields) "" else current.referenceNumber,
+                bankName = if (FIELD_BANK in current.ocrFilledFields) "" else current.bankName,
+                ocrFilledFields = emptySet(),
                 saved = false,
             )
         }
@@ -285,7 +331,11 @@ class TransactionFormViewModel @Inject constructor(
                 if (current.proofDirty) {
                     current.existingProofId?.let { proofRepository.deleteProof(it) }
                     current.proofUri?.let { uri ->
-                        proofRepository.attachProof(Uri.parse(uri), savedTransaction)
+                        proofRepository.attachProof(
+                            Uri.parse(uri),
+                            savedTransaction,
+                            ocrText = current.proofOcrText,
+                        )
                     }
                 }
                 activeIntakeToken?.let { token ->
@@ -345,6 +395,92 @@ class TransactionFormViewModel @Inject constructor(
         return !hasTypedName || counterpartyId != null || addingNewCounterparty
     }
 
+    /**
+     * Run on-device OCR on a freshly-attached proof and gently pre-fill any
+     * form fields the user hasn't typed in yet. Failures are silent — OCR is
+     * a convenience, never a blocker.
+     */
+    private fun runOcrInBackground(uri: Uri) {
+        // On-device OCR is gated off for v1. The Latin recognizer mis-reads
+        // too many Nigerian receipt layouts (missing ₦ glyph, no comma/decimal
+        // formatting, value-below-label flows) to be useful as a drafting aid;
+        // a wrong pre-fill costs the user more than a blank field. Drafting
+        // will move to the paid AI tier where a vision model can handle the
+        // variance. Keeping the OcrService/OcrDraftParser code and tests so
+        // the flag can be flipped back on for dogfooding without a revert.
+        if (!OCR_DRAFTING_ENABLED) {
+            _state.update { it.copy(ocrRunning = false) }
+            return
+        }
+        _state.update { it.copy(ocrRunning = true) }
+        viewModelScope.launch {
+            val rawText = runCatching { ocrService.extractText(uri) }
+                .getOrNull()
+            if (rawText.isNullOrBlank()) {
+                _state.update { it.copy(ocrRunning = false) }
+                return@launch
+            }
+            val draft = ocrDraftParser.parse(rawText)
+            applyDraftIfFieldsBlank(draft)
+        }
+    }
+
+    private fun applyDraftIfFieldsBlank(draft: OcrDraft) {
+        _state.update { current ->
+            // A field is "OCR-writable" when it is either still empty (user
+            // hasn't typed) or was last filled by OCR itself. Anything the
+            // user has typed is sacred — we never clobber it, even when the
+            // user attaches a new proof and a fresh OCR pass returns a
+            // different value.
+            val amountWritable = current.amount.isBlank() || FIELD_AMOUNT in current.ocrFilledFields
+            val nextAmount = if (amountWritable && draft.amountMinor != null) {
+                formatAmountForInput(draft.amountMinor)
+            } else current.amount
+
+            // The form pre-seeds transactionDate with today's date, so "blank"
+            // for the date means "still showing today." OCR may also overwrite
+            // a date it set itself on a previous proof.
+            val dateWritable = current.transactionDate == todayIsoDate() ||
+                FIELD_DATE in current.ocrFilledFields
+            val nextDate = if (dateWritable && draft.dateIso != null) {
+                draft.dateIso
+            } else current.transactionDate
+
+            val referenceWritable = current.referenceNumber.isBlank() ||
+                FIELD_REFERENCE in current.ocrFilledFields
+            val nextReference = if (referenceWritable && draft.reference != null) {
+                draft.reference
+            } else current.referenceNumber
+
+            val bankWritable = current.bankName.isBlank() || FIELD_BANK in current.ocrFilledFields
+            val nextBank = if (bankWritable && draft.bankName != null) {
+                draft.bankName
+            } else current.bankName
+
+            // Track which fields the new OCR result actually populated, so
+            // a *future* proof replacement can clear them too.
+            val nextOcrFields = buildSet {
+                if (amountWritable && draft.amountMinor != null) add(FIELD_AMOUNT)
+                if (dateWritable && draft.dateIso != null) add(FIELD_DATE)
+                if (referenceWritable && draft.reference != null) add(FIELD_REFERENCE)
+                if (bankWritable && draft.bankName != null) add(FIELD_BANK)
+            }
+
+            val applied = nextOcrFields.isNotEmpty()
+
+            current.copy(
+                amount = nextAmount,
+                transactionDate = nextDate,
+                referenceNumber = nextReference,
+                bankName = nextBank,
+                proofOcrText = draft.rawText,
+                ocrDraftApplied = current.ocrDraftApplied || applied,
+                ocrRunning = false,
+                ocrFilledFields = nextOcrFields,
+            )
+        }
+    }
+
     private fun clearActiveIntake() {
         activeIntakeToken?.let { token ->
             sharedProofIntakeRepository.cancel(token)
@@ -361,3 +497,15 @@ class TransactionFormViewModel @Inject constructor(
 
 private fun defaultCounterpartyType(direction: String): String =
     if (direction == "money_out") "supplier" else "customer"
+
+// Field-name keys for ocrFilledFields. Keeping them as constants avoids
+// typos that would silently break the "don't clobber user edits" logic.
+private const val FIELD_AMOUNT = "amount"
+private const val FIELD_DATE = "date"
+private const val FIELD_REFERENCE = "reference"
+private const val FIELD_BANK = "bank"
+
+// Master switch for the on-device OCR drafting pass. Off in v1 — see
+// runOcrInBackground for rationale. Flip to true to dogfood the heuristic
+// parser against real receipts without removing the gate.
+private const val OCR_DRAFTING_ENABLED = false

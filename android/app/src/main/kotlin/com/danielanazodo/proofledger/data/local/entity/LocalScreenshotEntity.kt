@@ -38,4 +38,9 @@ data class LocalScreenshotEntity(
     val updatedAt: Long,
     val lastBackupAttemptAt: Long?,
     val lastBackupError: String?,
+    /** Raw on-device OCR text captured from the screenshot when the proof was
+     *  attached. Phase 7 stores it alongside the proof so future server-side
+     *  extraction can compare results without re-OCRing. Null when OCR was
+     *  not run (e.g. proof attached before Phase 7, or OCR failed). */
+    val ocrText: String? = null,
 )

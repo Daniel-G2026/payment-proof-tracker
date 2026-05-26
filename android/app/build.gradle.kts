@@ -93,6 +93,9 @@ android {
         getByName("main") {
             java.srcDirs("src/main/kotlin")
         }
+        getByName("test") {
+            java.srcDirs("src/test/kotlin")
+        }
         getByName("androidTest") {
             java.srcDirs("src/androidTest/kotlin")
             // Schemas live under app/schemas/. Exposing them as androidTest
@@ -154,6 +157,9 @@ dependencies {
     implementation(libs.androidx.hilt.work)
     implementation(libs.coil.compose)
     implementation(libs.okio)
+    implementation(libs.mlkit.text.recognition)
+
+    testImplementation(libs.junit)
 
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.core)

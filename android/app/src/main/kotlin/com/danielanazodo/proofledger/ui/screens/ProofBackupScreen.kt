@@ -31,6 +31,7 @@ import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
 import com.danielanazodo.proofledger.ui.components.SectionLabel
 import com.danielanazodo.proofledger.ui.components.SummaryPanel
 import com.danielanazodo.proofledger.ui.components.VerticalSpacer
+import com.danielanazodo.proofledger.ui.format.formatCompactCount
 import com.danielanazodo.proofledger.ui.navigation.MainTab
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
@@ -58,7 +59,7 @@ fun ProofBackupScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             SummaryPanel {
-                MetricLine("Waiting", "${state.pendingCount} proofs", ProofAmber)
+                MetricLine("Waiting", "${formatCompactCount(state.pendingCount)} proofs", ProofAmber)
                 MetricLine("Storage", formatBytes(state.estimatedBytes), ProofLime)
             }
 

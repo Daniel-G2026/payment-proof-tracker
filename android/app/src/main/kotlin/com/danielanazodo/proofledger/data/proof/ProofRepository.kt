@@ -57,7 +57,11 @@ class ProofRepository @Inject constructor(
     fun observeProofs(businessId: String): Flow<List<LocalScreenshotEntity>> =
         screenshotDao.observeByBusiness(businessId)
 
-    suspend fun attachProof(uri: Uri, transaction: LocalTransactionEntity): LocalScreenshotEntity {
+    suspend fun attachProof(
+        uri: Uri,
+        transaction: LocalTransactionEntity,
+        ocrText: String? = null,
+    ): LocalScreenshotEntity {
         val proofId = UUID.randomUUID().toString()
         val prepared = fileStore.prepare(uri, proofId)
         val preference = getBackupPreference()
@@ -91,6 +95,7 @@ class ProofRepository @Inject constructor(
             updatedAt = now,
             lastBackupAttemptAt = null,
             lastBackupError = null,
+            ocrText = ocrText?.takeIf { it.isNotBlank() },
         )
         try {
             screenshotDao.upsert(row)

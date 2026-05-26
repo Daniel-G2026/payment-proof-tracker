@@ -115,6 +115,21 @@ fun TransactionFormScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            if (state.ocrDraftApplied) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            "Draft from screenshot",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                        Text(
+                            "We filled in what we could read. Please review before saving.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ProofLedgerFilterChip(
                     selected = state.direction == "money_in",
