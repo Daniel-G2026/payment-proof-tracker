@@ -17,12 +17,19 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -35,6 +42,7 @@ import com.danielanazodo.proofledger.ui.components.SectionLabel
 import com.danielanazodo.proofledger.ui.components.StatusDot
 import com.danielanazodo.proofledger.ui.components.SummaryPanel
 import com.danielanazodo.proofledger.ui.components.VerticalSpacer
+import com.danielanazodo.proofledger.ui.format.formatCompactCount
 import com.danielanazodo.proofledger.ui.format.formatNaira
 import com.danielanazodo.proofledger.ui.navigation.MainTab
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
@@ -59,6 +67,7 @@ fun EmptyDashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var range by rememberSaveable { mutableStateOf(DashboardRange.Monthly) }
     val addMoneyIn = rememberDebouncedClick(onClick = onAddMoneyIn)
     val viewRecords = rememberDebouncedClick(onClick = onViewTransactions)
     val transactionClick = rememberDebouncedClick(onClick = onTransactionClick)
@@ -109,18 +118,36 @@ fun EmptyDashboardScreen(
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             item {
+                val moneyIn = when (range) {
+                    DashboardRange.Daily -> state.todayMoneyInMinor
+                    DashboardRange.Weekly -> state.weekMoneyInMinor
+                    DashboardRange.Monthly -> state.monthMoneyInMinor
+                }
+                val moneyOut = when (range) {
+                    DashboardRange.Daily -> state.todayMoneyOutMinor
+                    DashboardRange.Weekly -> state.weekMoneyOutMinor
+                    DashboardRange.Monthly -> state.monthMoneyOutMinor
+                }
                 SummaryPanel {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("This month", color = NeutralMuted, style = MaterialTheme.typography.bodySmall)
-                        Text("Monthly", color = NeutralInk, style = MaterialTheme.typography.labelMedium)
+                        Text(range.headerLabel, color = NeutralMuted, style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            range.toggleLabel,
+                            color = NeutralInk,
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { range = range.next() }
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                        )
                     }
-                    MetricLine("In", formatNaira(state.monthMoneyInMinor), ProofLime)
-                    MetricLine("Out", formatNaira(state.monthMoneyOutMinor), ProofGrayDot)
-                    MetricLine("Net", formatNaira(state.monthMoneyInMinor - state.monthMoneyOutMinor), ProofGrayDot)
+                    MetricLine("In", formatNaira(moneyIn), ProofLime)
+                    MetricLine("Out", formatNaira(moneyOut), ProofGrayDot)
+                    MetricLine("Net", formatNaira(moneyIn - moneyOut), ProofGrayDot)
                     Spacer(
                         Modifier
                             .fillMaxWidth()
@@ -129,18 +156,21 @@ fun EmptyDashboardScreen(
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text("${state.recordCount} records", color = NeutralInk, style = MaterialTheme.typography.bodySmall)
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatusDot(color = ProofLime)
-                            Text("${state.recordsWithProofCount} with proof", color = NeutralInk, style = MaterialTheme.typography.bodySmall)
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatusDot(color = ProofAmber)
-                            Text("${state.missingProofCount} missing", color = NeutralInk, style = MaterialTheme.typography.bodySmall)
-                        }
+                        StatusDot(color = if (state.missingProofCount > 0) ProofAmber else ProofLime)
+                        Text(
+                            text = proofStatusLine(
+                                recordCount = state.recordCount,
+                                recordsWithProofCount = state.recordsWithProofCount,
+                                missingProofCount = state.missingProofCount,
+                            ),
+                            color = NeutralInk,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
             }
@@ -181,5 +211,31 @@ fun EmptyDashboardScreen(
             }
             item { VerticalSpacer(12) }
         }
+    }
+}
+
+private enum class DashboardRange(val headerLabel: String, val toggleLabel: String) {
+    Daily("Today", "Daily"),
+    Weekly("This week", "Weekly"),
+    Monthly("This month", "Monthly");
+
+    fun next(): DashboardRange = when (this) {
+        Daily -> Weekly
+        Weekly -> Monthly
+        Monthly -> Daily
+    }
+}
+
+private fun proofStatusLine(
+    recordCount: Int,
+    recordsWithProofCount: Int,
+    missingProofCount: Int,
+): String {
+    if (recordCount <= 0) return "No records yet"
+    val records = "${formatCompactCount(recordCount)} records"
+    return if (missingProofCount <= 0) {
+        "$records - proofs attached"
+    } else {
+        "$records - ${formatCompactCount(recordsWithProofCount)} with proof - ${formatCompactCount(missingProofCount)} missing"
     }
 }

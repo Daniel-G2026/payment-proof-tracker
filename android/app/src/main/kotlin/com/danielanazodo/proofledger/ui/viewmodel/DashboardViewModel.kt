@@ -10,6 +10,7 @@ import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.ProfileRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import com.danielanazodo.proofledger.data.proof.ProofRepository
+import com.danielanazodo.proofledger.ui.format.currentWeekRange
 import com.danielanazodo.proofledger.ui.format.monthPrefix
 import com.danielanazodo.proofledger.ui.format.todayIsoDate
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,6 +26,8 @@ data class DashboardUiState(
     val recentTransactions: List<LocalTransactionEntity> = emptyList(),
     val todayMoneyInMinor: Long = 0,
     val todayMoneyOutMinor: Long = 0,
+    val weekMoneyInMinor: Long = 0,
+    val weekMoneyOutMinor: Long = 0,
     val monthMoneyInMinor: Long = 0,
     val monthMoneyOutMinor: Long = 0,
     val recordCount: Int = 0,
@@ -66,6 +69,7 @@ class DashboardViewModel @Inject constructor(
             transactionRepository.observeTransactions(businessId).collect { transactions ->
                 val today = todayIsoDate()
                 val month = monthPrefix(today)
+                val (weekStart, weekEnd) = currentWeekRange()
                 val currentProofCount = _state.value.recordsWithProofCount
                 _state.update {
                     it.copy(
@@ -75,6 +79,12 @@ class DashboardViewModel @Inject constructor(
                         },
                         todayMoneyOutMinor = transactions.sumDirection("money_out") { row ->
                             row.transactionDate == today
+                        },
+                        weekMoneyInMinor = transactions.sumDirection("money_in") { row ->
+                            row.transactionDate in weekStart..weekEnd
+                        },
+                        weekMoneyOutMinor = transactions.sumDirection("money_out") { row ->
+                            row.transactionDate in weekStart..weekEnd
                         },
                         monthMoneyInMinor = transactions.sumDirection("money_in") { row ->
                             row.transactionDate.startsWith(month)

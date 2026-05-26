@@ -7,10 +7,29 @@ import java.util.Locale
 import kotlin.math.abs
 
 private val isoDateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+private val compactNumberFormat = NumberFormat.getNumberInstance(Locale.US).apply {
+    maximumFractionDigits = 1
+}
 
 fun todayIsoDate(): String = isoDateFormat.format(Calendar.getInstance().time)
 
 fun monthPrefix(dateIso: String = todayIsoDate()): String = dateIso.take(7)
+
+/**
+ * Returns the [start, end] ISO dates (inclusive) for the calendar week
+ * containing today, using the device locale's first day of week.
+ */
+fun currentWeekRange(): Pair<String, String> {
+    val cal = Calendar.getInstance()
+    val firstDayOfWeek = cal.firstDayOfWeek
+    var diff = cal.get(Calendar.DAY_OF_WEEK) - firstDayOfWeek
+    if (diff < 0) diff += 7
+    cal.add(Calendar.DAY_OF_MONTH, -diff)
+    val start = isoDateFormat.format(cal.time)
+    cal.add(Calendar.DAY_OF_MONTH, 6)
+    val end = isoDateFormat.format(cal.time)
+    return start to end
+}
 
 fun displayDate(dateIso: String): String = runCatching {
     val parsed = isoDateFormat.parse(dateIso) ?: return dateIso
@@ -26,6 +45,15 @@ fun formatNaira(amountMinor: Long): String {
 // `whole * 100` multiplication can't silently wrap on the way to the result.
 // Also mirrors the backend cap in MAX_AMOUNT_MINOR.
 private const val MAX_WHOLE_NAIRA = 999_999_999_999L
+
+fun formatCompactCount(count: Int): String {
+    val value = count.coerceAtLeast(0)
+    return when {
+        value >= 1_000_000 -> "${compactNumberFormat.format(value / 1_000_000.0)}m"
+        value >= 1_000 -> "${compactNumberFormat.format(value / 1_000.0)}k"
+        else -> value.toString()
+    }
+}
 
 fun parseNairaToMinor(input: String): Long? {
     val cleaned = input.replace(",", "").trim()
