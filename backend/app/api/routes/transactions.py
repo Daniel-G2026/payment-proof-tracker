@@ -8,7 +8,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_db
-from app.db.models import Business, BusinessMember, Counterparty, Transaction
+from app.db.models import Business, BusinessMember, Counterparty, Screenshot, Transaction
 from app.schemas.transaction import TransactionCreate, TransactionOut, TransactionUpdate
 
 router = APIRouter(
@@ -43,6 +43,44 @@ def _get_transaction(db: Session, business_id: uuid.UUID, transaction_id: uuid.U
             detail="Transaction not found.",
         )
     return transaction
+
+
+def _link_orphan_screenshot(
+    db: Session,
+    business_id: uuid.UUID,
+    transaction_id: uuid.UUID,
+    screenshot_id: uuid.UUID | None,
+) -> None:
+    """Phase 8.1: link a previously-uploaded orphan screenshot to a transaction.
+
+    Atomic with the transaction insert/update — same Session, single commit.
+    The status codes match the typical REST idiom:
+      - 404 if the screenshot doesn't exist or is soft-deleted (don't leak
+        existence of other businesses' rows).
+      - 403 if it belongs to a different business than the transaction.
+      - 409 if it's already linked to a different transaction (someone else
+        claimed it first, or a client replay).
+
+    Idempotent for re-linking to the SAME transaction (allows PATCH replay).
+    """
+    if screenshot_id is None:
+        return
+    screenshot = db.get(Screenshot, screenshot_id)
+    if screenshot is None or screenshot.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Screenshot not found.")
+    if screenshot.business_id != business_id:
+        # Treating cross-business as 403 rather than 404 because the caller is
+        # an authenticated member of business_id; this is intent-relevant info.
+        raise HTTPException(
+            status_code=403,
+            detail="Screenshot belongs to a different business.",
+        )
+    if screenshot.transaction_id is not None and screenshot.transaction_id != transaction_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Screenshot is already linked to a different transaction.",
+        )
+    screenshot.transaction_id = transaction_id
 
 
 def _validate_counterparty_id(
@@ -102,6 +140,8 @@ def create_transaction(
         created_by=current_user.id,
     )
     db.add(transaction)
+    db.flush()  # assign PK so the screenshot link references a real row
+    _link_orphan_screenshot(db, business_id, transaction.id, payload.screenshot_id)
     db.commit()
     db.refresh(transaction)
     return TransactionOut.model_validate(transaction)
@@ -167,8 +207,13 @@ def update_transaction(
     data = payload.model_dump(exclude_unset=True)
     if "counterparty_id" in data:
         _validate_counterparty_id(db, business_id, data["counterparty_id"])
+    # screenshot_id is not a column on Transaction — it's a linking instruction.
+    # Pop it out before the setattr loop, handle separately, atomic with commit.
+    incoming_screenshot_id = data.pop("screenshot_id", None)
     for field, value in data.items():
         setattr(transaction, field, value)
+    if incoming_screenshot_id is not None:
+        _link_orphan_screenshot(db, business_id, transaction.id, incoming_screenshot_id)
     db.commit()
     db.refresh(transaction)
     return TransactionOut.model_validate(transaction)

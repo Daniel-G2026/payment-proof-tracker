@@ -317,13 +317,87 @@ def _purge_raw_json_sync(cutoff: datetime) -> dict[str, int]:
         return {"purged": purged}
 
 
+# --- orphan screenshot cleanup (Phase 8.1) -------------------------------
+
+ORPHAN_RETENTION_DAYS = 7
+ORPHAN_PURGE_CRON_HOUR = 3
+# 15-minute offset from purge_raw_json so the two daily crons don't fight for
+# the connection pool or the worker's single-thread DB executor.
+ORPHAN_PURGE_CRON_MINUTE = 15
+
+
+async def purge_orphan_screenshots(ctx: dict[str, Any]) -> dict[str, int]:
+    """Soft-delete orphan screenshots older than the retention window.
+
+    An "orphan" is a screenshot with transaction_id IS NULL — uploaded by the
+    Android form's eager-upload path but never linked to a saved transaction.
+    Most arrive because the user attached a proof and then bailed out of the
+    form.
+
+    Storage bytes are deleted best-effort (logged on failure but don't roll
+    back the soft-delete). The Phase 8 transaction_drafts FK cascades on
+    Screenshot delete, but since we soft-delete (set deleted_at) instead of
+    hard-deleting, drafts hang around with the orphaned screenshot row. They
+    eventually get their raw_json scrubbed by purge_raw_json. This is fine —
+    a soft-deleted screenshot is invisible to all client queries.
+    """
+    cutoff = datetime.now(tz=UTC) - timedelta(days=ORPHAN_RETENTION_DAYS)
+    return await asyncio.to_thread(_purge_orphan_screenshots_sync, cutoff)
+
+
+def _purge_orphan_screenshots_sync(cutoff: datetime) -> dict[str, int]:
+    with _session() as db:
+        # Snapshot the candidates so we can delete their storage files after
+        # the soft-delete commits. The partial index on (created_at) WHERE
+        # transaction_id IS NULL keeps this scan cheap.
+        candidates = (
+            db.query(Screenshot.id, Screenshot.storage_key)
+            .filter(
+                Screenshot.transaction_id.is_(None),
+                Screenshot.deleted_at.is_(None),
+                Screenshot.created_at < cutoff,
+            )
+            .all()
+        )
+        if not candidates:
+            return {"purged": 0}
+        now = datetime.now(tz=UTC)
+        ids = [row.id for row in candidates]
+        db.execute(
+            update(Screenshot)
+            .where(Screenshot.id.in_(ids))
+            .values(deleted_at=now)
+        )
+        db.commit()
+    storage = ProofStorage()
+    storage_failures = 0
+    for row in candidates:
+        try:
+            storage.delete(row.storage_key)
+        except Exception:  # noqa: BLE001 — best-effort; soft-delete already won
+            storage_failures += 1
+            log.exception("purge_orphan_screenshots: failed to delete %s", row.storage_key)
+    log.info(
+        "purge_orphan_screenshots soft-deleted %d orphans (storage failures: %d)",
+        len(candidates),
+        storage_failures,
+    )
+    return {"purged": len(candidates)}
+
+
 # --- WorkerSettings ------------------------------------------------------
 
 
 class WorkerSettings:
-    functions = [extract_screenshot, purge_raw_json]
+    functions = [extract_screenshot, purge_raw_json, purge_orphan_screenshots]
     cron_jobs = [
         cron(purge_raw_json, hour={PURGE_CRON_HOUR}, minute={0}, run_at_startup=False),
+        cron(
+            purge_orphan_screenshots,
+            hour={ORPHAN_PURGE_CRON_HOUR},
+            minute={ORPHAN_PURGE_CRON_MINUTE},
+            run_at_startup=False,
+        ),
     ]
     on_startup = startup
     on_shutdown = shutdown
@@ -335,4 +409,10 @@ class WorkerSettings:
 
 
 # Re-export the task name so callers don't need a separate import.
-__all__ = ["WorkerSettings", "extract_screenshot", "purge_raw_json", "EXTRACT_TASK_NAME"]
+__all__ = [
+    "WorkerSettings",
+    "extract_screenshot",
+    "purge_raw_json",
+    "purge_orphan_screenshots",
+    "EXTRACT_TASK_NAME",
+]

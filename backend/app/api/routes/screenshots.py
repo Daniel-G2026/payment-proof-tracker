@@ -135,6 +135,21 @@ def _parse_uuid_field(fields: dict[str, str], name: str) -> uuid.UUID:
         raise HTTPException(status_code=422, detail=f"{name} must be a valid UUID.") from exc
 
 
+def _parse_optional_uuid_field(fields: dict[str, str], name: str) -> uuid.UUID | None:
+    """Like _parse_uuid_field but missing/empty values return None instead of 422.
+
+    Used for orphan-upload support (Phase 8.1) where transaction_id is no
+    longer required at upload time.
+    """
+    value = fields.get(name)
+    if value is None or value == "":
+        return None
+    try:
+        return uuid.UUID(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"{name} must be a valid UUID.") from exc
+
+
 def _parse_optional_int_field(fields: dict[str, str], name: str) -> int | None:
     value = fields.get(name)
     if value is None or value == "":
@@ -176,8 +191,16 @@ async def upload_screenshot(
         raise HTTPException(status_code=413, detail="Proof image is larger than 5 MB.")
     _validate_image_payload(file_bytes, file_mime)
 
-    transaction_id = _parse_uuid_field(fields, "transaction_id")
-    transaction = _get_transaction(db, business_id, transaction_id)
+    # Phase 8.1: transaction_id is optional — when absent, this is an
+    # "orphan" upload from the in-form create flow. The transaction-create
+    # endpoint will link the orphan atomically on save. The cleanup cron
+    # purges orphans older than 7 days.
+    transaction_id = _parse_optional_uuid_field(fields, "transaction_id")
+    transaction = (
+        _get_transaction(db, business_id, transaction_id)
+        if transaction_id is not None
+        else None
+    )
     screenshot_id = (
         _parse_uuid_field(fields, "id")
         if fields.get("id")
@@ -203,7 +226,7 @@ async def upload_screenshot(
     screenshot = Screenshot(
         id=screenshot_id,
         business_id=business_id,
-        transaction_id=transaction.id,
+        transaction_id=transaction.id if transaction is not None else None,
         uploaded_by=current_user.id,
         mime_type=file_mime,
         uploaded_file_size=len(file_bytes),

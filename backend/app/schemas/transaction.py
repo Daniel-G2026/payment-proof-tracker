@@ -34,6 +34,11 @@ class TransactionCreate(BaseModel):
     note: str | None = Field(default=None, max_length=MAX_NOTE_LEN)
     bank_name: str | None = Field(default=None, max_length=MAX_BANK_NAME_LEN)
     reference_number: str | None = Field(default=None, max_length=MAX_REFERENCE_LEN)
+    # Phase 8.1: link an orphan screenshot uploaded eagerly during the form
+    # session. Server atomically sets screenshots.transaction_id = this txn
+    # in the same commit. Validated for ownership / not-already-linked in
+    # the route.
+    screenshot_id: uuid.UUID | None = None
 
 
 class TransactionUpdate(BaseModel):
@@ -55,6 +60,10 @@ class TransactionUpdate(BaseModel):
     note: str | None = Field(default=None, max_length=MAX_NOTE_LEN)
     bank_name: str | None = Field(default=None, max_length=MAX_BANK_NAME_LEN)
     reference_number: str | None = Field(default=None, max_length=MAX_REFERENCE_LEN)
+    # Phase 8.1: same as TransactionCreate.screenshot_id — link an orphan
+    # screenshot on PATCH (used when editing a transaction and replacing
+    # the proof via the form's eager-upload path).
+    screenshot_id: uuid.UUID | None = None
 
     @field_validator("amount_minor", "direction")
     @classmethod

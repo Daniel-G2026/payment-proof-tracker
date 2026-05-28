@@ -132,6 +132,38 @@ interface ApiService {
         @Part file: MultipartBody.Part,
     ): ScreenshotDto
 
+    /**
+     * Phase 8.1 — orphan upload, no transaction_id. Same backend route as
+     * uploadScreenshot but the transaction_id part is omitted, signaling
+     * "this is a draft proof; link it to a transaction later via the
+     * transaction-create endpoint's screenshot_id field."
+     *
+     * Two methods (rather than a nullable transaction_id RequestBody) keeps
+     * the Retrofit multipart contract simple — omitting a @Part by passing
+     * null would require all parts to be nullable, which weakens the
+     * existing transaction-linked path.
+     */
+    @Multipart
+    @POST("businesses/{businessId}/screenshots")
+    suspend fun uploadOrphanScreenshot(
+        @Path("businessId") businessId: String,
+        @Part("id") id: RequestBody,
+        @Part("original_file_size") originalFileSize: RequestBody,
+        @Part("width") width: RequestBody,
+        @Part("height") height: RequestBody,
+        @Part file: MultipartBody.Part,
+    ): ScreenshotDto
+
+    /**
+     * Phase 8.1 — delete a screenshot. Used to clean up an orphan when the
+     * user replaces or removes the proof mid-form. Idempotent on the server
+     * side (404 swallowed by the caller).
+     */
+    @DELETE("screenshots/{screenshotId}")
+    suspend fun deleteScreenshot(
+        @Path("screenshotId") screenshotId: String,
+    )
+
     @GET("screenshots/{screenshotId}/signed-url")
     suspend fun getScreenshotSignedUrl(
         @Path("screenshotId") screenshotId: String,

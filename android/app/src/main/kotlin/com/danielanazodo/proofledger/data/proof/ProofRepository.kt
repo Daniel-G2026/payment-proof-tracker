@@ -32,6 +32,18 @@ data class ManualBackupResult(
     val failedCount: Int,
 )
 
+/**
+ * Phase 8.1 — return value of [ProofRepository.uploadOrphan]. Carries both
+ * the server response and the local file paths we wrote during the upload,
+ * so [ProofRepository.recordUploaded] can build a LocalScreenshotEntity on
+ * save without re-running file IO or doing brittle filesystem lookups by id.
+ */
+data class OrphanUploadResult(
+    val screenshot: com.danielanazodo.proofledger.data.remote.dto.ScreenshotDto,
+    val localOriginalPath: String,
+    val localUploadPath: String?,
+)
+
 data class ManualBackupFilter(
     val importantOnly: Boolean = false,
     val direction: String? = null,
@@ -224,6 +236,123 @@ class ProofRepository @Inject constructor(
             backedUpCount = backedUp,
             failedCount = failed,
         )
+    }
+
+    /**
+     * Phase 8.1 — upload a proof to the server *before* a transaction exists.
+     * The server creates an orphan screenshot row (transaction_id = NULL),
+     * enqueues extraction, and returns the DTO. The caller (form ViewModel)
+     * holds onto the returned screenshot id and sends it back on save so the
+     * transaction-create endpoint can link the orphan atomically.
+     *
+     * Local DAO is intentionally NOT touched here. The form session is the
+     * only place the orphan id lives until save() either:
+     *   - links it (via TransactionCreateDto.screenshotId), then we write the
+     *     LocalScreenshotEntity via [recordUploaded], OR
+     *   - drops it (user bailed; server cron cleans up after 7 days).
+     *
+     * @param uri local content:// URI of the picked / shared screenshot
+     * @param businessId the business this proof belongs to
+     * @param proofId client-generated UUID — used as both the local file id
+     *  (via ProofFileStore) AND the remote screenshot id, so they're aligned
+     *  for any future [recordUploaded] call
+     */
+    suspend fun uploadOrphan(
+        uri: Uri,
+        businessId: String,
+        proofId: String,
+    ): OrphanUploadResult {
+        // Strip EXIF / re-encode using the same pipeline attachProof uses, so
+        // orphan uploads and transaction-linked uploads send identical bytes.
+        val prepared = fileStore.prepare(uri, proofId)
+        val file = File(prepared.uploadPath ?: prepared.originalPath)
+        val uploadMimeType = if (prepared.uploadPath != null) {
+            "image/jpeg"
+        } else {
+            prepared.mimeType.ifBlank { "image/jpeg" }
+        }
+        val part = MultipartBody.Part.createFormData(
+            name = "file",
+            filename = file.name,
+            body = file.asRequestBody(uploadMimeType.toMediaTypeOrNull()),
+        )
+        val dto = try {
+            api.uploadOrphanScreenshot(
+                businessId = businessId,
+                id = proofId.toRequestBody(TEXT_MEDIA_TYPE),
+                originalFileSize = prepared.originalSizeBytes.toString().toRequestBody(TEXT_MEDIA_TYPE),
+                width = (prepared.width ?: "").toString().toRequestBody(TEXT_MEDIA_TYPE),
+                height = (prepared.height ?: "").toString().toRequestBody(TEXT_MEDIA_TYPE),
+                file = part,
+            )
+        } catch (t: Throwable) {
+            // Clean up the local copies so a failed orphan upload doesn't
+            // leave megabytes on disk every time the user attaches offline.
+            fileStore.deleteForId(proofId)
+            throw t
+        }
+        return OrphanUploadResult(
+            screenshot = dto,
+            localOriginalPath = prepared.originalPath,
+            localUploadPath = prepared.uploadPath,
+        )
+    }
+
+    /**
+     * Phase 8.1 — best-effort delete of an orphan screenshot from the server.
+     * Used when the user replaces or removes the proof mid-form. Swallows
+     * failures: a leaked orphan will be cleaned up by the 7-day cron, so
+     * client-side errors here aren't worth surfacing.
+     */
+    suspend fun deleteOrphan(screenshotId: String) {
+        runCatching { api.deleteScreenshot(screenshotId) }
+    }
+
+    /**
+     * Phase 8.1 — write the LocalScreenshotEntity for an orphan that the
+     * server has already received and linked to a saved transaction. No HTTP
+     * call, no WorkManager — the bytes are already on the server (and on
+     * disk under the same proofId).
+     *
+     * Called from TransactionFormViewModel.save() in the orphan branch,
+     * after the create-transaction request succeeded with the orphan
+     * `screenshot_id`.
+     */
+    suspend fun recordUploaded(
+        transaction: LocalTransactionEntity,
+        upload: OrphanUploadResult,
+        ocrText: String? = null,
+    ): LocalScreenshotEntity {
+        val now = System.currentTimeMillis()
+        val screenshot = upload.screenshot
+        val row = LocalScreenshotEntity(
+            id = screenshot.id,
+            businessId = transaction.businessId,
+            transactionId = transaction.id,
+            localOriginalPath = upload.localOriginalPath,
+            localUploadPath = upload.localUploadPath,
+            originalFileSizeBytes = screenshot.originalFileSize,
+            uploadFileSizeBytes = screenshot.uploadedFileSize,
+            mimeType = screenshot.mimeType,
+            width = screenshot.width,
+            height = screenshot.height,
+            transactionAmountMinor = transaction.amountMinor,
+            transactionDate = transaction.transactionDate,
+            transactionDirection = transaction.direction,
+            counterpartyId = transaction.counterpartyId,
+            counterpartyName = transaction.counterpartyName,
+            isImportant = false,
+            backupStatus = ProofBackupStatus.BACKED_UP,
+            remoteScreenshotId = screenshot.id,
+            remoteStorageKey = screenshot.storageKey,
+            createdAt = now,
+            updatedAt = now,
+            lastBackupAttemptAt = now,
+            lastBackupError = null,
+            ocrText = ocrText?.takeIf { it.isNotBlank() },
+        )
+        screenshotDao.upsert(row)
+        return row
     }
 
     suspend fun upload(proofId: String) {

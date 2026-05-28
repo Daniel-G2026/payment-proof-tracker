@@ -214,6 +214,15 @@ class ServerDraftPollerTest {
             height: RequestBody,
             file: MultipartBody.Part,
         ): ScreenshotDto = error("not used")
+        override suspend fun uploadOrphanScreenshot(
+            businessId: String,
+            id: RequestBody,
+            originalFileSize: RequestBody,
+            width: RequestBody,
+            height: RequestBody,
+            file: MultipartBody.Part,
+        ): ScreenshotDto = error("not used")
+        override suspend fun deleteScreenshot(screenshotId: String) {}
         override suspend fun getScreenshotSignedUrl(
             screenshotId: String
         ): SignedScreenshotUrlDto = error("not used")

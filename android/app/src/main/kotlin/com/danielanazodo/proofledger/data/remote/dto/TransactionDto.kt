@@ -38,6 +38,10 @@ data class TransactionCreateDto(
     val note: String? = null,
     @Json(name = "bank_name") val bankName: String? = null,
     @Json(name = "reference_number") val referenceNumber: String? = null,
+    /** Phase 8.1: id of an orphan screenshot uploaded eagerly during this
+     *  form session. Backend links the screenshot to this transaction
+     *  atomically in the same DB commit as the insert. */
+    @Json(name = "screenshot_id") val screenshotId: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -52,4 +56,7 @@ data class TransactionUpdateDto(
     val note: String? = null,
     @Json(name = "bank_name") val bankName: String? = null,
     @Json(name = "reference_number") val referenceNumber: String? = null,
+    /** Phase 8.1: link/replace the screenshot on an edit. Same semantics as
+     *  on create — see TransactionCreateDto.screenshotId. */
+    @Json(name = "screenshot_id") val screenshotId: String? = null,
 )

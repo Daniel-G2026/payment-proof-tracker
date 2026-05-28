@@ -33,11 +33,13 @@ This is an Android-native, offline-first payment proof tracker for small busines
 Phase 9: Duplicate Detection (next).
 
 Completed: Phases 1–6 (foundation, auth + business setup, manual ledger MVP,
-counterparties, screenshot attachment, share-sheet intake) and Phase 8
-(server-side OCR/AI extraction via Claude Haiku 4.5). Phase 5 also got an
-adversarial hardening pass — see "Phase 5 Hardening Notes" in
-`docs/master-plan.md` for the specific defenses already in place so they
-aren't reimplemented or regressed.
+counterparties, screenshot attachment, share-sheet intake), Phase 8
+(server-side OCR/AI extraction via Claude Haiku 4.5), and Phase 8.1
+(eager upload on attach — drafts now pre-fill during the create flow,
+not only on edit-mode reopen). Phase 5 also got an adversarial hardening
+pass — see "Phase 5 Hardening Notes" in `docs/master-plan.md` for the
+specific defenses already in place so they aren't reimplemented or
+regressed.
 
 Phase 7 (on-device OCR drafts) is **built but gated off** behind
 `OCR_DRAFTING_ENABLED = false` in `TransactionFormViewModel.kt`. The Latin
@@ -72,15 +74,44 @@ Constraints:
   `applyDraftIfFieldsBlank` + `ocrFilledFields` field-ownership logic from
   Phase 7. User-typed fields are never clobbered.
 
-Architectural compromise — **drafting fires on edit-mode form open, not at
-attach time**. The current form attaches the proof in UI state but doesn't
-upload it until `save()` runs, so there's nothing on the server to poll
-during the new-transaction flow. `TransactionFormViewModel.tryServerDraftMergeFor`
-runs the poller when the user re-opens a transaction whose proof has been
-uploaded but whose `serverDraftStatus` is not yet `ready`. The draft is
-applied on second open. Eager-upload-on-attach (for in-form draft during
-the first create flow) is left as a follow-up — it's a non-trivial refactor
-because the proof has to be uploaded without a parent transaction.
+## Phase 8.1 implementation notes (eager upload on attach)
+
+Closes the UX hole from the original Phase 8: pre-fill now fires *during*
+the create flow, not only on edit-mode reopen.
+
+Mechanism:
+- `screenshots.transaction_id` is nullable (migration `0007_screenshots_orphan`).
+- The existing `POST /businesses/{bid}/screenshots` route accepts uploads
+  without a `transaction_id` — those become "orphan" screenshots.
+- The Android form uploads the proof the moment the user commits to it
+  (picker tap, or share-sheet "Money In/Out" tap — never on share-sheet
+  cancel). `TransactionFormViewModel.uploadOrphanAndPoll` runs the upload
+  + poll inline, banner cycles "Drafting…" → "Draft ready" → fields fill.
+- On save, the orphan id rides along in `TransactionCreateDto.screenshotId`
+  and the backend links it atomically in the same DB commit as the txn
+  insert via `_link_orphan_screenshot`.
+- Daily arq cron `purge_orphan_screenshots` soft-deletes orphans older
+  than **7 days** (run at 03:15 UTC, 15min offset from `purge_raw_json`).
+  Storage bytes deleted best-effort.
+
+Failure UX (locked in by product decision): **visible** banner, not
+silent. "Draft unavailable — type the fields yourself." Trust matters
+more than tidy UI — silent failures make users blame the whole app.
+
+Offline at attach → upload fails → `pendingScreenshotId = null` → save
+falls through to the **existing** `attachProof` + `ProofBackupWorker`
+path. Draft becomes available on next edit-mode open (Phase 8 behavior).
+No regression from the offline path.
+
+Known limitation: **eager upload + offline save loses the link.** If the
+user attaches online (orphan upload succeeds), then saves offline (txn
+API call fails), the local txn is in PENDING_UPLOAD and the orphan stays
+on the server unlinked. Sync retry doesn't include `screenshot_id`
+because we don't persist the link intent on `LocalTransactionEntity` —
+keeping the local schema migration-free for Phase 8.1 was a deliberate
+trade-off. The orphan dies in the 7-day cron; the user can re-attach
+the proof on next edit. Rare in practice (attach-online-save-offline
+within seconds is unusual). Document, don't fix.
 
 ## Share-sheet intake constraints (Phase 6)
 - Only image MIME types are accepted: `image/jpeg`, `image/png`, `image/webp`.

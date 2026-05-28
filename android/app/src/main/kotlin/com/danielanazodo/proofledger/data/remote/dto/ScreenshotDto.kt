@@ -5,7 +5,7 @@ import com.squareup.moshi.Json
 data class ScreenshotDto(
     val id: String,
     @Json(name = "business_id") val businessId: String,
-    @Json(name = "transaction_id") val transactionId: String,
+    @Json(name = "transaction_id") val transactionId: String?,
     @Json(name = "uploaded_by") val uploadedBy: String,
     @Json(name = "mime_type") val mimeType: String,
     @Json(name = "uploaded_file_size") val uploadedFileSize: Long,

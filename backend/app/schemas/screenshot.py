@@ -11,7 +11,9 @@ class ScreenshotOut(BaseModel):
 
     id: uuid.UUID
     business_id: uuid.UUID
-    transaction_id: uuid.UUID
+    # Phase 8.1: nullable to support orphan uploads. Set atomically by the
+    # transaction-create endpoint when the user saves the form.
+    transaction_id: uuid.UUID | None
     uploaded_by: uuid.UUID
     mime_type: str
     uploaded_file_size: int

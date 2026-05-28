@@ -113,6 +113,12 @@ class TransactionRepository @Inject constructor(
         note: String?,
         bankName: String?,
         referenceNumber: String?,
+        // Phase 8.1: orphan screenshot id to link atomically on the server.
+        // Only flows through on the first (online) API call — if that call
+        // fails, the orphan stays on the server until cron cleanup. We don't
+        // persist the link intent on the local row, so sync retries won't
+        // re-attempt the link. Documented limitation.
+        screenshotId: String? = null,
     ): LocalTransactionEntity {
         val now = System.currentTimeMillis()
         val local = LocalTransactionEntity(
@@ -137,7 +143,7 @@ class TransactionRepository @Inject constructor(
             lastSyncAttemptAt = now,
         )
         localDao.upsert(local)
-        return runCatching { api.createTransaction(businessId, local.toCreateDto()) }
+        return runCatching { api.createTransaction(businessId, local.toCreateDto(screenshotId)) }
             .fold(
                 onSuccess = { remote ->
                     val synced = remote.toEntity(SyncStatus.SYNCED)
@@ -163,6 +169,7 @@ class TransactionRepository @Inject constructor(
         note: String?,
         bankName: String?,
         referenceNumber: String?,
+        screenshotId: String? = null,  // Phase 8.1 — see createTransaction
     ): LocalTransactionEntity {
         val current = localDao.getById(transactionId)
             ?: throw IllegalStateException("Transaction not found.")
@@ -183,7 +190,7 @@ class TransactionRepository @Inject constructor(
         )
         localDao.upsert(updated)
         return runCatching {
-            api.updateTransaction(current.businessId, current.id, updated.toUpdateDto())
+            api.updateTransaction(current.businessId, current.id, updated.toUpdateDto(screenshotId))
         }.fold(
             onSuccess = { remote ->
                 val synced = remote.toEntity(SyncStatus.SYNCED)
@@ -265,7 +272,9 @@ class TransactionRepository @Inject constructor(
                 LocalDateTime.parse(this).toInstant(ZoneOffset.UTC).toEpochMilli()
             }.getOrNull()
 
-    private fun LocalTransactionEntity.toCreateDto(): TransactionCreateDto =
+    private fun LocalTransactionEntity.toCreateDto(
+        screenshotId: String? = null,
+    ): TransactionCreateDto =
         TransactionCreateDto(
             id = id,
             amountMinor = amountMinor,
@@ -278,9 +287,12 @@ class TransactionRepository @Inject constructor(
             note = note,
             bankName = bankName,
             referenceNumber = referenceNumber,
+            screenshotId = screenshotId,
         )
 
-    private fun LocalTransactionEntity.toUpdateDto(): TransactionUpdateDto =
+    private fun LocalTransactionEntity.toUpdateDto(
+        screenshotId: String? = null,
+    ): TransactionUpdateDto =
         TransactionUpdateDto(
             amountMinor = amountMinor,
             currency = currency,
@@ -292,5 +304,6 @@ class TransactionRepository @Inject constructor(
             note = note,
             bankName = bankName,
             referenceNumber = referenceNumber,
+            screenshotId = screenshotId,
         )
 }

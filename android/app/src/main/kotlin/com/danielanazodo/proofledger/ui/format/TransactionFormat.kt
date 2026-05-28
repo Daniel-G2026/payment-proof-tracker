@@ -70,6 +70,43 @@ fun parseNairaToMinor(input: String): Long? {
     return whole * 100 + paddedFraction
 }
 
+fun formatNairaInput(input: String): String {
+    val cleaned = input.replace(",", "").trim()
+    if (cleaned.isBlank()) return ""
+
+    val dotIndex = cleaned.indexOf('.')
+    val rawWhole = if (dotIndex >= 0) cleaned.take(dotIndex) else cleaned
+    val wholeDigits = rawWhole.filter { it.isDigit() }
+    val normalizedWhole = wholeDigits.trimStart('0').ifEmpty {
+        if (wholeDigits.isNotEmpty() || dotIndex >= 0) "0" else ""
+    }
+    if (normalizedWhole.isBlank()) return ""
+
+    val groupedWhole = normalizedWhole.reversed()
+        .chunked(3)
+        .joinToString(",")
+        .reversed()
+
+    if (dotIndex < 0) return groupedWhole
+
+    val fraction = cleaned
+        .drop(dotIndex + 1)
+        .filter { it.isDigit() }
+        .take(2)
+    return "$groupedWhole.$fraction"
+}
+
+fun formatNairaInput(amountMinor: Long): String {
+    val whole = amountMinor / 100
+    val fraction = amountMinor % 100
+    val raw = if (fraction == 0L) {
+        whole.toString()
+    } else {
+        "$whole.${fraction.toString().padStart(2, '0')}"
+    }
+    return formatNairaInput(raw)
+}
+
 fun signedNaira(amountMinor: Long, direction: String): String {
     val sign = if (direction == "money_out") "-" else "+"
     return "$sign${formatNaira(abs(amountMinor))}"

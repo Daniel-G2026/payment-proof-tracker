@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import java.util.UUID
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalScreenshotEntity
@@ -16,9 +17,11 @@ import com.danielanazodo.proofledger.data.ocr.OcrDraftParser
 import com.danielanazodo.proofledger.data.ocr.OcrService
 import com.danielanazodo.proofledger.data.ocr.ServerDraftPoller
 import com.danielanazodo.proofledger.data.ocr.toOcrDraft
+import com.danielanazodo.proofledger.data.proof.OrphanUploadResult
 import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.data.proof.SharedProofIntakeRepository
 import com.danielanazodo.proofledger.data.remote.dto.DraftErrorCode
+import com.danielanazodo.proofledger.ui.format.formatNairaInput
 import com.danielanazodo.proofledger.ui.format.parseNairaToMinor
 import com.danielanazodo.proofledger.ui.format.todayIsoDate
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -79,6 +82,14 @@ data class TransactionFormUiState(
      *  (picked, replaced, or removed). Until then, save() leaves the existing
      *  proof alone. */
     val proofDirty: Boolean = false,
+    /** Phase 8.1: id of an orphan screenshot uploaded eagerly during this
+     *  form session. Sent to the backend in TransactionCreateDto.screenshotId
+     *  so the server links it atomically on save. Null when:
+     *   - no proof is attached
+     *   - eager upload failed (offline / server down — falls back to the
+     *     existing save-time upload path)
+     *   - server extraction is disabled by feature flag */
+    val pendingScreenshotId: String? = null,
     val loading: Boolean = false,
     val error: String? = null,
     val saved: Boolean = false,
@@ -108,6 +119,13 @@ class TransactionFormViewModel @Inject constructor(
     private var businessId: String? = null
     private var suggestionsJob: Job? = null
     private var activeIntakeToken: String? = null
+    // Phase 8.1: in-flight eager-upload + poll. Cancelled when the user
+    // replaces the proof so we don't merge a stale draft.
+    private var orphanUploadJob: Job? = null
+    // Phase 8.1: full orphan upload result kept around so save() can hand it
+    // to ProofRepository.recordUploaded without re-running file IO. Cleared
+    // when the proof is replaced/removed or after successful save.
+    private var pendingOrphan: OrphanUploadResult? = null
 
     init {
         viewModelScope.launch {
@@ -127,7 +145,12 @@ class TransactionFormViewModel @Inject constructor(
                         proofDirty = true,
                     )
                 }
+                // Phase 8.1: share-sheet flow gates the eager upload behind
+                // the user's Money In/Out tap on SharedProofIntakeScreen. By
+                // the time we get here, that commitment has been made, so
+                // it's safe to upload.
                 runOcrInBackground(Uri.parse(item.localUri))
+                uploadOrphanAndPoll(Uri.parse(item.localUri))
             }
         }
         if (transactionId != null) {
@@ -146,7 +169,7 @@ class TransactionFormViewModel @Inject constructor(
                     _state.update {
                         it.copy(
                             direction = transaction.direction,
-                            amount = formatAmountForInput(transaction.amountMinor),
+                            amount = formatNairaInput(transaction.amountMinor),
                             transactionDate = transaction.transactionDate,
                             counterpartyId = transaction.counterpartyId,
                             counterpartyQuery = transaction.counterpartyName.orEmpty(),
@@ -187,7 +210,12 @@ class TransactionFormViewModel @Inject constructor(
         )
     }
     fun onAmountChange(value: String) = _state.update {
-        it.copy(amount = value, error = null, saved = false, ocrFilledFields = it.ocrFilledFields - FIELD_AMOUNT)
+        it.copy(
+            amount = formatNairaInput(value),
+            error = null,
+            saved = false,
+            ocrFilledFields = it.ocrFilledFields - FIELD_AMOUNT,
+        )
     }
     fun onDateChange(value: String) = _state.update {
         it.copy(transactionDate = value, saved = false, ocrFilledFields = it.ocrFilledFields - FIELD_DATE)
@@ -263,14 +291,33 @@ class TransactionFormViewModel @Inject constructor(
                 bankName = if (FIELD_BANK in current.ocrFilledFields) "" else current.bankName,
                 ocrFilledFields = emptySet(),
                 serverDraftError = null,
+                // Clear stale orphan id from the previous proof; the helper
+                // will repopulate when its upload returns.
+                pendingScreenshotId = null,
                 error = null,
                 saved = false,
             )
         }
         runOcrInBackground(Uri.parse(uri))
+        // Phase 8.1: kick off eager upload + polling so the form pre-fills
+        // while the user is still on this screen. Handles its own cancel-on-
+        // replace and best-effort delete of any previously uploaded orphan.
+        uploadOrphanAndPoll(Uri.parse(uri))
     }
     fun onProofRemoved() {
         clearActiveIntake()
+        // Phase 8.1: cancel any in-flight upload + best-effort delete the
+        // orphan from the server so we're not leaving paid-for extraction
+        // jobs running on a proof the user no longer wants.
+        orphanUploadJob?.cancel()
+        orphanUploadJob = null
+        val orphanToDelete = pendingOrphan?.screenshot?.id
+        pendingOrphan = null
+        if (orphanToDelete != null) {
+            viewModelScope.launch {
+                proofRepository.deleteOrphan(orphanToDelete)
+            }
+        }
         _state.update { current ->
             current.copy(
                 proofUri = null,
@@ -285,6 +332,7 @@ class TransactionFormViewModel @Inject constructor(
                 bankName = if (FIELD_BANK in current.ocrFilledFields) "" else current.bankName,
                 ocrFilledFields = emptySet(),
                 serverDraftError = null,
+                pendingScreenshotId = null,
                 saved = false,
             )
         }
@@ -320,6 +368,12 @@ class TransactionFormViewModel @Inject constructor(
                 )
                 val counterpartyId = linkedCounterparty?.id ?: current.counterpartyId
                 val counterpartyName = linkedCounterparty?.name ?: current.counterpartyName.clean()
+                // Phase 8.1 — only thread the orphan id into the create/update
+                // DTO when the user actually changed the proof this session.
+                // Edit-mode opens where the user didn't touch the proof have
+                // pendingScreenshotId from a Phase 8 server-draft poll, which
+                // is NOT an orphan — the screenshot is already linked.
+                val orphanIdForLink = if (current.proofDirty) current.pendingScreenshotId else null
                 val savedTransaction = if (transactionId == null) {
                     transactionRepository.createTransaction(
                         businessId = selectedBusinessId,
@@ -332,6 +386,7 @@ class TransactionFormViewModel @Inject constructor(
                         note = current.note.clean(),
                         bankName = current.bankName.clean(),
                         referenceNumber = current.referenceNumber.clean(),
+                        screenshotId = orphanIdForLink,
                     )
                 } else {
                     transactionRepository.updateTransaction(
@@ -345,19 +400,45 @@ class TransactionFormViewModel @Inject constructor(
                         note = current.note.clean(),
                         bankName = current.bankName.clean(),
                         referenceNumber = current.referenceNumber.clean(),
+                        screenshotId = orphanIdForLink,
                     )
                 }
-                // Only touch proof storage when the user actually changed
-                // something on this form session. Otherwise we'd re-attach the
-                // same proof every save and accumulate duplicate rows + files.
+                // Phase 8.1 proof handling branches three ways:
+                //
+                //   A) Orphan was uploaded eagerly + still in flight memory →
+                //      server linked atomically via screenshotId in the DTO.
+                //      Just write the LocalScreenshotEntity to mirror it.
+                //
+                //   B) Proof dirty but no orphan (offline at attach, upload
+                //      failed, or feature flag off) → existing attachProof
+                //      path: local row + ProofBackupWorker schedules upload.
+                //      Draft becomes available on next edit-mode reopen.
+                //
+                //   C) Proof not dirty → leave whatever's there alone. Avoids
+                //      re-attaching the same proof on every save.
                 if (current.proofDirty) {
-                    current.existingProofId?.let { proofRepository.deleteProof(it) }
-                    current.proofUri?.let { uri ->
+                    val orphan = pendingOrphan
+                    if (orphan != null && orphanIdForLink != null) {
+                        // Branch A: server already has the screenshot + link.
+                        current.existingProofId?.let { proofRepository.deleteProof(it) }
+                        proofRepository.recordUploaded(
+                            transaction = savedTransaction,
+                            upload = orphan,
+                            ocrText = current.proofOcrText,
+                        )
+                        pendingOrphan = null
+                    } else if (current.proofUri != null) {
+                        // Branch B: fall back to the existing save-time upload.
+                        current.existingProofId?.let { proofRepository.deleteProof(it) }
                         proofRepository.attachProof(
-                            Uri.parse(uri),
+                            Uri.parse(current.proofUri),
                             savedTransaction,
                             ocrText = current.proofOcrText,
                         )
+                    } else {
+                        // Proof was attached then removed in this session;
+                        // strip the existing proof from the transaction.
+                        current.existingProofId?.let { proofRepository.deleteProof(it) }
                     }
                 }
                 activeIntakeToken?.let { token ->
@@ -429,6 +510,99 @@ class TransactionFormViewModel @Inject constructor(
      * OcrDraftParser code in tree so the flag can be flipped on for
      * dogfooding without a revert.
      */
+    /**
+     * Phase 8.1 — eager-upload-on-attach. Uploads the proof to the server
+     * immediately, then polls extraction in parallel so the form pre-fills
+     * fields *while the user is still on this screen*.
+     *
+     * Cancels any prior in-flight upload (the user has replaced the proof),
+     * best-effort deletes the previous orphan from the server, and starts
+     * a fresh upload+poll cycle. The orphan id is persisted in UI state
+     * (`pendingScreenshotId`) and the full upload result (which includes
+     * the local file paths) is held in `pendingOrphan` for save() to use.
+     *
+     * Failure modes (offline, server down, rate limit) surface as a
+     * "Draft unavailable" banner and leave `pendingScreenshotId = null`,
+     * so save() falls through to the existing attachProof / ProofBackupWorker
+     * path. Trust matters: silent failure makes users blame the whole app.
+     */
+    private fun uploadOrphanAndPoll(uri: Uri) {
+        if (!SERVER_EXTRACTION_ENABLED) return
+        val bid = businessId
+        if (bid == null) {
+            // Will be set by the init block's businessId lookup; the share-sheet
+            // and picker attach paths both happen after init, but the
+            // suspending getSelectedBusinessId() call hasn't necessarily
+            // completed yet. Cheap retry — try again once businessId resolves.
+            viewModelScope.launch {
+                val resolved = businessRepository.getSelectedBusinessId() ?: return@launch
+                businessId = resolved
+                uploadOrphanAndPollInternal(uri, resolved)
+            }
+            return
+        }
+        uploadOrphanAndPollInternal(uri, bid)
+    }
+
+    private fun uploadOrphanAndPollInternal(uri: Uri, businessId: String) {
+        orphanUploadJob?.cancel()
+        // Best-effort cleanup of any previous orphan from this session.
+        val previousOrphan = pendingOrphan?.screenshot?.id
+        pendingOrphan = null
+        _state.update {
+            it.copy(
+                ocrRunning = true,
+                serverDraftError = null,
+                pendingScreenshotId = null,
+            )
+        }
+        orphanUploadJob = viewModelScope.launch {
+            if (previousOrphan != null) {
+                proofRepository.deleteOrphan(previousOrphan)
+            }
+            // Generate id client-side so local file storage (in ProofFileStore)
+            // and the remote screenshot id stay in lockstep — no rename or
+            // remap needed when recordUploaded writes the LocalScreenshotEntity.
+            val proofId = UUID.randomUUID().toString()
+            val upload = runCatching {
+                proofRepository.uploadOrphan(uri, businessId, proofId)
+            }.getOrNull()
+            if (upload == null) {
+                _state.update {
+                    it.copy(
+                        ocrRunning = false,
+                        serverDraftError = "Draft unavailable — type the fields yourself.",
+                        pendingScreenshotId = null,
+                    )
+                }
+                return@launch
+            }
+            pendingOrphan = upload
+            _state.update { it.copy(pendingScreenshotId = upload.screenshot.id) }
+            // Reuse the Phase 8 poller verbatim — same Flow, same DraftState.
+            serverDraftPoller.poll(upload.screenshot.id).collect { pollState ->
+                when (pollState) {
+                    is DraftState.Processing -> {
+                        // Banner already shows "Drafting…"; nothing to do.
+                    }
+                    is DraftState.Ready -> {
+                        applyDraftIfFieldsBlank(pollState.draft.toOcrDraft())
+                    }
+                    is DraftState.Failed -> {
+                        val message = when (pollState.errorCode) {
+                            DraftErrorCode.UNREADABLE -> "Couldn't read this one — type the fields yourself."
+                            DraftErrorCode.TIMEOUT -> "Draft is taking longer than expected — try again later."
+                            else -> "Couldn't draft from your screenshot."
+                        }
+                        _state.update {
+                            it.copy(ocrRunning = false, serverDraftError = message)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private fun runOcrInBackground(uri: Uri) {
         if (!OCR_DRAFTING_ENABLED) {
             _state.update { it.copy(ocrRunning = false) }
@@ -537,7 +711,7 @@ class TransactionFormViewModel @Inject constructor(
             // different value.
             val amountWritable = current.amount.isBlank() || FIELD_AMOUNT in current.ocrFilledFields
             val nextAmount = if (amountWritable && draft.amountMinor != null) {
-                formatAmountForInput(draft.amountMinor)
+                formatNairaInput(draft.amountMinor)
             } else current.amount
 
             // The form pre-seeds transactionDate with today's date, so "blank"
@@ -591,11 +765,6 @@ class TransactionFormViewModel @Inject constructor(
         }
     }
 
-    private fun formatAmountForInput(amountMinor: Long): String {
-        val whole = amountMinor / 100
-        val fraction = amountMinor % 100
-        return if (fraction == 0L) whole.toString() else "$whole.${fraction.toString().padStart(2, '0')}"
-    }
 }
 
 private fun defaultCounterpartyType(direction: String): String =

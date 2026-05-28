@@ -14,8 +14,14 @@ class Screenshot(Base):
     business_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("businesses.id"), nullable=False, index=True
     )
-    transaction_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("transactions.id"), nullable=False, index=True
+    # Nullable as of Phase 8.1 — a screenshot can be uploaded "orphan" (no
+    # parent transaction) so the form can run AI extraction on it before the
+    # user has committed to creating the transaction. The transaction-create
+    # endpoint links the orphan atomically. The cleanup cron deletes orphans
+    # older than 7 days. FK is ON DELETE SET NULL so deleting a transaction
+    # doesn't take its proof with it.
+    transaction_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("transactions.id", ondelete="SET NULL"), nullable=True, index=True
     )
     uploaded_by: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("profiles.id"), nullable=False, index=True
