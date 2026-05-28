@@ -1,6 +1,7 @@
 package com.danielanazodo.proofledger.data.repository
 
 import com.danielanazodo.proofledger.data.local.SyncStatus
+import com.danielanazodo.proofledger.data.local.dao.LocalCounterpartyDao
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
 import com.danielanazodo.proofledger.data.local.dao.LocalTransactionDao
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
@@ -20,11 +21,13 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
+import retrofit2.HttpException
 
 @Singleton
 class TransactionRepository @Inject constructor(
     private val api: ApiService,
     private val localDao: LocalTransactionDao,
+    private val counterpartyDao: LocalCounterpartyDao,
     private val screenshotDao: LocalScreenshotDao,
     private val proofRepository: ProofRepository,
 ) {
@@ -119,7 +122,9 @@ class TransactionRepository @Inject constructor(
             when {
                 local.deletedAt != null || local.syncStatus == SyncStatus.PENDING_DELETE ->
                     syncDelete(local)
+                shouldWaitForCounterparty(local) -> markWaitingForCounterparty(local)
                 local.syncStatus == SyncStatus.PENDING_UPDATE -> syncUpdate(local)
+                local.syncStatus == SyncStatus.FAILED -> syncCreateOrUpdate(businessId, local)
                 else -> syncCreate(businessId, local)
             }
         }
@@ -135,6 +140,24 @@ class TransactionRepository @Inject constructor(
         runCatching { api.updateTransaction(local.businessId, local.id, local.toUpdateDto()) }
             .onSuccess { remote -> localDao.upsert(remote.toEntity(SyncStatus.SYNCED)) }
             .onFailure { t -> localDao.upsert(local.toFailed(t)) }
+    }
+
+    private suspend fun syncCreateOrUpdate(businessId: String, local: LocalTransactionEntity) {
+        if (local.updatedAt > local.createdAt) {
+            val update = runCatching { api.updateTransaction(local.businessId, local.id, local.toUpdateDto()) }
+            update
+                .onSuccess { remote ->
+                    localDao.upsert(remote.toEntity(SyncStatus.SYNCED))
+                    return
+                }
+                .onFailure { t ->
+                    if ((t as? HttpException)?.code() != 404) {
+                        localDao.upsert(local.toFailed(t))
+                        return
+                    }
+                }
+        }
+        syncCreate(businessId, local)
     }
 
     private suspend fun syncDelete(local: LocalTransactionEntity) {
@@ -157,6 +180,21 @@ class TransactionRepository @Inject constructor(
             lastSyncAttemptAt = System.currentTimeMillis(),
             lastSyncError = t.toSyncErrorMessage(),
         )
+
+    private suspend fun shouldWaitForCounterparty(local: LocalTransactionEntity): Boolean {
+        val counterpartyId = local.counterpartyId ?: return false
+        val counterparty = counterpartyDao.getByIdIncludingDeleted(counterpartyId) ?: return false
+        return counterparty.syncStatus != SyncStatus.SYNCED
+    }
+
+    private suspend fun markWaitingForCounterparty(local: LocalTransactionEntity) {
+        localDao.upsert(
+            local.copy(
+                lastSyncAttemptAt = System.currentTimeMillis(),
+                lastSyncError = "Waiting for this person to sync first.",
+            )
+        )
+    }
 
     private suspend fun findLocalDuplicateCandidates(
         businessId: String,

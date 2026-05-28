@@ -30,4 +30,10 @@ This is an Android-native, offline-first payment proof tracker for small busines
 - If UI state becomes complex, add dedicated UI state/models instead of bending database entities around presentation needs.
 
 ## Current Phase
-Phase 1: Project Foundation.
+Phase 10: Offline Sync Hardening.
+
+Focus for this phase:
+- Sync local pending work across every business, not only the selected business.
+- Preserve dependency order: businesses, then people, then records, then proof backup.
+- Keep failed local records retryable with clear user-facing errors.
+- Harden proof lifecycle, retry behavior, and audit/telemetry before adding new product features.

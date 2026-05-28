@@ -24,11 +24,14 @@ uv run ruff check .
 uv run ruff format .
 ```
 
-## Phase 1 scope
+## Current scope
 
-- `/health` endpoint
-- Postgres connection
-- Alembic configured
-- Initial migration: `profiles`, `businesses`, `business_members`
+The backend has moved beyond Phase 1. It now supports:
 
-Nothing else lands in Phase 1.
+- health, auth-backed profile, business, people, and transaction routes
+- local-first idempotent creates from Android-generated UUIDs
+- screenshot proof upload, signed content access, and orphan proof linking
+- server-side extraction drafts for uploaded proofs
+- duplicate-candidate checks for warning-only duplicate prevention
+
+Current active phase: Phase 10 offline sync hardening.

@@ -16,6 +16,7 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
+import retrofit2.HttpException
 
 @Singleton
 class CounterpartyRepository @Inject constructor(
@@ -53,6 +54,7 @@ class CounterpartyRepository @Inject constructor(
                 local.deletedAt != null || local.syncStatus == SyncStatus.PENDING_DELETE ->
                     syncDelete(local)
                 local.syncStatus == SyncStatus.PENDING_UPDATE -> syncUpdate(local)
+                local.syncStatus == SyncStatus.FAILED -> syncCreateOrUpdate(businessId, local)
                 else -> syncCreate(businessId, local)
             }
         }
@@ -68,6 +70,24 @@ class CounterpartyRepository @Inject constructor(
         runCatching { api.updateCounterparty(local.businessId, local.id, local.toUpdateDto()) }
             .onSuccess { remote -> localDao.upsert(remote.toEntity(SyncStatus.SYNCED)) }
             .onFailure { t -> localDao.upsert(local.toFailed(t)) }
+    }
+
+    private suspend fun syncCreateOrUpdate(businessId: String, local: LocalCounterpartyEntity) {
+        if (local.updatedAt > local.createdAt) {
+            val update = runCatching { api.updateCounterparty(local.businessId, local.id, local.toUpdateDto()) }
+            update
+                .onSuccess { remote ->
+                    localDao.upsert(remote.toEntity(SyncStatus.SYNCED))
+                    return
+                }
+                .onFailure { t ->
+                    if ((t as? HttpException)?.code() != 404) {
+                        localDao.upsert(local.toFailed(t))
+                        return
+                    }
+                }
+        }
+        syncCreate(businessId, local)
     }
 
     private suspend fun syncDelete(local: LocalCounterpartyEntity) {

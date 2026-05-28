@@ -18,6 +18,9 @@ interface LocalCounterpartyDao {
     @Query("SELECT * FROM local_counterparty WHERE id = :id AND deletedAt IS NULL LIMIT 1")
     suspend fun getById(id: String): LocalCounterpartyEntity?
 
+    @Query("SELECT * FROM local_counterparty WHERE id = :id LIMIT 1")
+    suspend fun getByIdIncludingDeleted(id: String): LocalCounterpartyEntity?
+
     @Query(
         """
         SELECT * FROM local_counterparty

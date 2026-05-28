@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.danielanazodo.proofledger.data.local.SyncStatus
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
@@ -30,10 +31,14 @@ class SyncWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result = runCatching {
         businessRepository.syncPending()
-        val selected = businessRepository.getSelectedBusinessId()
-        if (selected != null) {
-            counterpartyRepository.syncPending(selected)
-            transactionRepository.syncPending(selected)
+        businessRepository.getLocalBusinesses()
+            .filter { it.syncStatus == SyncStatus.SYNCED }
+            .forEach { business ->
+                counterpartyRepository.syncPending(business.id)
+                transactionRepository.syncPending(business.id)
+            }
+        businessRepository.getSelectedBusinessId()?.let { selected ->
+            transactionRepository.refreshFromRemote(selected)
         }
     }.fold(
         onSuccess = { Result.success() },
