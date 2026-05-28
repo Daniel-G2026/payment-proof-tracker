@@ -13,11 +13,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -103,17 +108,23 @@ fun CounterpartyTypeChips(
     onTypeChange: (String?) -> Unit,
     includeAll: Boolean,
 ) {
-    val types = listOf(
+    val builtInTypes = listOf(
         "customer",
         "supplier",
         "subcontractor",
         "employee",
-        "driver",
-        "landlord",
-        "agent",
-        "other",
-        "unknown",
     )
+    val customSelected = selectedType != null && selectedType !in builtInTypes
+    var customOpen by remember { mutableStateOf(customSelected) }
+    var customText by remember { mutableStateOf(if (customSelected) counterpartyTypeLabel(selectedType.orEmpty()) else "") }
+
+    LaunchedEffect(selectedType) {
+        if (selectedType != null && selectedType !in builtInTypes) {
+            customOpen = true
+            customText = counterpartyTypeLabel(selectedType)
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
@@ -126,23 +137,35 @@ fun CounterpartyTypeChips(
                     label = "All",
                 )
             }
-            types.take(4).forEach { type ->
+            builtInTypes.forEach { type ->
                 ProofLedgerFilterChip(
                     selected = selectedType == type,
                     onClick = { onTypeChange(type) },
                     label = counterpartyTypeLabel(type),
                 )
             }
-        }
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            types.drop(4).forEach { type ->
+            if (includeAll && customSelected) {
                 ProofLedgerFilterChip(
-                    selected = selectedType == type,
-                    onClick = { onTypeChange(type) },
-                    label = counterpartyTypeLabel(type),
+                    selected = true,
+                    onClick = { onTypeChange(selectedType) },
+                    label = counterpartyTypeLabel(selectedType.orEmpty()),
+                )
+            }
+        }
+        if (!includeAll) {
+            TextButton(onClick = { customOpen = !customOpen }) {
+                Text(if (customOpen) "Hide custom type" else "Create your own type")
+            }
+            if (customOpen) {
+                ProofLedgerTextField(
+                    value = customText,
+                    onValueChange = { value ->
+                        customText = value
+                        normalizeCounterpartyType(value)?.let(onTypeChange)
+                    },
+                    label = "Custom person type",
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
@@ -151,3 +174,12 @@ fun CounterpartyTypeChips(
 
 fun counterpartyTypeLabel(type: String): String =
     type.split("_").joinToString(" ") { part -> part.replaceFirstChar { it.uppercase() } }
+
+private fun normalizeCounterpartyType(value: String): String? {
+    val normalized = value
+        .trim()
+        .lowercase()
+        .replace(Regex("[^a-z0-9]+"), "_")
+        .trim('_')
+    return normalized.takeIf { it.isNotBlank() }
+}

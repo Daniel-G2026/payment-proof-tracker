@@ -5,9 +5,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-COUNTERPARTY_TYPE_PATTERN = (
-    "^(customer|supplier|subcontractor|employee|driver|landlord|agent|other|unknown)$"
-)
+COUNTERPARTY_TYPE_PATTERN = "^[a-z][a-z0-9_]{0,39}$"
 
 # Generous-but-bounded text caps. Same rationale as the transaction schemas:
 # we never want an authenticated user to be able to store megabytes of notes.
