@@ -2063,6 +2063,8 @@ Use on-device OCR to reduce manual entry.
 
 # Phase 8: Server-Side OCR/AI Extraction
 
+Status: implemented, including Phase 8.1 eager upload on attach.
+
 ## Goal
 
 Improve extraction accuracy with backend workers and optional vision model fallback.
@@ -2090,6 +2092,35 @@ Improve extraction accuracy with backend workers and optional vision model fallb
 * Backend creates stronger drafts from screenshots.
 * Low-confidence extraction is flagged.
 * User confirms before final save.
+
+## Phase 8.1 Implementation Notes
+
+Phase 8.1 closes the create-flow UX gap from the first Phase 8 build:
+proofs can now upload as orphan screenshots before a transaction exists, then
+the Android form polls for the server draft while the user is still creating
+the record.
+
+Implemented behavior:
+
+* `screenshots.transaction_id` is nullable so the backend can store orphan
+  proofs until the user saves the record.
+* `POST /businesses/{business_id}/screenshots` accepts uploads without
+  `transaction_id` and enqueues extraction as usual.
+* `TransactionFormViewModel` eagerly uploads the selected/shared proof,
+  polls `GET /screenshots/{id}/draft`, and merges ready fields through the
+  same "do not clobber user edits" ownership logic.
+* On save, `screenshot_id` links the orphan atomically inside the transaction
+  create/update request.
+* A daily worker purges old orphan screenshots after 7 days.
+* Android accepts nullable `transaction_id` in `ScreenshotDto`, fixing the
+  "Draft unavailable" parse failure for successful orphan uploads.
+* Amount fields now display comma-separated numbers for both user-typed
+  amounts and AI-filled amounts.
+
+Known limitation: if orphan upload succeeds while online but the transaction
+save later fails offline, the local pending transaction does not persist the
+orphan-link intent. The orphan will be cleaned by the 7-day purge. This is a
+documented trade-off for keeping Phase 8.1 schema-light on Android.
 
 ---
 
@@ -2217,6 +2248,10 @@ Improve product quality, trust, and validation measurement.
 * Add onboarding tips.
 * Optimize cold start and transaction list performance.
 * Add image compression.
+* Continue low-end-device responsiveness testing. A small audit has already
+  moved proof file copy/compression/deletion and share-sheet intake copying
+  off the UI thread, and made dashboard sync indicators clear reliably after
+  sync failures.
 * Add user-visible edit history UI for transactions, backed by the audit
   log written in Phase 10.
 * Escape `%` and `_` in search input before building `LIKE` patterns on

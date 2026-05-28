@@ -61,10 +61,13 @@ class DashboardViewModel @Inject constructor(
             val businessId = business?.id ?: return@launch
             viewModelScope.launch {
                 _state.update { it.copy(syncing = true) }
-                counterpartyRepository.syncPendingUploads(businessId)
-                transactionRepository.syncPendingUploads(businessId)
-                transactionRepository.refreshFromRemote(businessId)
-                _state.update { it.copy(syncing = false) }
+                try {
+                    counterpartyRepository.syncPendingUploads(businessId)
+                    transactionRepository.syncPendingUploads(businessId)
+                    transactionRepository.refreshFromRemote(businessId)
+                } finally {
+                    _state.update { it.copy(syncing = false) }
+                }
             }
             transactionRepository.observeTransactions(businessId).collect { transactions ->
                 val today = todayIsoDate()

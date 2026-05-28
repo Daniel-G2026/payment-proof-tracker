@@ -14,7 +14,9 @@ import java.io.File
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -75,7 +77,9 @@ class ProofRepository @Inject constructor(
         ocrText: String? = null,
     ): LocalScreenshotEntity {
         val proofId = UUID.randomUUID().toString()
-        val prepared = fileStore.prepare(uri, proofId)
+        val prepared = withContext(Dispatchers.IO) {
+            fileStore.prepare(uri, proofId)
+        }
         val preference = getBackupPreference()
         val status = when (preference) {
             ProofBackupPreference.WIFI_ONLY -> ProofBackupStatus.WAITING_FOR_WIFI
@@ -114,7 +118,9 @@ class ProofRepository @Inject constructor(
         } catch (t: Throwable) {
             // Don't leave the gallery copy + compressed upload sitting in
             // internal storage if we never managed to record them.
-            fileStore.deleteForId(proofId)
+            withContext(Dispatchers.IO) {
+                fileStore.deleteForId(proofId)
+            }
             throw t
         }
         if (preference == ProofBackupPreference.WIFI_ONLY) {
@@ -131,7 +137,9 @@ class ProofRepository @Inject constructor(
      */
     suspend fun deleteProof(proofId: String) {
         screenshotDao.getById(proofId) ?: return
-        fileStore.deleteForId(proofId)
+        withContext(Dispatchers.IO) {
+            fileStore.deleteForId(proofId)
+        }
         screenshotDao.deleteById(proofId)
     }
 
@@ -139,7 +147,9 @@ class ProofRepository @Inject constructor(
      *  user deletes the transaction so we don't accumulate orphan files. */
     suspend fun deleteForTransaction(transactionId: String) {
         screenshotDao.findByTransactionId(transactionId).forEach { row ->
-            fileStore.deleteForId(row.id)
+            withContext(Dispatchers.IO) {
+                fileStore.deleteForId(row.id)
+            }
             screenshotDao.deleteById(row.id)
         }
     }
@@ -147,7 +157,11 @@ class ProofRepository @Inject constructor(
     /** Wipe every local proof — files and DAO rows. Called on sign-out so the
      *  next user (or the same user signing back in) starts clean. */
     suspend fun clearAllLocal() {
-        screenshotDao.findAll().forEach { row -> fileStore.deleteForId(row.id) }
+        screenshotDao.findAll().forEach { row ->
+            withContext(Dispatchers.IO) {
+                fileStore.deleteForId(row.id)
+            }
+        }
         screenshotDao.clear()
     }
 
@@ -264,7 +278,9 @@ class ProofRepository @Inject constructor(
     ): OrphanUploadResult {
         // Strip EXIF / re-encode using the same pipeline attachProof uses, so
         // orphan uploads and transaction-linked uploads send identical bytes.
-        val prepared = fileStore.prepare(uri, proofId)
+        val prepared = withContext(Dispatchers.IO) {
+            fileStore.prepare(uri, proofId)
+        }
         val file = File(prepared.uploadPath ?: prepared.originalPath)
         val uploadMimeType = if (prepared.uploadPath != null) {
             "image/jpeg"
@@ -288,7 +304,9 @@ class ProofRepository @Inject constructor(
         } catch (t: Throwable) {
             // Clean up the local copies so a failed orphan upload doesn't
             // leave megabytes on disk every time the user attaches offline.
-            fileStore.deleteForId(proofId)
+            withContext(Dispatchers.IO) {
+                fileStore.deleteForId(proofId)
+            }
             throw t
         }
         return OrphanUploadResult(

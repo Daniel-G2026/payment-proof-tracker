@@ -5,11 +5,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
 import com.danielanazodo.proofledger.data.proof.SharedProofIntakeRepository
 import com.danielanazodo.proofledger.ui.navigation.AppNavHost
 import com.danielanazodo.proofledger.ui.theme.ProofLedgerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -32,7 +35,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun captureShareIntent(incoming: Intent?) {
-        sharedProofIntakeRepository.capture(incoming)
+        lifecycleScope.launch(Dispatchers.IO) {
+            sharedProofIntakeRepository.capture(incoming)
+        }
         setIntent(Intent(this, MainActivity::class.java).apply {
             action = Intent.ACTION_MAIN
             addCategory(Intent.CATEGORY_LAUNCHER)

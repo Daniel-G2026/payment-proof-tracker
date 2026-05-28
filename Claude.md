@@ -36,10 +36,13 @@ Completed: Phases 1–6 (foundation, auth + business setup, manual ledger MVP,
 counterparties, screenshot attachment, share-sheet intake), Phase 8
 (server-side OCR/AI extraction via Claude Haiku 4.5), and Phase 8.1
 (eager upload on attach — drafts now pre-fill during the create flow,
-not only on edit-mode reopen). Phase 5 also got an adversarial hardening
-pass — see "Phase 5 Hardening Notes" in `docs/master-plan.md` for the
-specific defenses already in place so they aren't reimplemented or
-regressed.
+not only on edit-mode reopen). Amount entry now displays comma-separated
+groups for both user-typed and AI-drafted amounts. A small responsiveness
+audit moved proof file copy/compression/deletion and share-sheet intake
+copying off the UI thread, and made the dashboard sync indicator clear
+reliably after sync failures. Phase 5 also got an adversarial hardening pass
+— see "Phase 5 Hardening Notes" in `docs/master-plan.md` for the specific
+defenses already in place so they aren't reimplemented or regressed.
 
 Phase 7 (on-device OCR drafts) is **built but gated off** behind
 `OCR_DRAFTING_ENABLED = false` in `TransactionFormViewModel.kt`. The Latin
@@ -112,6 +115,21 @@ keeping the local schema migration-free for Phase 8.1 was a deliberate
 trade-off. The orphan dies in the 7-day cron; the user can re-attach
 the proof on next edit. Rare in practice (attach-online-save-offline
 within seconds is unusual). Document, don't fix.
+
+## Small responsiveness audit notes
+
+Applied after Phase 8.1:
+- Share-sheet image copying now runs from `MainActivity` on `Dispatchers.IO`
+  so a large shared proof does not delay first UI draw.
+- `ProofRepository` moves proof file prepare/delete work onto `Dispatchers.IO`
+  so screenshot copy/compression cannot freeze the form while attaching,
+  saving, replacing, or deleting proof images.
+- Dashboard startup sync clears its "Syncing records" indicator in `finally`,
+  so a thrown sync call cannot leave the app looking permanently busy.
+
+Verified on the Android build with `:app:testDebugUnitTest` and
+`:app:assembleDebug`. Deeper performance validation should still happen later
+on a low-end device/emulator, not only the Pixel 7 emulator.
 
 ## Share-sheet intake constraints (Phase 6)
 - Only image MIME types are accepted: `image/jpeg`, `image/png`, `image/webp`.
