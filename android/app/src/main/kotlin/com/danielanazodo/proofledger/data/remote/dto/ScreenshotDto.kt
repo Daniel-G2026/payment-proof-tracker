@@ -17,6 +17,9 @@ data class ScreenshotDto(
     @Json(name = "created_at") val createdAt: String,
     @Json(name = "updated_at") val updatedAt: String,
     @Json(name = "deleted_at") val deletedAt: String?,
+    /** Status of the server-side extraction job, populated on the upload
+     *  response when Phase 8 is enabled. One of queued/rate_limited/null. */
+    @Json(name = "draft_status") val draftStatus: String? = null,
 )
 
 data class SignedScreenshotUrlDto(

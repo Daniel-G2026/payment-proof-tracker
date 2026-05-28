@@ -19,6 +19,7 @@ from app.api.routes.transactions import _get_transaction, _require_member
 from app.core.config import settings
 from app.db.models import Screenshot
 from app.schemas.screenshot import ScreenshotOut, SignedScreenshotUrl
+from app.services.extraction import try_enqueue_extraction
 from app.services.proof_storage import (
     ProofStorage,
     sign_screenshot_url,
@@ -182,6 +183,10 @@ async def upload_screenshot(
         if fields.get("id")
         else uuid.uuid4()
     )
+    # Optional on-device OCR text the client may attach (Phase 7 leftover).
+    # Empty/blank → keep null on the column.
+    ocr_text_raw = fields.get("ocr_text", "").strip() if fields.get("ocr_text") else ""
+    ocr_text = ocr_text_raw or None
     existing = db.get(Screenshot, screenshot_id)
     if existing is not None:
         if existing.business_id != business_id or existing.deleted_at is not None:
@@ -208,6 +213,7 @@ async def upload_screenshot(
         height=_parse_pixel_dimension(fields, "height"),
         storage_key=storage_key,
         storage_status="stored",
+        ocr_text=ocr_text,
     )
     db.add(screenshot)
     try:
@@ -229,7 +235,19 @@ async def upload_screenshot(
         storage.delete(storage_key)
         raise
     db.refresh(screenshot)
-    return ScreenshotOut.model_validate(screenshot)
+
+    # Phase 8: enqueue server-side OCR/AI extraction. Best-effort; if the
+    # queue is unavailable the upload still succeeds and the client just
+    # doesn't get an auto-draft for this proof.
+    arq_pool = getattr(request.app.state, "arq_pool", None)
+    draft_status = await try_enqueue_extraction(
+        arq_pool,
+        user_id=current_user.id,
+        screenshot_id=screenshot.id,
+    )
+    response = ScreenshotOut.model_validate(screenshot)
+    response.draft_status = draft_status
+    return response
 
 
 @router.get("/businesses/{business_id}/screenshots", response_model=list[ScreenshotOut])

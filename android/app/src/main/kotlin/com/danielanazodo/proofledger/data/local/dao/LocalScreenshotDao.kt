@@ -16,6 +16,9 @@ interface LocalScreenshotDao {
     @Query("SELECT * FROM local_screenshot WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): LocalScreenshotEntity?
 
+    @Query("SELECT * FROM local_screenshot WHERE id = :id LIMIT 1")
+    fun observeById(id: String): Flow<LocalScreenshotEntity?>
+
     @Query("SELECT * FROM local_screenshot WHERE backupStatus = 'BACKING_UP'")
     suspend fun findStuckBackingUp(): List<LocalScreenshotEntity>
 

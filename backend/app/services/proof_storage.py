@@ -58,6 +58,21 @@ class ProofStorage:
         path.write_bytes(content)
         return key.replace("\\", "/")
 
+    def read_bytes(self, storage_key: str) -> bytes:
+        """Fetch raw image bytes for a screenshot, regardless of backend.
+
+        Used by the extraction worker to hand the image to the vision model.
+        Local backend reads from disk; S3 backend does a GetObject. Raises 404
+        via the path-traversal guard if the storage_key is malformed.
+        """
+        if settings.proof_storage_backend == "s3":
+            response = self._s3_client().get_object(
+                Bucket=settings.proof_storage_s3_bucket,
+                Key=storage_key,
+            )
+            return response["Body"].read()
+        return self.local_path(storage_key).read_bytes()
+
     def delete(self, storage_key: str) -> None:
         if settings.proof_storage_backend == "s3":
             try:

@@ -115,18 +115,59 @@ fun TransactionFormScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            if (state.ocrDraftApplied) {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            "Draft from screenshot",
-                            style = MaterialTheme.typography.labelLarge,
-                        )
-                        Text(
-                            "We filled in what we could read. Please review before saving.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+            // Phase 8 banner stack. Three mutually-exclusive states:
+            //   1. ocrRunning && !ocrDraftApplied   → "Drafting from your screenshot…"
+            //   2. serverDraftError != null         → "Couldn't read this one — type the fields yourself."
+            //   3. ocrDraftApplied                  → "Draft ready — please review."
+            // None of these block the form; the user can always type instead.
+            when {
+                state.ocrRunning && !state.ocrDraftApplied -> {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                "Drafting from your screenshot…",
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            Text(
+                                "We're reading the proof so we can pre-fill the form. You can keep typing.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                state.serverDraftError != null -> {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                "Draft unavailable",
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            Text(
+                                state.serverDraftError ?: "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            QuietButton(
+                                text = "Dismiss",
+                                onClick = viewModel::onServerDraftErrorDismissed,
+                            )
+                        }
+                    }
+                }
+                state.ocrDraftApplied -> {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                "Draft ready",
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            Text(
+                                "We filled in what we could read. Please review before saving.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }

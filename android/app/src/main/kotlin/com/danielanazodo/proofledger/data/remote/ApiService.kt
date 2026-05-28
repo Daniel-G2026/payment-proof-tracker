@@ -11,6 +11,8 @@ import com.danielanazodo.proofledger.data.remote.dto.ProfileUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.ScreenshotDto
 import com.danielanazodo.proofledger.data.remote.dto.SignedScreenshotUrlDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionCreateDto
+import com.danielanazodo.proofledger.data.remote.dto.TransactionDraftConfirmDto
+import com.danielanazodo.proofledger.data.remote.dto.TransactionDraftDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionUpdateDto
 import retrofit2.http.Body
@@ -134,4 +136,25 @@ interface ApiService {
     suspend fun getScreenshotSignedUrl(
         @Path("screenshotId") screenshotId: String,
     ): SignedScreenshotUrlDto
+
+    /**
+     * Phase 8 — poll the server-side extraction result for a screenshot.
+     * Returns 404 (Retrofit throws HttpException) until the worker has
+     * created the draft row, so callers must treat 404 as "keep polling."
+     */
+    @GET("screenshots/{screenshotId}/draft")
+    suspend fun getScreenshotDraft(
+        @Path("screenshotId") screenshotId: String,
+    ): TransactionDraftDto
+
+    /**
+     * Phase 8 — telemetry. Tells the server which final transaction the
+     * user actually saved from this draft, so we can later measure draft
+     * acceptance rate. Idempotent.
+     */
+    @POST("transaction-drafts/{draftId}/confirm")
+    suspend fun confirmDraft(
+        @Path("draftId") draftId: String,
+        @Body body: TransactionDraftConfirmDto,
+    ): TransactionDraftDto
 }

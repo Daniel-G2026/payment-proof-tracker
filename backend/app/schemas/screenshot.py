@@ -23,6 +23,9 @@ class ScreenshotOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None
+    # Status of the server-side extraction job, when one has been enqueued for
+    # this screenshot. None if the feature was disabled or hasn't run yet.
+    draft_status: str | None = None
 
 
 class SignedScreenshotUrl(BaseModel):

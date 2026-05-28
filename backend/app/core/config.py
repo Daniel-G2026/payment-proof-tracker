@@ -24,5 +24,21 @@ class Settings(BaseSettings):
     proof_signed_url_secret: str = ""
     proof_signed_url_expiry_seconds: int = 900
 
+    # Phase 8: Server-side OCR/AI extraction. Off-by-default would be safer in
+    # prod (no surprise Anthropic spend), but every dev/staging env we deploy
+    # to wants this on, so the default is true and prod can flip it to false
+    # via env if needed.
+    extraction_enabled: bool = True
+    anthropic_api_key: str = ""
+    extraction_model: str = "claude-haiku-4-5-20251001"
+    # Per-user rate limits on enqueueing extraction jobs. Upload itself is
+    # never blocked — we just skip enqueueing the draft job when over limit.
+    extraction_rate_per_hour: int = 30
+    extraction_rate_per_minute: int = 5
+    # How long to keep raw_json on the transaction_drafts row before the daily
+    # purge nulls it out. The cleaned per-field values are kept forever; this
+    # is only about the full model response blob.
+    extraction_raw_retention_days: int = 30
+
 
 settings = Settings()

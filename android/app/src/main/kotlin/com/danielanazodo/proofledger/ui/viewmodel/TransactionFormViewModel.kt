@@ -4,15 +4,21 @@ import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
+import com.danielanazodo.proofledger.data.local.entity.LocalScreenshotEntity
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
+import com.danielanazodo.proofledger.data.ocr.DraftState
 import com.danielanazodo.proofledger.data.ocr.OcrDraft
 import com.danielanazodo.proofledger.data.ocr.OcrDraftParser
 import com.danielanazodo.proofledger.data.ocr.OcrService
+import com.danielanazodo.proofledger.data.ocr.ServerDraftPoller
+import com.danielanazodo.proofledger.data.ocr.toOcrDraft
 import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.data.proof.SharedProofIntakeRepository
+import com.danielanazodo.proofledger.data.remote.dto.DraftErrorCode
 import com.danielanazodo.proofledger.ui.format.parseNairaToMinor
 import com.danielanazodo.proofledger.ui.format.todayIsoDate
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,8 +28,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -53,6 +62,10 @@ data class TransactionFormUiState(
     val ocrDraftApplied: Boolean = false,
     /** True while OCR is running against a freshly-attached proof. */
     val ocrRunning: Boolean = false,
+    /** Short, user-facing error from the most recent server-extraction
+     *  attempt. Null when extraction succeeded, is still running, or hasn't
+     *  been attempted. Cleared when proof is replaced/removed. */
+    val serverDraftError: String? = null,
     /** Names of form fields most recently populated by the OCR parser
      *  (not by the user). When the user replaces the proof, the new OCR
      *  results are allowed to *overwrite* these fields — but a field the
@@ -80,6 +93,8 @@ class TransactionFormViewModel @Inject constructor(
     private val sharedProofIntakeRepository: SharedProofIntakeRepository,
     private val ocrService: OcrService,
     private val ocrDraftParser: OcrDraftParser,
+    private val serverDraftPoller: ServerDraftPoller,
+    private val screenshotDao: LocalScreenshotDao,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val transactionId: String? = savedStateHandle["transactionId"]
@@ -149,6 +164,11 @@ class TransactionFormViewModel @Inject constructor(
                             proofDirty = false,
                         )
                     }
+                    // Phase 8: if this proof already lives on the server and
+                    // the extraction draft hasn't yet been merged into the
+                    // form, try to fetch it now. Best-effort — failures stay
+                    // silent and never block editing.
+                    existingProof?.let { tryServerDraftMergeFor(it) }
                 }
             }
         }
@@ -242,6 +262,7 @@ class TransactionFormViewModel @Inject constructor(
                 referenceNumber = if (FIELD_REFERENCE in current.ocrFilledFields) "" else current.referenceNumber,
                 bankName = if (FIELD_BANK in current.ocrFilledFields) "" else current.bankName,
                 ocrFilledFields = emptySet(),
+                serverDraftError = null,
                 error = null,
                 saved = false,
             )
@@ -263,6 +284,7 @@ class TransactionFormViewModel @Inject constructor(
                 referenceNumber = if (FIELD_REFERENCE in current.ocrFilledFields) "" else current.referenceNumber,
                 bankName = if (FIELD_BANK in current.ocrFilledFields) "" else current.bankName,
                 ocrFilledFields = emptySet(),
+                serverDraftError = null,
                 saved = false,
             )
         }
@@ -396,18 +418,18 @@ class TransactionFormViewModel @Inject constructor(
     }
 
     /**
-     * Run on-device OCR on a freshly-attached proof and gently pre-fill any
-     * form fields the user hasn't typed in yet. Failures are silent — OCR is
-     * a convenience, never a blocker.
+     * Called when a proof is freshly attached in the form. In the current
+     * architecture the proof isn't uploaded to the server until save() runs,
+     * so there's nothing to poll yet — extraction happens once the proof
+     * lands on the backend, and the draft is merged on the *next* edit-mode
+     * open of this transaction via [tryServerDraftMergeFor].
+     *
+     * On-device OCR (Phase 7) is gated off via OCR_DRAFTING_ENABLED — see
+     * the Phase 7 notes in CLAUDE.md for why. Keeping the OcrService /
+     * OcrDraftParser code in tree so the flag can be flipped on for
+     * dogfooding without a revert.
      */
     private fun runOcrInBackground(uri: Uri) {
-        // On-device OCR is gated off for v1. The Latin recognizer mis-reads
-        // too many Nigerian receipt layouts (missing ₦ glyph, no comma/decimal
-        // formatting, value-below-label flows) to be useful as a drafting aid;
-        // a wrong pre-fill costs the user more than a blank field. Drafting
-        // will move to the paid AI tier where a vision model can handle the
-        // variance. Keeping the OcrService/OcrDraftParser code and tests so
-        // the flag can be flipped back on for dogfooding without a revert.
         if (!OCR_DRAFTING_ENABLED) {
             _state.update { it.copy(ocrRunning = false) }
             return
@@ -423,6 +445,87 @@ class TransactionFormViewModel @Inject constructor(
             val draft = ocrDraftParser.parse(rawText)
             applyDraftIfFieldsBlank(draft)
         }
+    }
+
+    /**
+     * Phase 8 — if the proof has already been uploaded and the server has
+     * (or will soon have) an extraction draft, poll for it and merge any
+     * fields the user hasn't yet typed.
+     *
+     * Skipped when:
+     *  - extraction is globally disabled by feature flag
+     *  - the proof has no remote id yet (upload still pending)
+     *  - the draft was already merged on a previous open (serverDraftStatus = ready)
+     *  - the draft previously failed terminally (don't retry every open)
+     */
+    private fun tryServerDraftMergeFor(proof: LocalScreenshotEntity) {
+        if (!SERVER_EXTRACTION_ENABLED) return
+        val remoteId = proof.remoteScreenshotId ?: return
+        val status = proof.serverDraftStatus
+        if (status == DraftStatusLocal.READY || status == DraftStatusLocal.FAILED) {
+            // Surface the prior error so the user sees consistent state.
+            if (status == DraftStatusLocal.FAILED) {
+                _state.update { it.copy(serverDraftError = proof.serverDraftError) }
+            }
+            return
+        }
+        _state.update { it.copy(ocrRunning = true, serverDraftError = null) }
+        viewModelScope.launch {
+            serverDraftPoller.poll(remoteId).collect { state ->
+                when (state) {
+                    is DraftState.Processing -> {
+                        // Keep the spinner up; nothing to do until we get a terminal state.
+                    }
+                    is DraftState.Ready -> {
+                        val draft = state.draft.toOcrDraft()
+                        applyDraftIfFieldsBlank(draft)
+                        persistDraftStatus(
+                            proof = proof,
+                            status = DraftStatusLocal.READY,
+                            error = null,
+                        )
+                    }
+                    is DraftState.Failed -> {
+                        val message = when (state.errorCode) {
+                            DraftErrorCode.UNREADABLE -> "Couldn't read this one — type the fields yourself."
+                            DraftErrorCode.TIMEOUT -> "Draft is taking longer than expected — try again later."
+                            else -> "Couldn't draft from your screenshot."
+                        }
+                        _state.update {
+                            it.copy(ocrRunning = false, serverDraftError = message)
+                        }
+                        persistDraftStatus(
+                            proof = proof,
+                            status = DraftStatusLocal.FAILED,
+                            error = message,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun persistDraftStatus(
+        proof: LocalScreenshotEntity,
+        status: String,
+        error: String?,
+    ) {
+        // Re-read in case the row changed under us (backup status update etc.)
+        // before stamping our own draft fields.
+        val latest = screenshotDao.getById(proof.id) ?: return
+        screenshotDao.upsert(
+            latest.copy(
+                serverDraftStatus = status,
+                serverDraftError = error,
+                serverDraftFetchedAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
+            )
+        )
+    }
+
+    /** Dismiss the inline failure banner. */
+    fun onServerDraftErrorDismissed() {
+        _state.update { it.copy(serverDraftError = null) }
     }
 
     private fun applyDraftIfFieldsBlank(draft: OcrDraft) {
@@ -509,3 +612,17 @@ private const val FIELD_BANK = "bank"
 // runOcrInBackground for rationale. Flip to true to dogfood the heuristic
 // parser against real receipts without removing the gate.
 private const val OCR_DRAFTING_ENABLED = false
+
+// Phase 8 — master switch for server-side AI extraction. Polling and merge
+// are gated on this so we can disable in production within one config change
+// if the vision model misbehaves on real receipts.
+private const val SERVER_EXTRACTION_ENABLED = true
+
+// Mirrors the backend draft status strings — kept here so the ViewModel
+// doesn't need to import the DTO module for two comparisons.
+private object DraftStatusLocal {
+    const val QUEUED = "queued"
+    const val PROCESSING = "processing"
+    const val READY = "ready"
+    const val FAILED = "failed"
+}

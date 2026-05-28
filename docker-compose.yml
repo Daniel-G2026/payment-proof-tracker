@@ -19,5 +19,37 @@ services:
     ports:
       - "6379:6379"
 
+  # Phase 8 — arq worker that processes extract_screenshot jobs and runs the
+  # daily purge_raw_json cron. The API process (run locally via uvicorn during
+  # development) enqueues jobs into the same Redis instance and this worker
+  # picks them up. Disable by `docker compose stop worker` or by setting
+  # EXTRACTION_ENABLED=false in backend/.env.
+  #
+  # `host.docker.internal` lets the container reach the Postgres + Redis
+  # containers above (which expose 5432/6379 to the host) without needing a
+  # Docker network alias. Works the same on Docker Desktop for Windows/Mac
+  # and on Linux when `extra_hosts` is set.
+  worker:
+    build:
+      context: ./backend
+    container_name: proofledger_worker
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    env_file:
+      - backend/.env
+    environment:
+      # Override the localhost URLs from .env so the worker hits the
+      # docker-compose services rather than 127.0.0.1 inside its container.
+      DATABASE_URL: postgresql+psycopg://proofledger:proofledger_dev@postgres:5432/proofledger
+      REDIS_URL: redis://redis:6379/0
+    # Mount the source so a code change picks up on `docker compose restart
+    # worker` instead of requiring a rebuild. The image still has the deps
+    # baked in from the Dockerfile.
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/storage:/app/storage
+
 volumes:
   proofledger_postgres_data:

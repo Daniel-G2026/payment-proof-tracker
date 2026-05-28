@@ -43,4 +43,15 @@ data class LocalScreenshotEntity(
      *  extraction can compare results without re-OCRing. Null when OCR was
      *  not run (e.g. proof attached before Phase 7, or OCR failed). */
     val ocrText: String? = null,
+    /** Phase 8 server-extraction tracking. Latest status the client has seen
+     *  for this screenshot's extraction job (queued/processing/ready/failed/
+     *  rate_limited). Null when no extraction was attempted (feature off,
+     *  proof predates Phase 8, or upload never completed). */
+    val serverDraftStatus: String? = null,
+    /** Epoch ms of the last successful draft fetch from the server. Used to
+     *  decide whether to re-poll on form re-open vs trust the cached state. */
+    val serverDraftFetchedAt: Long? = null,
+    /** Short user-facing error from a terminal extraction failure (e.g.
+     *  unreadable image). Null when status != failed. */
+    val serverDraftError: String? = null,
 )
