@@ -6,16 +6,24 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -37,22 +45,34 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.ui.format.displayDate
+import com.danielanazodo.proofledger.ui.format.formatNaira
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.ProofLedgerFilterChip
 import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
 import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
 import com.danielanazodo.proofledger.ui.components.QuietButton
+import com.danielanazodo.proofledger.ui.theme.NeutralInk
+import com.danielanazodo.proofledger.ui.theme.NeutralMuted
+import com.danielanazodo.proofledger.ui.theme.ProofAmber
+import com.danielanazodo.proofledger.ui.theme.ProofBorder
+import com.danielanazodo.proofledger.ui.theme.ProofLime
+import com.danielanazodo.proofledger.ui.theme.SurfaceCard
+import com.danielanazodo.proofledger.ui.theme.SurfacePanel
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.TransactionFormViewModel
 import coil.compose.AsyncImage
+import com.danielanazodo.proofledger.data.repository.DuplicateCandidate
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -102,6 +122,7 @@ fun TransactionFormScreen(
     val openFullProof = rememberDebouncedClick { fullProofOpen = true }
     val removeProof = rememberDebouncedClick(onClick = viewModel::onProofRemoved)
     val save = rememberDebouncedClick(onClick = viewModel::save)
+    val saveAnyway = rememberDebouncedClick(onClick = viewModel::saveAnyway)
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
 
     ProofLedgerScreen(
@@ -122,31 +143,35 @@ fun TransactionFormScreen(
             // None of these block the form; the user can always type instead.
             when {
                 state.ocrRunning && !state.ocrDraftApplied -> {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    FormNoticePanel(accentColor = ProofLime) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
                                 "Drafting from your screenshot…",
                                 style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = NeutralInk,
                             )
                             Text(
                                 "We're reading the proof so we can pre-fill the form. You can keep typing.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = NeutralMuted,
                             )
                         }
                     }
                 }
                 state.serverDraftError != null -> {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    FormNoticePanel(accentColor = ProofAmber) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
                                 "Draft unavailable",
                                 style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = NeutralInk,
                             )
                             Text(
                                 state.serverDraftError ?: "",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = NeutralMuted,
                             )
                             QuietButton(
                                 text = "Dismiss",
@@ -156,16 +181,18 @@ fun TransactionFormScreen(
                     }
                 }
                 state.ocrDraftApplied -> {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    FormNoticePanel(accentColor = ProofLime) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
                                 "Draft ready",
                                 style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = NeutralInk,
                             )
                             Text(
                                 "We filled in what we could read. Please review before saving.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = NeutralMuted,
                             )
                         }
                     }
@@ -312,15 +339,109 @@ fun TransactionFormScreen(
             state.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)
             }
+            if (state.duplicateCandidates.isNotEmpty()) {
+                DuplicateWarningCard(
+                    candidates = state.duplicateCandidates,
+                    direction = state.direction,
+                    onReview = viewModel::dismissDuplicateWarning,
+                    onSaveAnyway = saveAnyway,
+                )
+            }
             Spacer(Modifier.height(8.dp))
             PrimaryActionButton(
-                text = if (state.loading) "Saving..." else "Save record",
+                text = when {
+                    state.loading -> "Saving..."
+                    state.duplicateCheckRunning -> "Checking..."
+                    else -> "Save record"
+                },
                 onClick = save,
-                enabled = !state.loading,
+                enabled = !state.loading && !state.duplicateCheckRunning,
                 modifier = Modifier.fillMaxWidth(),
                 icon = Icons.Filled.Check,
             )
         }
+    }
+}
+
+@Composable
+private fun DuplicateWarningCard(
+    candidates: List<DuplicateCandidate>,
+    direction: String,
+    onReview: () -> Unit,
+    onSaveAnyway: () -> Unit,
+) {
+    FormNoticePanel(accentColor = ProofAmber, backgroundColor = SurfaceCard) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                "This looks like a record you already saved.",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = NeutralInk,
+            )
+            candidates.take(3).forEach { candidate ->
+                val row = candidate.transaction
+                Text(
+                    text = buildString {
+                        append(formatNaira(row.amountMinor))
+                        append(" - ")
+                        append(displayDate(row.transactionDate))
+                        append(" - ")
+                        append(row.counterpartyName ?: if (direction == "money_in") "Who paid not set" else "Who you paid not set")
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = NeutralInk,
+                )
+                Text(
+                    text = candidate.reasons.joinToString(", ") { it.label },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NeutralMuted,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                QuietButton(
+                    text = "Review fields",
+                    onClick = onReview,
+                    modifier = Modifier.weight(1f),
+                )
+                PrimaryActionButton(
+                    text = "Save anyway",
+                    onClick = onSaveAnyway,
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Filled.Check,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FormNoticePanel(
+    accentColor: Color,
+    modifier: Modifier = Modifier,
+    backgroundColor: Color = SurfacePanel,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val shape = RoundedCornerShape(18.dp)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .clip(shape)
+            .background(backgroundColor)
+            .border(1.dp, ProofBorder, shape),
+    ) {
+        Box(
+            modifier = Modifier
+                .width(4.dp)
+                .fillMaxHeight()
+                .background(accentColor),
+        )
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+            content = content,
+        )
     }
 }
 

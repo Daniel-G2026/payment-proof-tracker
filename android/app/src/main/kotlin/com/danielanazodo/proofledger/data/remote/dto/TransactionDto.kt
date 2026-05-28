@@ -60,3 +60,22 @@ data class TransactionUpdateDto(
      *  on create — see TransactionCreateDto.screenshotId. */
     @Json(name = "screenshot_id") val screenshotId: String? = null,
 )
+
+@JsonClass(generateAdapter = true)
+data class DuplicateCandidateRequestDto(
+    @Json(name = "amount_minor") val amountMinor: Long,
+    val direction: String,
+    @Json(name = "transaction_date") val transactionDate: String,
+    @Json(name = "counterparty_id") val counterpartyId: String? = null,
+    @Json(name = "counterparty_name") val counterpartyName: String? = null,
+    @Json(name = "reference_number") val referenceNumber: String? = null,
+    @Json(name = "screenshot_id") val screenshotId: String? = null,
+    @Json(name = "exclude_transaction_id") val excludeTransactionId: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class DuplicateCandidateDto(
+    val transaction: TransactionDto,
+    val reasons: List<String>,
+    val score: Int,
+)

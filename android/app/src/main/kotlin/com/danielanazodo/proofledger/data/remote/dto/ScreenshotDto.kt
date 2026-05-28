@@ -14,6 +14,7 @@ data class ScreenshotDto(
     val height: Int?,
     @Json(name = "storage_key") val storageKey: String,
     @Json(name = "storage_status") val storageStatus: String,
+    @Json(name = "image_sha256") val imageSha256: String?,
     @Json(name = "created_at") val createdAt: String,
     @Json(name = "updated_at") val updatedAt: String,
     @Json(name = "deleted_at") val deletedAt: String?,

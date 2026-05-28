@@ -92,6 +92,33 @@ interface LocalTransactionDao {
     @Query("SELECT * FROM local_transaction WHERE id = :id AND deletedAt IS NULL LIMIT 1")
     fun observeById(id: String): Flow<LocalTransactionEntity?>
 
+    @Query(
+        """
+        SELECT * FROM local_transaction
+        WHERE businessId = :businessId
+          AND deletedAt IS NULL
+          AND (:excludeTransactionId IS NULL OR id != :excludeTransactionId)
+          AND (
+            (:referenceNumber IS NOT NULL AND referenceNumber IS NOT NULL)
+            OR (
+              amountMinor = :amountMinor
+              AND direction = :direction
+              AND transactionDate = :transactionDate
+            )
+          )
+        ORDER BY transactionDate DESC, createdAt DESC
+        LIMIT 50
+        """
+    )
+    suspend fun findDuplicateCandidates(
+        businessId: String,
+        amountMinor: Long,
+        direction: String,
+        transactionDate: String,
+        referenceNumber: String?,
+        excludeTransactionId: String?,
+    ): List<LocalTransactionEntity>
+
     @Query("DELETE FROM local_transaction")
     suspend fun clear()
 }

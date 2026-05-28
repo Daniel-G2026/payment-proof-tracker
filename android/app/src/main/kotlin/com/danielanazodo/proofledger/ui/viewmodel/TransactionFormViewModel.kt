@@ -21,6 +21,7 @@ import com.danielanazodo.proofledger.data.proof.OrphanUploadResult
 import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.data.proof.SharedProofIntakeRepository
 import com.danielanazodo.proofledger.data.remote.dto.DraftErrorCode
+import com.danielanazodo.proofledger.data.repository.DuplicateCandidate
 import com.danielanazodo.proofledger.ui.format.formatNairaInput
 import com.danielanazodo.proofledger.ui.format.parseNairaToMinor
 import com.danielanazodo.proofledger.ui.format.todayIsoDate
@@ -90,6 +91,10 @@ data class TransactionFormUiState(
      *     existing save-time upload path)
      *   - server extraction is disabled by feature flag */
     val pendingScreenshotId: String? = null,
+    val proofImageSha256: String? = null,
+    val duplicateCandidates: List<DuplicateCandidate> = emptyList(),
+    val duplicateCheckRunning: Boolean = false,
+    val duplicateOverride: Boolean = false,
     val loading: Boolean = false,
     val error: String? = null,
     val saved: Boolean = false,
@@ -183,6 +188,7 @@ class TransactionFormViewModel @Inject constructor(
                             // doesn't re-attach a duplicate.
                             proofUri = existingProof?.localOriginalPath,
                             proofOriginalSizeBytes = existingProof?.originalFileSizeBytes,
+                            proofImageSha256 = existingProof?.imageSha256,
                             existingProofId = existingProof?.id,
                             proofDirty = false,
                         )
@@ -207,6 +213,8 @@ class TransactionFormViewModel @Inject constructor(
                 it.newCounterpartyType
             },
             saved = false,
+            duplicateCandidates = emptyList(),
+            duplicateOverride = false,
         )
     }
     fun onAmountChange(value: String) = _state.update {
@@ -214,11 +222,19 @@ class TransactionFormViewModel @Inject constructor(
             amount = formatNairaInput(value),
             error = null,
             saved = false,
+            duplicateCandidates = emptyList(),
+            duplicateOverride = false,
             ocrFilledFields = it.ocrFilledFields - FIELD_AMOUNT,
         )
     }
     fun onDateChange(value: String) = _state.update {
-        it.copy(transactionDate = value, saved = false, ocrFilledFields = it.ocrFilledFields - FIELD_DATE)
+        it.copy(
+            transactionDate = value,
+            saved = false,
+            duplicateCandidates = emptyList(),
+            duplicateOverride = false,
+            ocrFilledFields = it.ocrFilledFields - FIELD_DATE,
+        )
     }
     fun onCounterpartyQueryChange(value: String) {
         _state.update {
@@ -229,6 +245,8 @@ class TransactionFormViewModel @Inject constructor(
                 suggestions = emptyList(),
                 addingNewCounterparty = false,
                 saved = false,
+                duplicateCandidates = emptyList(),
+                duplicateOverride = false,
             )
         }
         observeSuggestions(value)
@@ -245,6 +263,8 @@ class TransactionFormViewModel @Inject constructor(
                 addingNewCounterparty = false,
                 newCounterpartyType = counterparty.type,
                 saved = false,
+                duplicateCandidates = emptyList(),
+                duplicateOverride = false,
             )
         }
     }
@@ -270,7 +290,13 @@ class TransactionFormViewModel @Inject constructor(
         it.copy(bankName = value, saved = false, ocrFilledFields = it.ocrFilledFields - FIELD_BANK)
     }
     fun onReferenceNumberChange(value: String) = _state.update {
-        it.copy(referenceNumber = value, saved = false, ocrFilledFields = it.ocrFilledFields - FIELD_REFERENCE)
+        it.copy(
+            referenceNumber = value,
+            saved = false,
+            duplicateCandidates = emptyList(),
+            duplicateOverride = false,
+            ocrFilledFields = it.ocrFilledFields - FIELD_REFERENCE,
+        )
     }
     fun onProofSelected(uri: String, sizeBytes: Long?) {
         clearActiveIntake()
@@ -285,12 +311,15 @@ class TransactionFormViewModel @Inject constructor(
                 proofDirty = true,
                 proofOcrText = null,
                 ocrDraftApplied = false,
+                proofImageSha256 = null,
                 amount = if (FIELD_AMOUNT in current.ocrFilledFields) "" else current.amount,
                 transactionDate = if (FIELD_DATE in current.ocrFilledFields) todayIsoDate() else current.transactionDate,
                 referenceNumber = if (FIELD_REFERENCE in current.ocrFilledFields) "" else current.referenceNumber,
                 bankName = if (FIELD_BANK in current.ocrFilledFields) "" else current.bankName,
                 ocrFilledFields = emptySet(),
                 serverDraftError = null,
+                duplicateCandidates = emptyList(),
+                duplicateOverride = false,
                 // Clear stale orphan id from the previous proof; the helper
                 // will repopulate when its upload returns.
                 pendingScreenshotId = null,
@@ -326,6 +355,7 @@ class TransactionFormViewModel @Inject constructor(
                 proofOcrText = null,
                 ocrDraftApplied = false,
                 ocrRunning = false,
+                proofImageSha256 = null,
                 amount = if (FIELD_AMOUNT in current.ocrFilledFields) "" else current.amount,
                 transactionDate = if (FIELD_DATE in current.ocrFilledFields) todayIsoDate() else current.transactionDate,
                 referenceNumber = if (FIELD_REFERENCE in current.ocrFilledFields) "" else current.referenceNumber,
@@ -333,6 +363,8 @@ class TransactionFormViewModel @Inject constructor(
                 ocrFilledFields = emptySet(),
                 serverDraftError = null,
                 pendingScreenshotId = null,
+                duplicateCandidates = emptyList(),
+                duplicateOverride = false,
                 saved = false,
             )
         }
@@ -355,8 +387,90 @@ class TransactionFormViewModel @Inject constructor(
             }
             return
         }
+        if (!current.duplicateOverride) {
+            viewModelScope.launch {
+                _state.update {
+                    it.copy(
+                        duplicateCheckRunning = true,
+                        duplicateCandidates = emptyList(),
+                        error = null,
+                        saved = false,
+                    )
+                }
+                val selectedBusinessId = businessId ?: businessRepository.getSelectedBusinessId()
+                if (selectedBusinessId == null) {
+                    _state.update {
+                        it.copy(
+                            duplicateCheckRunning = false,
+                            error = "Select a business first.",
+                        )
+                    }
+                    return@launch
+                }
+                businessId = selectedBusinessId
+                val proofHash = current.proofImageSha256 ?: current.proofUri?.let { uri ->
+                    runCatching {
+                        proofRepository.computeImageSha256(Uri.parse(uri))
+                    }.getOrNull()
+                }
+                if (!proofHash.isNullOrBlank() && proofHash != current.proofImageSha256) {
+                    _state.update { it.copy(proofImageSha256 = proofHash) }
+                }
+                val candidates = transactionRepository.findDuplicateCandidates(
+                    businessId = selectedBusinessId,
+                    amountMinor = amountMinor,
+                    direction = current.direction,
+                    transactionDate = current.transactionDate,
+                    counterpartyId = current.counterpartyId,
+                    counterpartyName = current.counterpartyName.clean(),
+                    referenceNumber = current.referenceNumber.clean(),
+                    screenshotId = if (current.proofDirty) current.pendingScreenshotId else null,
+                    imageSha256 = proofHash,
+                    excludeTransactionId = current.transactionId,
+                )
+                if (candidates.isNotEmpty()) {
+                    _state.update {
+                        it.copy(
+                            duplicateCheckRunning = false,
+                            duplicateCandidates = candidates,
+                        )
+                    }
+                    return@launch
+                }
+                _state.update { it.copy(duplicateCheckRunning = false) }
+                saveWithoutDuplicateCheck(current, amountMinor)
+            }
+            return
+        }
+        saveWithoutDuplicateCheck(current.copy(duplicateOverride = true), amountMinor)
+    }
+
+    fun dismissDuplicateWarning() {
+        _state.update { it.copy(duplicateCandidates = emptyList()) }
+    }
+
+    fun saveAnyway() {
+        _state.update {
+            it.copy(
+                duplicateOverride = true,
+                duplicateCandidates = emptyList(),
+                duplicateCheckRunning = false,
+            )
+        }
+        save()
+    }
+
+    private fun saveWithoutDuplicateCheck(current: TransactionFormUiState, amountMinor: Long) {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null, saved = false) }
+            _state.update {
+                it.copy(
+                    loading = true,
+                    duplicateCheckRunning = false,
+                    duplicateCandidates = emptyList(),
+                    error = null,
+                    saved = false,
+                )
+            }
             runCatching {
                 val transactionId = current.transactionId
                 val selectedBusinessId = businessId ?: businessRepository.getSelectedBusinessId()
@@ -446,7 +560,14 @@ class TransactionFormViewModel @Inject constructor(
                     activeIntakeToken = null
                 }
             }.onSuccess {
-                _state.update { it.copy(loading = false, saved = true) }
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        saved = true,
+                        duplicateOverride = false,
+                        duplicateCandidates = emptyList(),
+                    )
+                }
             }.onFailure { t ->
                 _state.update {
                     it.copy(loading = false, error = t.message ?: "Could not save transaction")
@@ -578,7 +699,12 @@ class TransactionFormViewModel @Inject constructor(
                 return@launch
             }
             pendingOrphan = upload
-            _state.update { it.copy(pendingScreenshotId = upload.screenshot.id) }
+            _state.update {
+                it.copy(
+                    pendingScreenshotId = upload.screenshot.id,
+                    proofImageSha256 = upload.imageSha256,
+                )
+            }
             // Reuse the Phase 8 poller verbatim — same Flow, same DraftState.
             serverDraftPoller.poll(upload.screenshot.id).collect { pollState ->
                 when (pollState) {

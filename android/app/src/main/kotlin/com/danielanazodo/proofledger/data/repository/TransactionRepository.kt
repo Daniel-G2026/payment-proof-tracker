@@ -1,10 +1,13 @@
 package com.danielanazodo.proofledger.data.repository
 
 import com.danielanazodo.proofledger.data.local.SyncStatus
+import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
 import com.danielanazodo.proofledger.data.local.dao.LocalTransactionDao
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
 import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.data.remote.ApiService
+import com.danielanazodo.proofledger.data.remote.dto.DuplicateCandidateDto
+import com.danielanazodo.proofledger.data.remote.dto.DuplicateCandidateRequestDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionUpdateDto
@@ -22,6 +25,7 @@ import kotlinx.coroutines.flow.Flow
 class TransactionRepository @Inject constructor(
     private val api: ApiService,
     private val localDao: LocalTransactionDao,
+    private val screenshotDao: LocalScreenshotDao,
     private val proofRepository: ProofRepository,
 ) {
     fun observeTransactions(businessId: String): Flow<List<LocalTransactionEntity>> =
@@ -42,6 +46,58 @@ class TransactionRepository @Inject constructor(
         counterpartyId: String,
     ): Flow<List<LocalTransactionEntity>> =
         localDao.observeByCounterparty(businessId, counterpartyId)
+
+    suspend fun findDuplicateCandidates(
+        businessId: String,
+        amountMinor: Long,
+        direction: String,
+        transactionDate: String,
+        counterpartyId: String?,
+        counterpartyName: String?,
+        referenceNumber: String?,
+        screenshotId: String?,
+        imageSha256: String?,
+        excludeTransactionId: String?,
+    ): List<DuplicateCandidate> {
+        val local = findLocalDuplicateCandidates(
+            businessId = businessId,
+            amountMinor = amountMinor,
+            direction = direction,
+            transactionDate = transactionDate,
+            counterpartyId = counterpartyId,
+            counterpartyName = counterpartyName,
+            referenceNumber = referenceNumber,
+            imageSha256 = imageSha256,
+            excludeTransactionId = excludeTransactionId,
+        )
+        val remote = runCatching {
+            api.duplicateCandidates(
+                businessId = businessId,
+                body = DuplicateCandidateRequestDto(
+                    amountMinor = amountMinor,
+                    direction = direction,
+                    transactionDate = transactionDate,
+                    counterpartyId = counterpartyId,
+                    counterpartyName = counterpartyName,
+                    referenceNumber = referenceNumber,
+                    screenshotId = screenshotId,
+                    excludeTransactionId = excludeTransactionId,
+                ),
+            ).map { it.toDuplicateCandidate() }
+        }.getOrDefault(emptyList())
+
+        return (local + remote)
+            .groupBy { it.transaction.id }
+            .map { (_, candidates) ->
+                val best = candidates.maxBy { it.score }
+                best.copy(
+                    reasons = candidates.flatMap { it.reasons }.distinct().sortedBy { it.name },
+                    score = candidates.maxOf { it.score },
+                )
+            }
+            .sortedByDescending { it.score }
+            .take(5)
+    }
 
     suspend fun refreshFromRemote(businessId: String) {
         val remote = runCatching { api.listTransactions(businessId) }.getOrNull() ?: return
@@ -101,6 +157,72 @@ class TransactionRepository @Inject constructor(
             lastSyncAttemptAt = System.currentTimeMillis(),
             lastSyncError = t.toSyncErrorMessage(),
         )
+
+    private suspend fun findLocalDuplicateCandidates(
+        businessId: String,
+        amountMinor: Long,
+        direction: String,
+        transactionDate: String,
+        counterpartyId: String?,
+        counterpartyName: String?,
+        referenceNumber: String?,
+        imageSha256: String?,
+        excludeTransactionId: String?,
+    ): List<DuplicateCandidate> {
+        val normalizedReference = referenceNumber.normalizeReference()
+        val normalizedName = counterpartyName.normalizeName()
+        if (!imageSha256.isNullOrBlank()) {
+            proofRepository.backfillMissingImageHashes(businessId)
+        }
+        val baseRows = localDao.findDuplicateCandidates(
+            businessId = businessId,
+            amountMinor = amountMinor,
+            direction = direction,
+            transactionDate = transactionDate,
+            referenceNumber = normalizedReference,
+            excludeTransactionId = excludeTransactionId,
+        )
+        val proofRows = imageSha256?.takeIf { it.isNotBlank() }?.let {
+            screenshotDao.findByImageSha256(businessId, it)
+        }.orEmpty()
+        val proofTransactionIds = proofRows.map { it.transactionId }.toSet() - setOfNotNull(excludeTransactionId)
+        val proofTransactions = proofTransactionIds.mapNotNull { localDao.getById(it) }
+
+        return (baseRows + proofTransactions)
+            .distinctBy { it.id }
+            .mapNotNull { row ->
+                val reasons = buildList {
+                    if (row.id in proofTransactionIds) add(DuplicateReason.SAME_PROOF)
+                    if (
+                        normalizedReference != null &&
+                        row.referenceNumber.normalizeReference() == normalizedReference
+                    ) add(DuplicateReason.SAME_REFERENCE)
+                    val sameBase = row.amountMinor == amountMinor &&
+                        row.direction == direction &&
+                        row.transactionDate == transactionDate
+                    if (sameBase && counterpartyId != null && row.counterpartyId == counterpartyId) {
+                        add(DuplicateReason.SAME_AMOUNT_DATE_COUNTERPARTY)
+                    } else if (
+                        sameBase &&
+                        normalizedName != null &&
+                        row.counterpartyName.normalizeName() == normalizedName
+                    ) {
+                        add(DuplicateReason.SAME_AMOUNT_DATE_NAME)
+                    }
+                }
+                if (reasons.isEmpty()) {
+                    null
+                } else {
+                    DuplicateCandidate(
+                        transaction = row,
+                        reasons = reasons.distinct().sortedBy { it.name },
+                        score = reasons.sumOf { it.score },
+                    )
+                }
+            }
+            .sortedByDescending { it.score }
+            .take(5)
+    }
 
     suspend fun createTransaction(
         businessId: String,
@@ -265,6 +387,13 @@ class TransactionRepository @Inject constructor(
         )
     }
 
+    private fun DuplicateCandidateDto.toDuplicateCandidate(): DuplicateCandidate =
+        DuplicateCandidate(
+            transaction = transaction.toEntity(SyncStatus.SYNCED),
+            reasons = reasons.mapNotNull { DuplicateReason.fromWire(it) },
+            score = score,
+        )
+
     private fun String.toEpochMillisOrNull(): Long? =
         runCatching { Instant.parse(this).toEpochMilli() }.getOrNull()
             ?: runCatching { OffsetDateTime.parse(this).toInstant().toEpochMilli() }.getOrNull()
@@ -307,3 +436,30 @@ class TransactionRepository @Inject constructor(
             screenshotId = screenshotId,
         )
 }
+
+data class DuplicateCandidate(
+    val transaction: LocalTransactionEntity,
+    val reasons: List<DuplicateReason>,
+    val score: Int,
+)
+
+enum class DuplicateReason(val wire: String, val label: String, val score: Int) {
+    SAME_PROOF("same_proof", "same proof", 100),
+    SAME_REFERENCE("same_reference", "same reference", 80),
+    SAME_AMOUNT_DATE_COUNTERPARTY(
+        "same_amount_date_counterparty",
+        "same amount, date, and person",
+        70,
+    ),
+    SAME_AMOUNT_DATE_NAME("same_amount_date_name", "same amount, date, and name", 50);
+
+    companion object {
+        fun fromWire(value: String): DuplicateReason? = entries.firstOrNull { it.wire == value }
+    }
+}
+
+private fun String?.normalizeReference(): String? =
+    this?.filterNot(Char::isWhitespace)?.lowercase()?.takeIf { it.isNotBlank() }
+
+private fun String?.normalizeName(): String? =
+    this?.trim()?.replace(Regex("\\s+"), " ")?.lowercase()?.takeIf { it.isNotBlank() }

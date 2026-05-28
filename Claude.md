@@ -30,7 +30,7 @@ This is an Android-native, offline-first payment proof tracker for small busines
 - If UI state becomes complex, add dedicated UI state/models instead of bending database entities around presentation needs.
 
 ## Current Phase
-Phase 9: Duplicate Detection (next).
+Phase 10: Offline Sync Hardening (next).
 
 Completed: Phases 1–6 (foundation, auth + business setup, manual ledger MVP,
 counterparties, screenshot attachment, share-sheet intake), Phase 8
@@ -40,7 +40,10 @@ not only on edit-mode reopen). Amount entry now displays comma-separated
 groups for both user-typed and AI-drafted amounts. A small responsiveness
 audit moved proof file copy/compression/deletion and share-sheet intake
 copying off the UI thread, and made the dashboard sync indicator clear
-reliably after sync failures. Phase 5 also got an adversarial hardening pass
+reliably after sync failures. Phase 9 added advisory duplicate warnings
+using local-first checks plus backend candidates for proof hashes,
+normalized references, and exact amount/date/counterparty matches. Phase 5
+also got an adversarial hardening pass
 — see "Phase 5 Hardening Notes" in `docs/master-plan.md` for the specific
 defenses already in place so they aren't reimplemented or regressed.
 
@@ -130,6 +133,27 @@ Applied after Phase 8.1:
 Verified on the Android build with `:app:testDebugUnitTest` and
 `:app:assembleDebug`. Deeper performance validation should still happen later
 on a low-end device/emulator, not only the Pixel 7 emulator.
+
+## Phase 9 implementation notes
+
+Duplicate detection is advisory only. The first Save tap validates the form,
+runs local duplicate checks, then best-effort backend checks. If candidates
+exist, the form shows "This looks like a record you already saved." with
+compact details and reason labels; "Review fields" dismisses the warning,
+and "Save anyway" continues through the existing create/update path.
+
+Matching signals:
+- Same proof bytes: backend and Android compute SHA-256 over the image bytes
+  and store it on screenshot rows.
+- Same nonblank normalized reference number in the same business.
+- Same amount, direction, exact date, and counterparty id.
+- Same amount, direction, exact date, and normalized counterparty name.
+
+Backend endpoint: `POST /businesses/{business_id}/transactions/duplicate-candidates`.
+It returns at most five candidates, excludes soft-deleted rows, excludes the
+current transaction on edit, and never leaks cross-business screenshot hashes.
+If the backend check fails on Android, saving is not blocked; local warnings
+still show when available.
 
 ## Share-sheet intake constraints (Phase 6)
 - Only image MIME types are accepted: `image/jpeg`, `image/png`, `image/webp`.

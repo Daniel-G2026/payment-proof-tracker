@@ -25,6 +25,27 @@ interface LocalScreenshotDao {
     @Query("SELECT * FROM local_screenshot WHERE transactionId = :transactionId")
     suspend fun findByTransactionId(transactionId: String): List<LocalScreenshotEntity>
 
+    @Query(
+        """
+        SELECT * FROM local_screenshot
+        WHERE businessId = :businessId
+          AND imageSha256 = :imageSha256
+        """
+    )
+    suspend fun findByImageSha256(
+        businessId: String,
+        imageSha256: String,
+    ): List<LocalScreenshotEntity>
+
+    @Query(
+        """
+        SELECT * FROM local_screenshot
+        WHERE businessId = :businessId
+          AND imageSha256 IS NULL
+        """
+    )
+    suspend fun findMissingImageSha256(businessId: String): List<LocalScreenshotEntity>
+
     @Query("SELECT * FROM local_screenshot")
     suspend fun findAll(): List<LocalScreenshotEntity>
 

@@ -33,6 +33,7 @@ class Screenshot(Base):
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     storage_key: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     storage_status: Mapped[str] = mapped_column(String, nullable=False, default="stored")
+    image_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     # Optional raw OCR text from the client (Phase 7 on-device pass). Stored as
     # a hint we may feed to the vision model alongside the image; not required.
     ocr_text: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import date, datetime, timezone
 
@@ -9,7 +10,13 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_db
 from app.db.models import Business, BusinessMember, Counterparty, Screenshot, Transaction
-from app.schemas.transaction import TransactionCreate, TransactionOut, TransactionUpdate
+from app.schemas.transaction import (
+    DuplicateCandidateIn,
+    DuplicateCandidateOut,
+    TransactionCreate,
+    TransactionOut,
+    TransactionUpdate,
+)
 
 router = APIRouter(
     prefix="/businesses/{business_id}/transactions",
@@ -100,6 +107,125 @@ def _validate_counterparty_id(
             status_code=422,
             detail="Counterparty is not valid for this business.",
         )
+
+
+def _normalize_reference(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = re.sub(r"\s+", "", value).lower()
+    return normalized or None
+
+
+def _normalize_name(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = re.sub(r"\s+", " ", value.strip()).lower()
+    return normalized or None
+
+
+def _screenshot_hash_for_duplicate_check(
+    db: Session,
+    business_id: uuid.UUID,
+    screenshot_id: uuid.UUID | None,
+) -> str | None:
+    if screenshot_id is None:
+        return None
+    screenshot = db.get(Screenshot, screenshot_id)
+    if (
+        screenshot is None
+        or screenshot.business_id != business_id
+        or screenshot.deleted_at is not None
+    ):
+        return None
+    return screenshot.image_sha256
+
+
+@router.post("/duplicate-candidates", response_model=list[DuplicateCandidateOut])
+def duplicate_candidates(
+    business_id: uuid.UUID,
+    payload: DuplicateCandidateIn,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+) -> list[DuplicateCandidateOut]:
+    _require_member(db, current_user.id, business_id)
+    incoming_hash = _screenshot_hash_for_duplicate_check(db, business_id, payload.screenshot_id)
+    incoming_reference = _normalize_reference(payload.reference_number)
+    incoming_name = _normalize_name(payload.counterparty_name)
+
+    rows = db.execute(
+        select(Transaction)
+        .where(
+            Transaction.business_id == business_id,
+            Transaction.deleted_at.is_(None),
+        )
+        .order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc())
+    ).scalars().all()
+
+    candidates: dict[uuid.UUID, tuple[Transaction, set[str], int]] = {}
+    hashes_by_transaction: dict[uuid.UUID, set[str]] = {}
+    if incoming_hash:
+        screenshots = db.execute(
+            select(Screenshot).where(
+                Screenshot.business_id == business_id,
+                Screenshot.deleted_at.is_(None),
+                Screenshot.transaction_id.is_not(None),
+                Screenshot.image_sha256 == incoming_hash,
+            )
+        ).scalars().all()
+        for screenshot in screenshots:
+            hashes_by_transaction.setdefault(screenshot.transaction_id, set()).add(
+                screenshot.image_sha256
+            )
+
+    for row in rows:
+        if (
+            payload.exclude_transaction_id is not None
+            and row.id == payload.exclude_transaction_id
+        ):
+            continue
+        reasons: set[str] = set()
+        score = 0
+        if incoming_hash and incoming_hash in hashes_by_transaction.get(row.id, set()):
+            reasons.add("same_proof")
+            score += 100
+        if incoming_reference and _normalize_reference(row.reference_number) == incoming_reference:
+            reasons.add("same_reference")
+            score += 80
+        same_base = (
+            row.amount_minor == payload.amount_minor
+            and row.direction == payload.direction
+            and row.transaction_date == payload.transaction_date
+        )
+        if (
+            same_base
+            and payload.counterparty_id is not None
+            and row.counterparty_id == payload.counterparty_id
+        ):
+            reasons.add("same_amount_date_counterparty")
+            score += 70
+        elif (
+            same_base
+            and incoming_name
+            and _normalize_name(row.counterparty_name) == incoming_name
+        ):
+            reasons.add("same_amount_date_name")
+            score += 50
+        if reasons:
+            candidates[row.id] = (row, reasons, score)
+
+    ranked = sorted(
+        candidates.values(),
+        key=lambda item: (item[2], item[0].transaction_date, item[0].created_at),
+        reverse=True,
+    )[:5]
+    return [
+        DuplicateCandidateOut(
+            transaction=TransactionOut.model_validate(row),
+            reasons=sorted(reasons),
+            score=score,
+        )
+        for row, reasons, score in ranked
+    ]
 
 
 @router.post("", response_model=TransactionOut, status_code=status.HTTP_200_OK)

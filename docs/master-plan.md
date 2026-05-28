@@ -2126,26 +2126,42 @@ documented trade-off for keeping Phase 8.1 schema-light on Android.
 
 # Phase 9: Duplicate Detection
 
+Status: implemented.
+
 ## Goal
 
-Prevent accidental duplicate transaction records.
+Warn before accidental duplicate transaction records without blocking save.
 
 ## Android Tasks
 
-* Show duplicate warning in confirmation screen.
-* Allow save anyway.
+* Store nullable proof image SHA-256 on local screenshot rows (Room v9).
+* Check local duplicate candidates before save so warnings work offline.
+* Best-effort backend check when online; backend failure never blocks save.
+* Show inline warning in the transaction form with "Review fields" and
+  "Save anyway."
+* Reuse the same flow for AI-drafted and manually typed records.
 
 ## Backend Tasks
 
-* Calculate image hash.
-* Check same reference number.
-* Check same amount/date/counterparty.
-* Return duplicate candidates.
-* Log duplicate warning ignored if user proceeds.
+* Store nullable `screenshots.image_sha256` from validated upload bytes.
+* Add `POST /businesses/{business_id}/transactions/duplicate-candidates`.
+* Check same proof hash, normalized reference number, and exact
+  amount/direction/date/counterparty matches.
+* Exclude soft-deleted rows, edit self-matches, and cross-business data.
+* Audit-log "duplicate warning ignored" is deferred to Phase 10 audit logging.
 
 ## Deliverables
 
-* User gets warned when upload looks duplicated.
+* User gets warned when a saved record looks duplicated, then can review or
+  save anyway.
+
+## Verification
+
+* `uv run pytest`
+* `uv run alembic upgrade head`
+* `.\gradlew.bat :app:testDebugUnitTest`
+* `.\gradlew.bat :app:connectedDebugAndroidTest`
+* `.\gradlew.bat :app:assembleDebug`
 
 ---
 

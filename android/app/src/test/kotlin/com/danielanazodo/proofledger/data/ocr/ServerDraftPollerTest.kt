@@ -10,6 +10,8 @@ import com.danielanazodo.proofledger.data.remote.dto.CounterpartySummaryDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.DraftErrorCode
 import com.danielanazodo.proofledger.data.remote.dto.DraftStatus
+import com.danielanazodo.proofledger.data.remote.dto.DuplicateCandidateDto
+import com.danielanazodo.proofledger.data.remote.dto.DuplicateCandidateRequestDto
 import com.danielanazodo.proofledger.data.remote.dto.ProfileDto
 import com.danielanazodo.proofledger.data.remote.dto.ProfileUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.ScreenshotDto
@@ -198,6 +200,9 @@ class ServerDraftPollerTest {
         override suspend fun createTransaction(
             businessId: String, body: TransactionCreateDto
         ): TransactionDto = error("not used")
+        override suspend fun duplicateCandidates(
+            businessId: String, body: DuplicateCandidateRequestDto
+        ): List<DuplicateCandidateDto> = emptyList()
         override suspend fun getTransaction(
             businessId: String, transactionId: String
         ): TransactionDto = error("not used")

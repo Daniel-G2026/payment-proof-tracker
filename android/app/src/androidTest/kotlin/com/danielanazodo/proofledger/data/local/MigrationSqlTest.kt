@@ -11,6 +11,9 @@ import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_2_3
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_3_4
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_4_5
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_5_6
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_6_7
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_7_8
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_8_9
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -20,7 +23,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Data-preservation test for migrations 1 -> 6. Builds the v1 schema by hand
+ * Data-preservation test for migrations 1 -> 9. Builds the v1 schema by hand
  * (the same CREATE TABLE Room would have emitted at version 1), inserts sample
  * rows at every version, runs each migration in order, and asserts that:
  *
@@ -64,7 +67,7 @@ class MigrationSqlTest {
     }
 
     @Test
-    fun migrations1Through6_preserveData() {
+    fun migrations1Through9_preserveData() {
         // v1: only local_app_metadata exists.
         db.execSQL(
             "INSERT INTO local_app_metadata(key, value, updatedAt) VALUES('selected', 'b1', 100)"
@@ -115,6 +118,15 @@ class MigrationSqlTest {
         // -> v6 (lastSyncError on transaction/business/counterparty)
         MIGRATION_5_6.migrate(db)
 
+        // -> v7 (raw OCR text on proofs)
+        MIGRATION_6_7.migrate(db)
+
+        // -> v8 (server draft status columns on proofs)
+        MIGRATION_7_8.migrate(db)
+
+        // -> v9 (proof image hash for duplicate warnings)
+        MIGRATION_8_9.migrate(db)
+
         assertRowCount("local_app_metadata", 1)
         assertRowCount("local_profile", 1)
         assertRowCount("local_business", 1)
@@ -134,6 +146,20 @@ class MigrationSqlTest {
         db.query("SELECT lastSyncError FROM local_counterparty WHERE id = 'cp1'").use { c ->
             assertTrue(c.moveToFirst())
             assertNull(c.getString(0))
+        }
+        db.query(
+            """
+            SELECT ocrText, serverDraftStatus, serverDraftFetchedAt, serverDraftError, imageSha256
+            FROM local_screenshot
+            WHERE id = 's1'
+            """
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertNull(c.getString(0))
+            assertNull(c.getString(1))
+            assertNull(c.getString(2))
+            assertNull(c.getString(3))
+            assertNull(c.getString(4))
         }
     }
 

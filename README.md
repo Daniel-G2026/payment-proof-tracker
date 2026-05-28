@@ -26,8 +26,9 @@ Small Nigerian construction-adjacent businesses, suppliers, subcontractors, and 
 
 - Phases 1-6 are implemented: foundation, auth/business setup, manual records, counterparties, screenshot proof attachment, and Android share-sheet intake.
 - Phase 8 and 8.1 are implemented: server-side AI extraction creates editable drafts, and new proofs eagerly upload on attach so drafts can pre-fill during record creation.
+- Phase 9 is implemented: duplicate detection is warning-only, checks local data first, falls back safely if the backend is unavailable, and compares proof hashes, references, and amount/date/counterparty signals.
 - Recent polish: amount entry now uses comma-separated numbers, and a small responsiveness audit moved proof file work off the UI thread.
-- Next planned phase: Phase 9 duplicate detection.
+- Next planned phase: Phase 10 offline sync hardening.
 
 ## Docs
 

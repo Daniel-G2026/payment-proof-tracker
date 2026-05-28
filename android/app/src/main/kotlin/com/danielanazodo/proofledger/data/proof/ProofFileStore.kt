@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import java.security.MessageDigest
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,6 +19,7 @@ data class PreparedProofFile(
     val mimeType: String,
     val width: Int?,
     val height: Int?,
+    val imageSha256: String,
 )
 
 @Singleton
@@ -60,6 +62,7 @@ class ProofFileStore @Inject constructor(
             mimeType = mimeType,
             width = bounds.outWidth.takeIf { it > 0 },
             height = bounds.outHeight.takeIf { it > 0 },
+            imageSha256 = sha256(originalFile),
         )
     }
 
@@ -68,6 +71,20 @@ class ProofFileStore @Inject constructor(
         val uploadsDir = File(context.filesDir, "proofs/uploads")
         originalsDir.listFiles { _, name -> name.startsWith("$id.") }?.forEach { it.delete() }
         uploadsDir.listFiles { _, name -> name.startsWith("$id.") }?.forEach { it.delete() }
+    }
+
+    fun sha256(uri: Uri): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        context.contentResolver.openInputStream(uri).use { input ->
+            requireNotNull(input) { "Could not open proof image." }
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.toHex()
     }
 
     private fun decodeBounds(file: File): BitmapFactory.Options =
@@ -125,6 +142,22 @@ class ProofFileStore @Inject constructor(
         val height = (bitmap.height * ratio).toInt().coerceAtLeast(1)
         return Bitmap.createScaledBitmap(bitmap, width, height, true)
     }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.toHex()
+    }
+
+    private fun MessageDigest.toHex(): String =
+        digest().joinToString("") { byte -> "%02x".format(byte) }
 
     private fun extensionFor(mimeType: String): String = when (mimeType.lowercase()) {
         "image/png" -> ".png"

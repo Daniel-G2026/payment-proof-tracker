@@ -44,6 +44,7 @@ data class OrphanUploadResult(
     val screenshot: com.danielanazodo.proofledger.data.remote.dto.ScreenshotDto,
     val localOriginalPath: String,
     val localUploadPath: String?,
+    val imageSha256: String,
 )
 
 data class ManualBackupFilter(
@@ -107,6 +108,7 @@ class ProofRepository @Inject constructor(
             backupStatus = status,
             remoteScreenshotId = null,
             remoteStorageKey = null,
+            imageSha256 = prepared.imageSha256,
             createdAt = now,
             updatedAt = now,
             lastBackupAttemptAt = null,
@@ -127,6 +129,29 @@ class ProofRepository @Inject constructor(
             scheduler.enqueue(proofId, wifiOnly = true)
         }
         return row
+    }
+
+    suspend fun computeImageSha256(uri: Uri): String =
+        withContext(Dispatchers.IO) {
+            fileStore.sha256(uri)
+        }
+
+    suspend fun backfillMissingImageHashes(businessId: String) {
+        screenshotDao.findMissingImageSha256(businessId).forEach { row ->
+            val hash = runCatching {
+                withContext(Dispatchers.IO) {
+                    fileStore.sha256(Uri.fromFile(File(row.localOriginalPath)))
+                }
+            }.getOrNull()
+            if (!hash.isNullOrBlank()) {
+                screenshotDao.upsert(
+                    row.copy(
+                        imageSha256 = hash,
+                        updatedAt = System.currentTimeMillis(),
+                    )
+                )
+            }
+        }
     }
 
     /**
@@ -313,6 +338,7 @@ class ProofRepository @Inject constructor(
             screenshot = dto,
             localOriginalPath = prepared.originalPath,
             localUploadPath = prepared.uploadPath,
+            imageSha256 = prepared.imageSha256,
         )
     }
 
@@ -363,6 +389,7 @@ class ProofRepository @Inject constructor(
             backupStatus = ProofBackupStatus.BACKED_UP,
             remoteScreenshotId = screenshot.id,
             remoteStorageKey = screenshot.storageKey,
+            imageSha256 = upload.imageSha256.ifBlank { screenshot.imageSha256 },
             createdAt = now,
             updatedAt = now,
             lastBackupAttemptAt = now,
@@ -463,6 +490,7 @@ class ProofRepository @Inject constructor(
             backupStatus = ProofBackupStatus.BACKED_UP,
             remoteScreenshotId = remote.id,
             remoteStorageKey = remote.storageKey,
+            imageSha256 = remote.imageSha256 ?: imageSha256,
             uploadFileSizeBytes = remote.uploadedFileSize,
             lastBackupAttemptAt = System.currentTimeMillis(),
             lastBackupError = null,

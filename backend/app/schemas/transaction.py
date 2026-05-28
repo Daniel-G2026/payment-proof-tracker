@@ -94,3 +94,20 @@ class TransactionOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None
+
+
+class DuplicateCandidateIn(BaseModel):
+    amount_minor: int = Field(gt=0, le=MAX_AMOUNT_MINOR)
+    direction: str = Field(pattern="^(money_in|money_out)$")
+    transaction_date: date
+    counterparty_id: uuid.UUID | None = None
+    counterparty_name: str | None = Field(default=None, max_length=MAX_COUNTERPARTY_NAME_LEN)
+    reference_number: str | None = Field(default=None, max_length=MAX_REFERENCE_LEN)
+    screenshot_id: uuid.UUID | None = None
+    exclude_transaction_id: uuid.UUID | None = None
+
+
+class DuplicateCandidateOut(BaseModel):
+    transaction: TransactionOut
+    reasons: list[str]
+    score: int

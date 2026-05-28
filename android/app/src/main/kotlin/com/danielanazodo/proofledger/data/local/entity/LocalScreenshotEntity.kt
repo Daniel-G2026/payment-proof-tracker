@@ -12,6 +12,7 @@ import com.danielanazodo.proofledger.data.local.ProofBackupStatus
         Index("transactionId"),
         Index("backupStatus"),
         Index("isImportant"),
+        Index("imageSha256"),
     ],
 )
 data class LocalScreenshotEntity(
@@ -34,6 +35,7 @@ data class LocalScreenshotEntity(
     val backupStatus: ProofBackupStatus,
     val remoteScreenshotId: String?,
     val remoteStorageKey: String?,
+    val imageSha256: String? = null,
     val createdAt: Long,
     val updatedAt: Long,
     val lastBackupAttemptAt: Long?,

@@ -25,6 +25,7 @@ class ScreenshotDtoTest {
               "height": 1920,
               "storage_key": "proofs/example.jpg",
               "storage_status": "stored",
+              "image_sha256": null,
               "created_at": "2026-05-27T00:00:00Z",
               "updated_at": "2026-05-27T00:00:00Z",
               "deleted_at": null,

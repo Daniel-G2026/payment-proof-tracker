@@ -6,6 +6,8 @@ import com.danielanazodo.proofledger.data.remote.dto.CounterpartyCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartySummaryDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyUpdateDto
+import com.danielanazodo.proofledger.data.remote.dto.DuplicateCandidateDto
+import com.danielanazodo.proofledger.data.remote.dto.DuplicateCandidateRequestDto
 import com.danielanazodo.proofledger.data.remote.dto.ProfileDto
 import com.danielanazodo.proofledger.data.remote.dto.ProfileUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.ScreenshotDto
@@ -100,6 +102,12 @@ interface ApiService {
         @Path("businessId") businessId: String,
         @Body body: TransactionCreateDto,
     ): TransactionDto
+
+    @POST("businesses/{businessId}/transactions/duplicate-candidates")
+    suspend fun duplicateCandidates(
+        @Path("businessId") businessId: String,
+        @Body body: DuplicateCandidateRequestDto,
+    ): List<DuplicateCandidateDto>
 
     @GET("businesses/{businessId}/transactions/{transactionId}")
     suspend fun getTransaction(

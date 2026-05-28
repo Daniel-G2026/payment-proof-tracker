@@ -6,6 +6,7 @@ import uuid
 from datetime import UTC, datetime
 from email.parser import BytesParser
 from email.policy import default
+from hashlib import sha256
 from pathlib import Path
 from typing import Annotated
 
@@ -236,6 +237,7 @@ async def upload_screenshot(
         height=_parse_pixel_dimension(fields, "height"),
         storage_key=storage_key,
         storage_status="stored",
+        image_sha256=sha256(file_bytes).hexdigest(),
         ocr_text=ocr_text,
     )
     db.add(screenshot)
