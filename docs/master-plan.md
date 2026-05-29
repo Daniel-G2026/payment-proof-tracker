@@ -2211,6 +2211,54 @@ Make offline-first behavior reliable.
   operates in. Apply the same pattern to transactions/counterparties lists
   if they grow large enough to matter.
 
+  **Status: not yet implemented (deferred).** An attempt in the Phase 10
+  later-items slice was reverted before commit because the cursor
+  comparison hit a SQLAlchemy + SQLite portability problem:
+
+  - `created_at` columns use `DateTime(timezone=True)` with
+    `server_default=func.now()`. In SQLite that resolves to
+    `CURRENT_TIMESTAMP`, which is **second-precision** — values are stored
+    as e.g. `'2026-05-29 03:48:18'`.
+  - When SQLAlchemy binds a Python `datetime` (microsecond=0) for the
+    comparison, the SQLite dialect formats it with microseconds:
+    `'2026-05-29 03:48:18.000000'`.
+  - The two strings are unequal in SQLite text comparison. Worse, the
+    DB-stored form is *lexicographically smaller* than the bound form, so
+    `created_at < cur_created_at` matches **every** row with the same
+    second — pagination loops on the same page forever. Verified with a
+    standalone SQLAlchemy repro: a roundtripped datetime fails `==` and
+    spuriously succeeds `<` against itself.
+  - Postgres production has no such mismatch (native timestamp type,
+    microsecond precision both stored and bound), so the bug is
+    test-only — but the test environment is the only contract we can
+    enforce in CI today.
+
+  Options for the real implementation when we pick this back up:
+
+  1. **Dialect-specific text casting.** Use SQLAlchemy `func.strftime` on
+     SQLite and `func.to_char` on Postgres to compare against a uniform
+     text format that matches the stored value. Adds a dialect branch.
+  2. **Custom `DateTime` type with fixed storage format.** Configure the
+     SQLite side with `storage_format='%Y-%m-%d %H:%M:%S'` (no
+     microseconds) so bound and stored values share a format. Risk: any
+     code path that currently relies on microsecond precision in tests
+     would silently truncate. Requires an audit.
+  3. **Switch the test backend to Postgres.** Run tests against a
+     Postgres container (already in `docker-compose.yml`). Eliminates the
+     SQLite mismatch entirely but slows the suite and complicates CI.
+  4. **Cursor on `id` only with a stable secondary order.** Change the
+     ORDER BY to `id DESC` and cursor on `id`. Loses chronological "newest
+     first" UX but is dialect-agnostic. Acceptable for delta-sync polling
+     where order doesn't matter to the consumer; not acceptable for
+     user-facing list UIs.
+
+  Recommended path when delta sync is on the roadmap: option 1 (dialect
+  branch behind a small helper). Keep the offset endpoints alongside the
+  new cursor params during the transition so existing callers don't
+  break. The `transaction_id` filter on the screenshot list is already
+  in place (committed alongside conflict handling) and works orthogonally
+  to whatever pagination scheme replaces offset.
+
 ## Deliverables
 
 * App remains usable offline.
