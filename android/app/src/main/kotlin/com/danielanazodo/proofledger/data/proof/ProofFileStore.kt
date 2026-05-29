@@ -33,17 +33,27 @@ class AndroidProofFileStore @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : ProofFileStore {
     override fun prepare(uri: Uri, id: String): PreparedProofFile {
-        val mimeType = context.contentResolver.getType(uri)
-            ?: mimeTypeFromPath(uri.path)
-            ?: "image/jpeg"
+        val metadataMimeType = ProofMimeTypes.normalizeAllowed(context.contentResolver.getType(uri))
+            ?: ProofMimeTypes.fromPath(uri.path)
         val originalDir = File(context.filesDir, "proofs/originals").apply { mkdirs() }
-        val originalFile = File(originalDir, "$id${extensionFor(mimeType)}")
+        val temporaryFile = File(originalDir, "$id.tmp")
         try {
             context.contentResolver.openInputStream(uri).use { input ->
                 requireNotNull(input) { "Could not open proof image." }
-                originalFile.outputStream().use { output -> input.copyTo(output) }
+                temporaryFile.outputStream().use { output -> input.copyTo(output) }
             }
         } catch (t: Throwable) {
+            temporaryFile.delete()
+            throw t
+        }
+        val mimeType = ProofMimeTypes.fromFile(temporaryFile)
+            ?: metadataMimeType
+            ?: "image/jpeg"
+        val originalFile = File(originalDir, "$id${ProofMimeTypes.extensionFor(mimeType)}")
+        try {
+            moveReplacing(temporaryFile, originalFile)
+        } catch (t: Throwable) {
+            temporaryFile.delete()
             originalFile.delete()
             throw t
         }
@@ -165,19 +175,17 @@ class AndroidProofFileStore @Inject constructor(
     private fun MessageDigest.toHex(): String =
         digest().joinToString("") { byte -> "%02x".format(byte) }
 
-    private fun extensionFor(mimeType: String): String = when (mimeType.lowercase()) {
-        "image/png" -> ".png"
-        "image/webp" -> ".webp"
-        else -> ".jpg"
-    }
-
-    private fun mimeTypeFromPath(path: String?): String? =
-        when (path?.substringAfterLast('.', missingDelimiterValue = "")?.lowercase()) {
-            "png" -> "image/png"
-            "webp" -> "image/webp"
-            "jpg", "jpeg" -> "image/jpeg"
-            else -> null
+    private fun moveReplacing(source: File, destination: File) {
+        if (destination.exists()) {
+            destination.delete()
         }
+        if (!source.renameTo(destination)) {
+            source.inputStream().use { input ->
+                destination.outputStream().use { output -> input.copyTo(output) }
+            }
+            source.delete()
+        }
+    }
 
     private companion object {
         const val COMPRESS_THRESHOLD_BYTES = 500L * 1024L

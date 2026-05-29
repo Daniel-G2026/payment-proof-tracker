@@ -67,23 +67,38 @@ class SharedProofIntakeRepository @Inject constructor(
     }
 
     private fun copyIntoIntake(source: Uri, declaredMimeType: String?) {
-        val mimeType = normalizedAllowedMimeType(context.contentResolver.getType(source))
-            ?: normalizedAllowedMimeType(declaredMimeType)
-            ?: return reject("Proof must be a JPEG, PNG, or WebP image.")
+        val metadataMimeType = ProofMimeTypes.normalizeAllowed(context.contentResolver.getType(source))
+            ?: ProofMimeTypes.normalizeAllowed(declaredMimeType)
         val token = UUID.randomUUID().toString()
         val intakeDir = File(context.filesDir, "proofs/intake").apply { mkdirs() }
-        val destination = File(intakeDir, "$token${extensionFor(mimeType)}")
+        val temporary = File(intakeDir, "$token.tmp")
         try {
             context.contentResolver.openInputStream(source).use { input ->
                 requireNotNull(input) { "Could not read the shared proof image." }
-                destination.outputStream().use { output -> input.copyTo(output) }
+                temporary.outputStream().use { output -> input.copyTo(output) }
             }
-            if (destination.length() <= 0L) {
-                destination.delete()
+            if (temporary.length() <= 0L) {
+                temporary.delete()
                 reject("Could not read the shared proof image.")
                 return
             }
         } catch (t: Throwable) {
+            temporary.delete()
+            reject(t.message ?: "Could not read the shared proof image.")
+            return
+        }
+        val mimeType = ProofMimeTypes.fromFile(temporary)
+            ?: metadataMimeType
+            ?: run {
+                temporary.delete()
+                reject("Proof must be a JPEG, PNG, or WebP image.")
+                return
+            }
+        val destination = File(intakeDir, "$token${ProofMimeTypes.extensionFor(mimeType)}")
+        try {
+            moveReplacing(temporary, destination)
+        } catch (t: Throwable) {
+            temporary.delete()
             destination.delete()
             reject(t.message ?: "Could not read the shared proof image.")
             return
@@ -93,7 +108,7 @@ class SharedProofIntakeRepository @Inject constructor(
         _state.value = SharedProofIntakeState(
             pending = SharedProofIntakeItem(
                 token = token,
-                localUri = destination.toURI().toString(),
+                localUri = Uri.fromFile(destination).toString(),
                 localPath = destination.absolutePath,
                 mimeType = mimeType,
                 sizeBytes = destination.length(),
@@ -134,18 +149,15 @@ class SharedProofIntakeRepository @Inject constructor(
             getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
         }
 
-    private fun normalizedAllowedMimeType(value: String?): String? =
-        when (value?.lowercase()) {
-            "image/jpeg", "image/jpg" -> "image/jpeg"
-            "image/png" -> "image/png"
-            "image/webp" -> "image/webp"
-            else -> null
+    private fun moveReplacing(source: File, destination: File) {
+        if (destination.exists()) {
+            destination.delete()
         }
-
-    private fun extensionFor(mimeType: String): String =
-        when (mimeType) {
-            "image/png" -> ".png"
-            "image/webp" -> ".webp"
-            else -> ".jpg"
+        if (!source.renameTo(destination)) {
+            source.inputStream().use { input ->
+                destination.outputStream().use { output -> input.copyTo(output) }
+            }
+            source.delete()
         }
+    }
 }
