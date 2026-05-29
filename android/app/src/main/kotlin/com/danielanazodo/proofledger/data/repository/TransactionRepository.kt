@@ -171,7 +171,19 @@ class TransactionRepository @Inject constructor(
                     )
                 )
             }
-            .onFailure { t -> localDao.upsert(local.toFailed(t)) }
+            .onFailure { t ->
+                if ((t as? HttpException)?.code() == 404) {
+                    localDao.upsert(
+                        local.copy(
+                            syncStatus = SyncStatus.SYNCED,
+                            lastSyncAttemptAt = System.currentTimeMillis(),
+                            lastSyncError = null,
+                        )
+                    )
+                } else {
+                    localDao.upsert(local.toFailed(t))
+                }
+            }
     }
 
     private fun LocalTransactionEntity.toFailed(t: Throwable): LocalTransactionEntity =
@@ -368,6 +380,11 @@ class TransactionRepository @Inject constructor(
     suspend fun deleteTransaction(transactionId: String) {
         val current = localDao.getById(transactionId)
             ?: throw IllegalStateException("Transaction not found.")
+        if (current.syncStatus == SyncStatus.PENDING_UPLOAD) {
+            proofRepository.deleteForTransaction(transactionId)
+            localDao.deleteById(transactionId)
+            return
+        }
         val now = System.currentTimeMillis()
         // Cascade-delete proofs immediately. The user said "delete this
         // transaction" — there's no undo path, so keeping the proof files on

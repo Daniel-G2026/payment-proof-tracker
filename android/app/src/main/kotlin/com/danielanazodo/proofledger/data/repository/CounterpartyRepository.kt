@@ -101,7 +101,19 @@ class CounterpartyRepository @Inject constructor(
                     )
                 )
             }
-            .onFailure { t -> localDao.upsert(local.toFailed(t)) }
+            .onFailure { t ->
+                if ((t as? HttpException)?.code() == 404) {
+                    localDao.upsert(
+                        local.copy(
+                            syncStatus = SyncStatus.SYNCED,
+                            lastSyncAttemptAt = System.currentTimeMillis(),
+                            lastSyncError = null,
+                        )
+                    )
+                } else {
+                    localDao.upsert(local.toFailed(t))
+                }
+            }
     }
 
     private fun LocalCounterpartyEntity.toFailed(t: Throwable): LocalCounterpartyEntity =
@@ -189,6 +201,10 @@ class CounterpartyRepository @Inject constructor(
     suspend fun deleteCounterparty(counterpartyId: String) {
         val current = localDao.getById(counterpartyId)
             ?: throw IllegalStateException("Counterparty not found.")
+        if (current.syncStatus == SyncStatus.PENDING_UPLOAD) {
+            localDao.deleteById(counterpartyId)
+            return
+        }
         val now = System.currentTimeMillis()
         val pending = current.copy(
             deletedAt = now,

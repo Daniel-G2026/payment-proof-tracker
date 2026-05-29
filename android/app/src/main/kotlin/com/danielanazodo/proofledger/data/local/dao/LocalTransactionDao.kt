@@ -43,6 +43,9 @@ interface LocalTransactionDao {
     @Query("SELECT * FROM local_transaction WHERE id = :id LIMIT 1")
     suspend fun getByIdIncludingDeleted(id: String): LocalTransactionEntity?
 
+    @Query("DELETE FROM local_transaction WHERE id = :id")
+    suspend fun deleteById(id: String)
+
     @Query(
         """
         SELECT * FROM local_transaction

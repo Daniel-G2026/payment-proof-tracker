@@ -113,6 +113,35 @@ def test_create_transaction_requires_membership_and_sets_created_by(client_for):
     assert denied.status_code == 404
 
 
+def test_post_transaction_is_idempotent_by_client_uuid(client_for):
+    client = client_for(uuid.uuid4(), "alice@example.com")
+    business_id = _create_business(client)
+    payload = _transaction_payload(counterparty_name="Musa Transport")
+
+    first = client.post(f"/businesses/{business_id}/transactions", json=payload)
+    second = client.post(f"/businesses/{business_id}/transactions", json=payload)
+    assert first.status_code == second.status_code == 200
+    assert first.json()["id"] == second.json()["id"]
+
+    listed = client.get(f"/businesses/{business_id}/transactions")
+    assert len(listed.json()) == 1
+
+
+def test_post_transaction_same_uuid_cross_business_or_deleted_returns_404(client_for):
+    client = client_for(uuid.uuid4(), "alice@example.com")
+    business_id = _create_business(client, "One")
+    other_business_id = _create_business(client, "Two")
+    payload = _transaction_payload()
+    client.post(f"/businesses/{business_id}/transactions", json=payload)
+
+    cross_business = client.post(f"/businesses/{other_business_id}/transactions", json=payload)
+    assert cross_business.status_code == 404
+
+    client.delete(f"/businesses/{business_id}/transactions/{payload['id']}")
+    deleted = client.post(f"/businesses/{business_id}/transactions", json=payload)
+    assert deleted.status_code == 404
+
+
 def test_list_filters_and_excludes_soft_deleted(client_for):
     client = client_for(uuid.uuid4(), "alice@example.com")
     business_id = _create_business(client)

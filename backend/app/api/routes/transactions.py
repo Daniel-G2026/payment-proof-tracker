@@ -6,6 +6,7 @@ from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_db
@@ -266,9 +267,23 @@ def create_transaction(
         created_by=current_user.id,
     )
     db.add(transaction)
-    db.flush()  # assign PK so the screenshot link references a real row
-    _link_orphan_screenshot(db, business_id, transaction.id, payload.screenshot_id)
-    db.commit()
+    try:
+        db.flush()  # assign PK so the screenshot link references a real row
+        _link_orphan_screenshot(db, business_id, transaction.id, payload.screenshot_id)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        winner = db.get(Transaction, payload.id)
+        if (
+            winner is None
+            or winner.business_id != business_id
+            or winner.deleted_at is not None
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Transaction not found.",
+            ) from None
+        return TransactionOut.model_validate(winner)
     db.refresh(transaction)
     return TransactionOut.model_validate(transaction)
 

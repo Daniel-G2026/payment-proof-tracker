@@ -160,6 +160,21 @@ def test_post_counterparty_is_idempotent_by_client_uuid(client_for):
     assert len(listed.json()) == 1
 
 
+def test_post_counterparty_same_uuid_cross_business_or_deleted_returns_404(client_for):
+    client = client_for(uuid.uuid4(), "alice@example.com")
+    business_id = _create_business(client, "One")
+    other_business_id = _create_business(client, "Two")
+    payload = _counterparty_payload(name="Musa Transport")
+    client.post(f"/businesses/{business_id}/counterparties", json=payload)
+
+    cross_business = client.post(f"/businesses/{other_business_id}/counterparties", json=payload)
+    assert cross_business.status_code == 404
+
+    client.delete(f"/businesses/{business_id}/counterparties/{payload['id']}")
+    deleted = client.post(f"/businesses/{business_id}/counterparties", json=payload)
+    assert deleted.status_code == 404
+
+
 def test_update_counterparty_rejects_explicit_null_required_fields(client_for):
     client = client_for(uuid.uuid4(), "alice@example.com")
     business_id = _create_business(client)

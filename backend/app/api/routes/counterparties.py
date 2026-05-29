@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import case, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_db
@@ -88,7 +89,21 @@ def create_counterparty(
         notes=payload.notes,
     )
     db.add(counterparty)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        winner = db.get(Counterparty, payload.id)
+        if (
+            winner is None
+            or winner.business_id != business_id
+            or winner.deleted_at is not None
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Counterparty not found.",
+            ) from None
+        return CounterpartyOut.model_validate(winner)
     db.refresh(counterparty)
     return CounterpartyOut.model_validate(counterparty)
 
