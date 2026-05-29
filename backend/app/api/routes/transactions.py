@@ -366,6 +366,12 @@ def update_transaction(
     _require_member(db, current_user.id, business_id)
     transaction = _get_transaction(db, business_id, transaction_id)
     data = payload.model_dump(exclude_unset=True)
+    expected_updated_at = data.pop("expected_updated_at", None)
+    if expected_updated_at is not None and transaction.updated_at != expected_updated_at:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This record was updated elsewhere. Reload and try again.",
+        )
     if "counterparty_id" in data:
         _validate_counterparty_id(db, business_id, data["counterparty_id"])
     # screenshot_id is not a column on Transaction — it's a linking instruction.

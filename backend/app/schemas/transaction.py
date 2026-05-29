@@ -64,6 +64,11 @@ class TransactionUpdate(BaseModel):
     # screenshot on PATCH (used when editing a transaction and replacing
     # the proof via the form's eager-upload path).
     screenshot_id: uuid.UUID | None = None
+    # Optimistic concurrency: the `updated_at` the client saw when it opened
+    # the record. When present, the server returns 409 if the row has been
+    # modified since. Omitted = no check (preserves existing single-device
+    # behavior).
+    expected_updated_at: datetime | None = None
 
     @field_validator("amount_minor", "direction")
     @classmethod

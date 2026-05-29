@@ -282,15 +282,17 @@ def list_screenshots(
     db: DbSession,
     limit: int = Query(default=DEFAULT_LIST_LIMIT, ge=1, le=MAX_LIST_LIMIT),
     offset: int = Query(default=0, ge=0),
+    transaction_id: uuid.UUID | None = Query(default=None),
 ) -> list[ScreenshotOut]:
     _require_member(db, current_user.id, business_id)
+    stmt = select(Screenshot).where(
+        Screenshot.business_id == business_id,
+        Screenshot.deleted_at.is_(None),
+    )
+    if transaction_id is not None:
+        stmt = stmt.where(Screenshot.transaction_id == transaction_id)
     stmt = (
-        select(Screenshot)
-        .where(
-            Screenshot.business_id == business_id,
-            Screenshot.deleted_at.is_(None),
-        )
-        .order_by(Screenshot.created_at.desc(), Screenshot.id)
+        stmt.order_by(Screenshot.created_at.desc(), Screenshot.id)
         .limit(limit)
         .offset(offset)
     )

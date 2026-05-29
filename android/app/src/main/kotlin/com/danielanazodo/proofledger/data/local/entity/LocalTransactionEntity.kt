@@ -35,4 +35,5 @@ data class LocalTransactionEntity(
     val syncStatus: SyncStatus,
     val lastSyncAttemptAt: Long?,
     val lastSyncError: String? = null,
+    val remoteUpdatedAt: String? = null,
 )

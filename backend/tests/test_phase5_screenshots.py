@@ -624,3 +624,21 @@ def test_transaction_create_rejects_amount_above_cap():
         assert resp.status_code == 422
     finally:
         app.dependency_overrides.clear()
+
+
+def test_list_screenshots_filters_by_transaction_id(client_for):
+    client = client_for(uuid.uuid4(), "alice@example.com")
+    business_id = _create_business(client)
+    transaction_a = _create_transaction(client, business_id)
+    transaction_b = _create_transaction(client, business_id)
+    _upload(client, business_id, transaction_a, b"a1")
+    _upload(client, business_id, transaction_a, b"a2")
+    _upload(client, business_id, transaction_b, b"b1")
+
+    filtered = client.get(
+        f"/businesses/{business_id}/screenshots?transaction_id={transaction_a}"
+    ).json()
+    assert len(filtered) == 2
+    assert all(row["transaction_id"] == str(transaction_a) for row in filtered)
+
+

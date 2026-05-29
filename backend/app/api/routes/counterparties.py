@@ -159,6 +159,12 @@ def update_counterparty(
     _require_member(db, current_user.id, business_id)
     counterparty = _get_counterparty(db, business_id, counterparty_id)
     data = payload.model_dump(exclude_unset=True)
+    expected_updated_at = data.pop("expected_updated_at", None)
+    if expected_updated_at is not None and counterparty.updated_at != expected_updated_at:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This record was updated elsewhere. Reload and try again.",
+        )
     if "name" in data:
         counterparty.name = data["name"].strip()
         counterparty.normalized_name = _normalize_name(data["name"])

@@ -32,6 +32,8 @@ data class CounterpartyUpdateDto(
     val type: String? = null,
     val phone: String? = null,
     val notes: String? = null,
+    /** Optimistic concurrency — see TransactionUpdateDto.expectedUpdatedAt. */
+    @Json(name = "expected_updated_at") val expectedUpdatedAt: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

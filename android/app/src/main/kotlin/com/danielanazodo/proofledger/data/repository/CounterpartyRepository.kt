@@ -282,6 +282,7 @@ class CounterpartyRepository @Inject constructor(
             deletedAt = deletedAt?.toEpochMillisOrNull(),
             syncStatus = syncStatus,
             lastSyncAttemptAt = now,
+            remoteUpdatedAt = updatedAt,
         )
     }
 
@@ -300,6 +301,7 @@ class CounterpartyRepository @Inject constructor(
             type = type,
             phone = phone,
             notes = notes,
+            expectedUpdatedAt = remoteUpdatedAt,
         )
 
     private fun String.toEpochMillisOrNull(): Long? =

@@ -59,6 +59,9 @@ data class TransactionUpdateDto(
     /** Phase 8.1: link/replace the screenshot on an edit. Same semantics as
      *  on create — see TransactionCreateDto.screenshotId. */
     @Json(name = "screenshot_id") val screenshotId: String? = null,
+    /** Optimistic concurrency: `updated_at` the client saw when it opened the
+     *  record. Backend returns 409 if the row has been modified since. */
+    @Json(name = "expected_updated_at") val expectedUpdatedAt: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

@@ -490,6 +490,7 @@ class TransactionRepository @Inject constructor(
             deletedAt = deletedAt?.toEpochMillisOrNull(),
             syncStatus = syncStatus,
             lastSyncAttemptAt = now,
+            remoteUpdatedAt = updatedAt,
         )
     }
 
@@ -540,6 +541,7 @@ class TransactionRepository @Inject constructor(
             bankName = bankName,
             referenceNumber = referenceNumber,
             screenshotId = screenshotId,
+            expectedUpdatedAt = remoteUpdatedAt,
         )
 
     suspend fun logDuplicateWarningIgnored(

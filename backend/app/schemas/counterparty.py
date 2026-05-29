@@ -27,6 +27,7 @@ class CounterpartyUpdate(BaseModel):
     type: str | None = Field(default=None, pattern=COUNTERPARTY_TYPE_PATTERN)
     phone: str | None = Field(default=None, max_length=MAX_COUNTERPARTY_PHONE_LEN)
     notes: str | None = Field(default=None, max_length=MAX_COUNTERPARTY_NOTES_LEN)
+    expected_updated_at: datetime | None = None
 
     @field_validator("name", "type")
     @classmethod

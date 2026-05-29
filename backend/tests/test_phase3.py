@@ -240,3 +240,46 @@ def test_member_can_create_transaction(client_for):
     resp = bob.post(f"/businesses/{business_id}/transactions", json=_transaction_payload())
     assert resp.status_code == 200, resp.text
     assert resp.json()["created_by"] == str(bob_id)
+
+
+def test_patch_transaction_rejects_stale_expected_updated_at(client_for):
+    client = client_for(uuid.uuid4(), "alice@example.com")
+    business_id = _create_business(client)
+    payload = _transaction_payload()
+    created = client.post(
+        f"/businesses/{business_id}/transactions", json=payload
+    ).json()
+    original_updated_at = created["updated_at"]
+
+    # Matching timestamp passes the optimistic-concurrency check.
+    matching = client.patch(
+        f"/businesses/{business_id}/transactions/{payload['id']}",
+        json={"note": "Matching", "expected_updated_at": original_updated_at},
+    )
+    assert matching.status_code == 200
+
+    # A fabricated-older timestamp must 409 even if the row's updated_at
+    # hasn't ticked yet (SQLite's func.now() is second-precision, so we can't
+    # rely on the real updated_at changing within the same test second).
+    stale = "1999-01-01T00:00:00+00:00"
+    rejected = client.patch(
+        f"/businesses/{business_id}/transactions/{payload['id']}",
+        json={"note": "Stale", "expected_updated_at": stale},
+    )
+    assert rejected.status_code == 409
+
+
+def test_patch_transaction_without_expected_updated_at_skips_check(client_for):
+    client = client_for(uuid.uuid4(), "alice@example.com")
+    business_id = _create_business(client)
+    payload = _transaction_payload()
+    client.post(f"/businesses/{business_id}/transactions", json=payload)
+
+    # Omitting the field preserves existing single-device behavior.
+    resp = client.patch(
+        f"/businesses/{business_id}/transactions/{payload['id']}",
+        json={"note": "Unchecked"},
+    )
+    assert resp.status_code == 200
+
+

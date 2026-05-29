@@ -27,4 +27,5 @@ data class LocalCounterpartyEntity(
     val syncStatus: SyncStatus,
     val lastSyncAttemptAt: Long?,
     val lastSyncError: String? = null,
+    val remoteUpdatedAt: String? = null,
 )

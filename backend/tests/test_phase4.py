@@ -287,3 +287,25 @@ def test_member_can_create_counterparty(client_for):
 
     resp = bob.post(f"/businesses/{business_id}/counterparties", json=_counterparty_payload())
     assert resp.status_code == 200, resp.text
+
+
+def test_patch_counterparty_rejects_stale_expected_updated_at(client_for):
+    client = client_for(uuid.uuid4(), "alice@example.com")
+    business_id = _create_business(client)
+    payload = _counterparty_payload()
+    created = client.post(
+        f"/businesses/{business_id}/counterparties", json=payload
+    ).json()
+    original_updated_at = created["updated_at"]
+
+    matching = client.patch(
+        f"/businesses/{business_id}/counterparties/{payload['id']}",
+        json={"notes": "matching", "expected_updated_at": original_updated_at},
+    )
+    assert matching.status_code == 200
+
+    rejected = client.patch(
+        f"/businesses/{business_id}/counterparties/{payload['id']}",
+        json={"notes": "stale", "expected_updated_at": "1999-01-01T00:00:00+00:00"},
+    )
+    assert rejected.status_code == 409
