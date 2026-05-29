@@ -1,3 +1,8 @@
+# ---- Local-only assets ----
+UI-reference/
+backend/storage/
+/android-bugs-reference.docx
+
 # ---- Python / backend ----
 __pycache__/
 *.py[cod]

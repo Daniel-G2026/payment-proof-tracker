@@ -23,16 +23,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.data.local.ProofBackupPreference
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
 import com.danielanazodo.proofledger.ui.components.MetricLine
-import com.danielanazodo.proofledger.ui.components.PageHeader
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.ProofLedgerFilterChip
-import com.danielanazodo.proofledger.ui.components.ProofLedgerMainScaffold
+import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
 import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
 import com.danielanazodo.proofledger.ui.components.SectionLabel
 import com.danielanazodo.proofledger.ui.components.SummaryPanel
 import com.danielanazodo.proofledger.ui.components.VerticalSpacer
 import com.danielanazodo.proofledger.ui.format.formatCompactCount
-import com.danielanazodo.proofledger.ui.navigation.MainTab
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
 import com.danielanazodo.proofledger.ui.theme.ProofLime
@@ -43,16 +41,14 @@ import java.util.Locale
 @Composable
 fun ProofBackupScreen(
     onBack: () -> Unit,
-    onTabSelected: (MainTab) -> Unit,
     viewModel: ProofBackupViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val backUpSelected = rememberDebouncedClick(onClick = viewModel::backUpSelected)
 
-    ProofLedgerMainScaffold(
-        selectedTab = MainTab.Proofs,
-        onTabSelected = onTabSelected,
-        topBar = { PageHeader(title = "Proofs", subtitle = "Screenshots saved on this device") },
+    ProofLedgerScreen(
+        title = "Proof backup",
+        onBack = onBack,
     ) { modifier ->
         Column(
             modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),

@@ -4,5 +4,5 @@ enum class MainTab(val label: String) {
     Home("Home"),
     Records("Records"),
     People("People"),
-    Proofs("Proofs"),
+    Settings("Settings"),
 }

@@ -15,7 +15,9 @@ import javax.inject.Inject
 data class BusinessSelectUiState(
     val businesses: List<LocalBusinessEntity> = emptyList(),
     val loading: Boolean = true,
+    val currentBusinessId: String? = null,
     val selectedId: String? = null,
+    val selectedBusinessChanged: Boolean = false,
 )
 
 @HiltViewModel
@@ -29,14 +31,28 @@ class BusinessSelectViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val list = businessRepository.getLocalBusinesses()
-            _state.update { it.copy(businesses = list, loading = false) }
+            val currentBusinessId = businessRepository.getSelectedBusinessId()
+            _state.update {
+                it.copy(
+                    businesses = list,
+                    currentBusinessId = currentBusinessId,
+                    loading = false,
+                )
+            }
         }
     }
 
     fun select(businessId: String) {
         viewModelScope.launch {
+            val changed = businessId != _state.value.currentBusinessId
             businessRepository.selectBusiness(businessId)
-            _state.update { it.copy(selectedId = businessId) }
+            _state.update {
+                it.copy(
+                    currentBusinessId = businessId,
+                    selectedId = businessId,
+                    selectedBusinessChanged = changed,
+                )
+            }
         }
     }
 }

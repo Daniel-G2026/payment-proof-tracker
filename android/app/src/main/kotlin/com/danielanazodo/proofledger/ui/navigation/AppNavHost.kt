@@ -31,6 +31,7 @@ import com.danielanazodo.proofledger.ui.screens.ProfileSetupScreen
 import com.danielanazodo.proofledger.ui.screens.ProofBackupScreen
 import com.danielanazodo.proofledger.ui.screens.SharedProofIntakeScreen
 import com.danielanazodo.proofledger.ui.screens.SignInScreen
+import com.danielanazodo.proofledger.ui.screens.SettingsScreen
 import com.danielanazodo.proofledger.ui.screens.SyncIssuesScreen
 import com.danielanazodo.proofledger.ui.screens.TransactionDetailScreen
 import com.danielanazodo.proofledger.ui.screens.TransactionFormScreen
@@ -123,7 +124,7 @@ private fun ResolvedGraph(
             MainTab.Home -> Route.Dashboard.path
             MainTab.Records -> Route.TransactionList.path
             MainTab.People -> Route.CounterpartyList.path
-            MainTab.Proofs -> Route.ProofBackup.path
+            MainTab.Settings -> Route.Settings.path
         }
         if (currentRoute != route) {
             navController.navigate(route) {
@@ -145,7 +146,22 @@ private fun ResolvedGraph(
             CreateBusinessScreen(onCreated = onResolveAgain)
         }
         composable(Route.BusinessSelect.path) {
-            BusinessSelectScreen(onSelected = onResolveAgain)
+            BusinessSelectScreen(onSelected = { onResolveAgain() })
+        }
+        composable(Route.BusinessSwitch.path) {
+            BusinessSelectScreen(
+                onSelected = { changed ->
+                    if (changed) {
+                        navController.navigate(Route.Dashboard.path) {
+                            popUpTo(navController.graph.id) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    } else {
+                        navController.popBackStack()
+                    }
+                },
+                onBack = { navController.popBackStack() },
+            )
         }
         composable(Route.Dashboard.path) {
             EmptyDashboardScreen(
@@ -167,10 +183,18 @@ private fun ResolvedGraph(
                 onOpenPerson = { id -> navController.navigateOnce(Route.CounterpartyDetail.path(id)) },
             )
         }
+        composable(Route.Settings.path) {
+            SettingsScreen(
+                onProofBackup = { navController.navigateOnce(Route.ProofBackup.path) },
+                onSyncIssues = { navController.navigateOnce(Route.SyncIssues.path) },
+                onSwitchBusiness = { navController.navigateOnce(Route.BusinessSwitch.path) },
+                onSignedOut = onResolveAgain,
+                onTabSelected = onTabSelected,
+            )
+        }
         composable(Route.ProofBackup.path) {
             ProofBackupScreen(
                 onBack = { navController.popBackStack() },
-                onTabSelected = onTabSelected,
             )
         }
         composable(

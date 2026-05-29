@@ -21,8 +21,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -286,7 +286,7 @@ private fun MainTab.icon(): ImageVector = when (this) {
     MainTab.Home -> Icons.Filled.Home
     MainTab.Records -> Icons.Filled.CreditCard
     MainTab.People -> Icons.Filled.People
-    MainTab.Proofs -> Icons.Filled.Image
+    MainTab.Settings -> Icons.Filled.Settings
 }
 
 @Composable
