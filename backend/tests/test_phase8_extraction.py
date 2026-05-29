@@ -25,7 +25,7 @@ from app.api.deps import get_current_user, get_db
 from app.core.config import settings
 from app.db import session as session_module
 from app.db.base import Base
-from app.db.models import Profile, Screenshot, TransactionDraft
+from app.db.models import AuditEvent, Profile, Screenshot, TransactionDraft
 from app.db.models.transaction_draft import (
     DRAFT_ERROR_UNREADABLE,
     DRAFT_STATUS_FAILED,
@@ -521,6 +521,15 @@ class TestConfirmEndpoint:
         )
         assert second.status_code == 200
         assert second.json()["confirmed_at"] == first_confirmed_at
+
+        db = TestingSessionLocal()
+        try:
+            events = db.query(AuditEvent).filter(AuditEvent.entity_id == draft_id).all()
+            assert [(event.action, event.status) for event in events] == [
+                ("confirm", "success")
+            ]
+        finally:
+            db.close()
 
 
 # --- rate limit ---------------------------------------------------------

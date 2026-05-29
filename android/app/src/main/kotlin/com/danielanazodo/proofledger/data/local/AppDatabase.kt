@@ -8,12 +8,14 @@ import com.danielanazodo.proofledger.data.local.dao.LocalBusinessDao
 import com.danielanazodo.proofledger.data.local.dao.LocalCounterpartyDao
 import com.danielanazodo.proofledger.data.local.dao.LocalProfileDao
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
+import com.danielanazodo.proofledger.data.local.dao.LocalSyncEventDao
 import com.danielanazodo.proofledger.data.local.dao.LocalTransactionDao
 import com.danielanazodo.proofledger.data.local.entity.LocalAppMetadataEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalBusinessEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalProfileEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalScreenshotEntity
+import com.danielanazodo.proofledger.data.local.entity.LocalSyncEventEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
 
 @Database(
@@ -23,9 +25,10 @@ import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
         LocalBusinessEntity::class,
         LocalCounterpartyEntity::class,
         LocalScreenshotEntity::class,
+        LocalSyncEventEntity::class,
         LocalTransactionEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 @TypeConverters(SyncStatusConverter::class, ProofStatusConverter::class)
@@ -35,6 +38,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun localBusinessDao(): LocalBusinessDao
     abstract fun localCounterpartyDao(): LocalCounterpartyDao
     abstract fun localScreenshotDao(): LocalScreenshotDao
+    abstract fun localSyncEventDao(): LocalSyncEventDao
     abstract fun localTransactionDao(): LocalTransactionDao
 
     companion object {

@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings
 from app.db.base import Base
-from app.db.models import Profile, Transaction
+from app.db.models import AuditEvent, Profile, Transaction
 from app.main import app
 
 engine = create_engine(
@@ -201,6 +201,37 @@ def test_duplicate_endpoint_returns_amount_date_counterparty_candidate():
 
     assert rows[0]["transaction"]["id"] == tx["id"]
     assert "same_amount_date_name" in rows[0]["reasons"]
+
+
+def test_duplicate_endpoint_writes_audit_event():
+    client = _client()
+    business_id = _business(client)
+    _transaction(client, business_id, reference_number="ABC 123")
+
+    rows = _duplicates(
+        client,
+        business_id,
+        {
+            "amount_minor": 125000,
+            "direction": "money_in",
+            "transaction_date": "2026-05-24",
+            "reference_number": "abc123",
+        },
+    )
+
+    assert rows
+    db = TestingSessionLocal()
+    try:
+        event = (
+            db.query(AuditEvent)
+            .filter(AuditEvent.business_id == business_id)
+            .filter(AuditEvent.action == "duplicate_check")
+            .one()
+        )
+        assert event.entity_type == "transaction"
+        assert event.status == "duplicate_found"
+    finally:
+        db.close()
 
 
 def test_duplicate_endpoint_excludes_cross_business_soft_deleted_and_self(tmp_path):

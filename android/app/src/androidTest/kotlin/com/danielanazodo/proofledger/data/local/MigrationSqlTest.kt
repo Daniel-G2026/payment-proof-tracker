@@ -14,6 +14,7 @@ import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_5_6
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_6_7
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_7_8
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_8_9
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_9_10
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -23,7 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Data-preservation test for migrations 1 -> 9. Builds the v1 schema by hand
+ * Data-preservation test for migrations 1 -> 10. Builds the v1 schema by hand
  * (the same CREATE TABLE Room would have emitted at version 1), inserts sample
  * rows at every version, runs each migration in order, and asserts that:
  *
@@ -67,7 +68,7 @@ class MigrationSqlTest {
     }
 
     @Test
-    fun migrations1Through9_preserveData() {
+    fun migrations1Through10_preserveData() {
         // v1: only local_app_metadata exists.
         db.execSQL(
             "INSERT INTO local_app_metadata(key, value, updatedAt) VALUES('selected', 'b1', 100)"
@@ -127,12 +128,22 @@ class MigrationSqlTest {
         // -> v9 (proof image hash for duplicate warnings)
         MIGRATION_8_9.migrate(db)
 
+        // -> v10 (local sync/audit events)
+        MIGRATION_9_10.migrate(db)
+        db.execSQL(
+            """
+            INSERT INTO local_sync_event(id, businessId, entityType, entityId, action, status, errorMessage, createdAt)
+            VALUES('e1', 'b1', 'transaction', 't1', 'create', 'success', NULL, 1)
+            """
+        )
+
         assertRowCount("local_app_metadata", 1)
         assertRowCount("local_profile", 1)
         assertRowCount("local_business", 1)
         assertRowCount("local_transaction", 1)
         assertRowCount("local_counterparty", 1)
         assertRowCount("local_screenshot", 1)
+        assertRowCount("local_sync_event", 1)
 
         // New v6 column exists and is NULL for legacy rows.
         db.query("SELECT lastSyncError FROM local_transaction WHERE id = 't1'").use { c ->

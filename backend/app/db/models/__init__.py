@@ -1,3 +1,4 @@
+from app.db.models.audit_event import AuditEvent
 from app.db.models.business import Business
 from app.db.models.business_member import BusinessMember
 from app.db.models.counterparty import Counterparty
@@ -8,6 +9,7 @@ from app.db.models.transaction_draft import TransactionDraft
 
 __all__ = [
     "Business",
+    "AuditEvent",
     "BusinessMember",
     "Counterparty",
     "Profile",

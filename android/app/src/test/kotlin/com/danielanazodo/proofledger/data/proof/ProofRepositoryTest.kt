@@ -4,8 +4,10 @@ import android.net.Uri
 import com.danielanazodo.proofledger.data.local.ProofBackupStatus
 import com.danielanazodo.proofledger.data.local.dao.LocalAppMetadataDao
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
+import com.danielanazodo.proofledger.data.local.dao.LocalSyncEventDao
 import com.danielanazodo.proofledger.data.local.entity.LocalAppMetadataEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalScreenshotEntity
+import com.danielanazodo.proofledger.data.local.entity.LocalSyncEventEntity
 import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.HealthResponse
 import com.danielanazodo.proofledger.data.remote.dto.BusinessCreateDto
@@ -25,6 +27,7 @@ import com.danielanazodo.proofledger.data.remote.dto.TransactionDraftConfirmDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDraftDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionUpdateDto
+import com.danielanazodo.proofledger.data.sync.SyncEventLogger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -44,10 +47,11 @@ class ProofRepositoryTest {
             val dao = FakeScreenshotDao()
             val fileStore = FakeProofFileStore()
             val scheduler = FakeBackupWorkScheduler()
+            val events = FakeSyncEventDao()
             val api = FakeApiService(deleteFailure = RuntimeException("offline"))
             val row = proof(backupStatus = ProofBackupStatus.BACKED_UP)
             dao.upsert(row)
-            val repository = repository(dao, fileStore, scheduler, api)
+            val repository = repository(dao, fileStore, scheduler, api, events)
 
             repository.deleteProof(row.id)
 
@@ -57,6 +61,8 @@ class ProofRepositoryTest {
             assertEquals(listOf(row.id to false), scheduler.enqueued)
             assertEquals(listOf(row.remoteScreenshotId), api.deletedScreenshotIds)
             assertEquals(emptyList<LocalScreenshotEntity>(), dao.visibleForBusiness(row.businessId))
+            assertEquals("remote_delete", events.rows.single().action)
+            assertEquals("failure", events.rows.single().status)
         }
 
     @Test
@@ -92,12 +98,14 @@ class ProofRepositoryTest {
         fileStore: FakeProofFileStore = FakeProofFileStore(),
         scheduler: FakeBackupWorkScheduler = FakeBackupWorkScheduler(),
         api: FakeApiService = FakeApiService(),
+        events: FakeSyncEventDao = FakeSyncEventDao(),
     ): ProofRepository = ProofRepository(
         screenshotDao = dao,
         metadataDao = FakeMetadataDao(),
         fileStore = fileStore,
         scheduler = scheduler,
         api = api,
+        syncEventLogger = SyncEventLogger(events),
     )
 
     private fun proof(
@@ -212,6 +220,27 @@ class ProofRepositoryTest {
         }
 
         override suspend fun get(key: String): LocalAppMetadataEntity? = rows[key]
+    }
+
+    private class FakeSyncEventDao : LocalSyncEventDao {
+        val rows = mutableListOf<LocalSyncEventEntity>()
+
+        override suspend fun insert(event: LocalSyncEventEntity) {
+            rows += event
+        }
+
+        override fun observeRecent(
+            businessId: String,
+            limit: Int,
+        ): Flow<List<LocalSyncEventEntity>> =
+            flowOf(rows.filter { it.businessId == businessId }.take(limit))
+
+        override fun observeFailures(): Flow<List<LocalSyncEventEntity>> =
+            flowOf(rows.filter { it.status == "failure" })
+
+        override suspend fun clear() {
+            rows.clear()
+        }
     }
 
     private class FakeProofFileStore : ProofFileStore {

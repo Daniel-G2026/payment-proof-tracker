@@ -8,6 +8,7 @@ import com.danielanazodo.proofledger.data.remote.dto.CounterpartyCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyUpdateDto
 import com.danielanazodo.proofledger.data.sync.toSyncErrorMessage
+import com.danielanazodo.proofledger.data.sync.SyncEventLogger
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
@@ -22,6 +23,7 @@ import retrofit2.HttpException
 class CounterpartyRepository @Inject constructor(
     private val api: ApiService,
     private val localDao: LocalCounterpartyDao,
+    private val syncEventLogger: SyncEventLogger,
 ) {
     fun observeByBusiness(businessId: String): Flow<List<LocalCounterpartyEntity>> =
         localDao.observeByBusiness(businessId)
@@ -62,14 +64,26 @@ class CounterpartyRepository @Inject constructor(
 
     private suspend fun syncCreate(businessId: String, local: LocalCounterpartyEntity) {
         runCatching { api.createCounterparty(businessId, local.toCreateDto()) }
-            .onSuccess { remote -> localDao.upsert(remote.toEntity(SyncStatus.SYNCED)) }
-            .onFailure { t -> localDao.upsert(local.toFailed(t)) }
+            .onSuccess { remote ->
+                localDao.upsert(remote.toEntity(SyncStatus.SYNCED))
+                logSync(local, "create", "success")
+            }
+            .onFailure { t ->
+                localDao.upsert(local.toFailed(t))
+                logSync(local, "create", "failure", t)
+            }
     }
 
     private suspend fun syncUpdate(local: LocalCounterpartyEntity) {
         runCatching { api.updateCounterparty(local.businessId, local.id, local.toUpdateDto()) }
-            .onSuccess { remote -> localDao.upsert(remote.toEntity(SyncStatus.SYNCED)) }
-            .onFailure { t -> localDao.upsert(local.toFailed(t)) }
+            .onSuccess { remote ->
+                localDao.upsert(remote.toEntity(SyncStatus.SYNCED))
+                logSync(local, "update", "success")
+            }
+            .onFailure { t ->
+                localDao.upsert(local.toFailed(t))
+                logSync(local, "update", "failure", t)
+            }
     }
 
     private suspend fun syncCreateOrUpdate(businessId: String, local: LocalCounterpartyEntity) {
@@ -78,11 +92,13 @@ class CounterpartyRepository @Inject constructor(
             update
                 .onSuccess { remote ->
                     localDao.upsert(remote.toEntity(SyncStatus.SYNCED))
+                    logSync(local, "update", "success")
                     return
                 }
                 .onFailure { t ->
                     if ((t as? HttpException)?.code() != 404) {
                         localDao.upsert(local.toFailed(t))
+                        logSync(local, "update", "failure", t)
                         return
                     }
                 }
@@ -100,6 +116,7 @@ class CounterpartyRepository @Inject constructor(
                         lastSyncError = null,
                     )
                 )
+                logSync(local, "delete", "success")
             }
             .onFailure { t ->
                 if ((t as? HttpException)?.code() == 404) {
@@ -110,8 +127,10 @@ class CounterpartyRepository @Inject constructor(
                             lastSyncError = null,
                         )
                     )
+                    logSync(local, "delete", "success")
                 } else {
                     localDao.upsert(local.toFailed(t))
+                    logSync(local, "delete", "failure", t)
                 }
             }
     }
@@ -151,11 +170,13 @@ class CounterpartyRepository @Inject constructor(
                 onSuccess = { remote ->
                     val synced = remote.toEntity(SyncStatus.SYNCED)
                     localDao.upsert(synced)
+                    logSync(local, "create", "success")
                     synced
                 },
                 onFailure = { t ->
                     val failed = local.toFailed(t)
                     localDao.upsert(failed)
+                    logSync(local, "create", "failure", t)
                     failed
                 },
             )
@@ -188,11 +209,13 @@ class CounterpartyRepository @Inject constructor(
             onSuccess = { remote ->
                 val synced = remote.toEntity(SyncStatus.SYNCED)
                 localDao.upsert(synced)
+                logSync(updated, "update", "success")
                 synced
             },
             onFailure = { t ->
                 val failed = updated.toFailed(t)
                 localDao.upsert(failed)
+                logSync(updated, "update", "failure", t)
                 failed
             },
         )
@@ -216,8 +239,12 @@ class CounterpartyRepository @Inject constructor(
         runCatching { api.deleteCounterparty(current.businessId, current.id) }
             .onSuccess {
                 localDao.upsert(pending.copy(updatedAt = now, syncStatus = SyncStatus.SYNCED))
+                logSync(pending, "delete", "success")
             }
-            .onFailure { t -> localDao.upsert(pending.toFailed(t)) }
+            .onFailure { t ->
+                localDao.upsert(pending.toFailed(t))
+                logSync(pending, "delete", "failure", t)
+            }
     }
 
     suspend fun clearLocal() {
@@ -269,4 +296,20 @@ class CounterpartyRepository @Inject constructor(
     private fun String.normalizedName(): String = trim().lowercase().replace(Regex("\\s+"), " ")
 
     private fun String?.clean(): String? = this?.trim()?.ifBlank { null }
+
+    private suspend fun logSync(
+        row: LocalCounterpartyEntity,
+        action: String,
+        status: String,
+        throwable: Throwable? = null,
+    ) {
+        syncEventLogger.log(
+            businessId = row.businessId,
+            entityType = "person",
+            entityId = row.id,
+            action = action,
+            status = status,
+            errorMessage = throwable?.toSyncErrorMessage(),
+        )
+    }
 }

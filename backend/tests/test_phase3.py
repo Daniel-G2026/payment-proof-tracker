@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_current_user, get_db
 from app.db.base import Base
-from app.db.models import BusinessMember, Profile
+from app.db.models import AuditEvent, BusinessMember, Profile
 from app.main import app
 
 engine = create_engine(
@@ -190,6 +190,39 @@ def test_patch_and_delete_preserve_business_boundaries(client_for):
     bob = client_for(uuid.uuid4(), "bob@example.com")
     bob_delete = bob.delete(f"/businesses/{alice_business_id}/transactions/{payload['id']}")
     assert bob_delete.status_code == 404
+
+
+def test_transaction_create_update_delete_writes_audit_events(client_for):
+    user_id = uuid.uuid4()
+    client = client_for(user_id, "alice@example.com")
+    business_id = _create_business(client)
+    payload = _transaction_payload()
+
+    created = client.post(f"/businesses/{business_id}/transactions", json=payload)
+    patched = client.patch(
+        f"/businesses/{business_id}/transactions/{payload['id']}",
+        json={"note": "Updated"},
+    )
+    deleted = client.delete(f"/businesses/{business_id}/transactions/{payload['id']}")
+
+    assert created.status_code == 200
+    assert patched.status_code == 200
+    assert deleted.status_code == 204
+
+    db = TestingSessionLocal()
+    try:
+        events = db.query(AuditEvent).filter(
+            AuditEvent.entity_id == uuid.UUID(payload["id"])
+        ).all()
+        assert sorted((event.action, event.status) for event in events) == [
+            ("create", "success"),
+            ("delete", "success"),
+            ("update", "success"),
+        ]
+        assert {event.business_id for event in events} == {business_id}
+        assert {event.actor_id for event in events} == {user_id}
+    finally:
+        db.close()
 
 
 def test_member_can_create_transaction(client_for):

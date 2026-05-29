@@ -10,6 +10,8 @@ import com.danielanazodo.proofledger.data.local.entity.LocalScreenshotEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
 import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.dto.ScreenshotDto
+import com.danielanazodo.proofledger.data.remote.dto.TransactionDraftConfirmDto
+import com.danielanazodo.proofledger.data.sync.SyncEventLogger
 import java.io.File
 import java.util.UUID
 import javax.inject.Inject
@@ -65,6 +67,7 @@ class ProofRepository @Inject constructor(
     private val fileStore: ProofFileStore,
     private val scheduler: BackupWorkScheduler,
     private val api: ApiService,
+    private val syncEventLogger: SyncEventLogger,
 ) {
     fun observeProofForTransaction(transactionId: String): Flow<LocalScreenshotEntity?> =
         screenshotDao.observeLatestForTransaction(transactionId)
@@ -351,6 +354,33 @@ class ProofRepository @Inject constructor(
         runCatching { api.deleteScreenshot(screenshotId) }
     }
 
+    suspend fun confirmDraft(
+        businessId: String,
+        draftId: String,
+        transactionId: String,
+    ) {
+        runCatching {
+            api.confirmDraft(draftId, TransactionDraftConfirmDto(transactionId = transactionId))
+        }.onSuccess {
+            syncEventLogger.log(
+                businessId = businessId,
+                entityType = "transaction_draft",
+                entityId = draftId,
+                action = "confirm",
+                status = "success",
+            )
+        }.onFailure { t ->
+            syncEventLogger.log(
+                businessId = businessId,
+                entityType = "transaction_draft",
+                entityId = draftId,
+                action = "confirm",
+                status = "failure",
+                errorMessage = t.toProofBackupMessage(),
+            )
+        }
+    }
+
     /**
      * Phase 8.1 — write the LocalScreenshotEntity for an orphan that the
      * server has already received and linked to a saved transaction. No HTTP
@@ -440,6 +470,7 @@ class ProofRepository @Inject constructor(
         val latest = screenshotDao.getById(proofId) ?: return
         result.onSuccess { remote ->
             screenshotDao.upsert(latest.toBackedUp(remote))
+            logProof(latest, "backup", "success")
         }.onFailure { t ->
             screenshotDao.upsert(
                 latest.copy(
@@ -449,6 +480,7 @@ class ProofRepository @Inject constructor(
                     updatedAt = System.currentTimeMillis(),
                 )
             )
+            logProof(latest, "backup", "failure", t.toProofBackupMessage())
             throw t
         }
     }
@@ -474,6 +506,7 @@ class ProofRepository @Inject constructor(
         runCatching { deleteRemoteScreenshot(row.remoteScreenshotId) }
             .onSuccess {
                 screenshotDao.deleteById(row.id)
+                logProof(row, "remote_delete", "success")
             }
             .onFailure { t ->
                 val now = System.currentTimeMillis()
@@ -486,6 +519,7 @@ class ProofRepository @Inject constructor(
                     )
                 )
                 scheduler.enqueue(row.id, wifiOnly = false)
+                logProof(row, "remote_delete", "failure", t.toProofBackupMessage())
             }
     }
 
@@ -498,6 +532,7 @@ class ProofRepository @Inject constructor(
         runCatching { deleteRemoteScreenshot(remoteId) }
             .onSuccess {
                 screenshotDao.deleteById(row.id)
+                logProof(row, "remote_delete", "success")
             }
             .onFailure { t ->
                 screenshotDao.upsert(
@@ -507,6 +542,7 @@ class ProofRepository @Inject constructor(
                         updatedAt = System.currentTimeMillis(),
                     )
                 )
+                logProof(row, "remote_delete", "failure", t.toProofBackupMessage())
                 throw t
             }
     }
@@ -565,6 +601,22 @@ class ProofRepository @Inject constructor(
             null -> message ?: "Could not back up proof."
             else -> "Could not back up proof. HTTP $status."
         }
+    }
+
+    private suspend fun logProof(
+        row: LocalScreenshotEntity,
+        action: String,
+        status: String,
+        errorMessage: String? = null,
+    ) {
+        syncEventLogger.log(
+            businessId = row.businessId,
+            entityType = "proof",
+            entityId = row.id,
+            action = action,
+            status = status,
+            errorMessage = errorMessage,
+        )
     }
 
     companion object {

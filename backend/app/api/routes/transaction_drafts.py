@@ -11,6 +11,7 @@ from app.api.deps import CurrentUser, get_db
 from app.api.routes.transactions import _require_member
 from app.db.models import Screenshot, TransactionDraft
 from app.schemas.transaction_draft import TransactionDraftConfirmIn, TransactionDraftOut
+from app.services.audit import add_audit_event
 
 router = APIRouter(tags=["transaction-drafts"])
 
@@ -71,6 +72,15 @@ def confirm_draft(
     _ = payload.transaction_id
     if draft.confirmed_at is None:
         draft.confirmed_at = datetime.now(tz=UTC)
+        add_audit_event(
+            db,
+            business_id=draft.business_id,
+            actor_id=current_user.id,
+            entity_type="transaction_draft",
+            entity_id=draft.id,
+            action="confirm",
+            status="success",
+        )
         db.commit()
         db.refresh(draft)
     return TransactionDraftOut.model_validate(draft)

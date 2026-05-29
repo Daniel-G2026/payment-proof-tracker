@@ -91,6 +91,7 @@ data class TransactionFormUiState(
      *     existing save-time upload path)
      *   - server extraction is disabled by feature flag */
     val pendingScreenshotId: String? = null,
+    val pendingDraftId: String? = null,
     val proofImageSha256: String? = null,
     val duplicateCandidates: List<DuplicateCandidate> = emptyList(),
     val duplicateCheckRunning: Boolean = false,
@@ -323,6 +324,7 @@ class TransactionFormViewModel @Inject constructor(
                 // Clear stale orphan id from the previous proof; the helper
                 // will repopulate when its upload returns.
                 pendingScreenshotId = null,
+                pendingDraftId = null,
                 error = null,
                 saved = false,
             )
@@ -363,6 +365,7 @@ class TransactionFormViewModel @Inject constructor(
                 ocrFilledFields = emptySet(),
                 serverDraftError = null,
                 pendingScreenshotId = null,
+                pendingDraftId = null,
                 duplicateCandidates = emptyList(),
                 duplicateOverride = false,
                 saved = false,
@@ -450,6 +453,16 @@ class TransactionFormViewModel @Inject constructor(
     }
 
     fun saveAnyway() {
+        viewModelScope.launch {
+            val selectedBusinessId = businessId ?: businessRepository.getSelectedBusinessId()
+            if (selectedBusinessId != null) {
+                businessId = selectedBusinessId
+                transactionRepository.logDuplicateWarningIgnored(
+                    businessId = selectedBusinessId,
+                    transactionId = _state.value.transactionId,
+                )
+            }
+        }
         _state.update {
             it.copy(
                 duplicateOverride = true,
@@ -515,6 +528,13 @@ class TransactionFormViewModel @Inject constructor(
                         bankName = current.bankName.clean(),
                         referenceNumber = current.referenceNumber.clean(),
                         screenshotId = orphanIdForLink,
+                    )
+                }
+                current.pendingDraftId?.let { draftId ->
+                    proofRepository.confirmDraft(
+                        businessId = selectedBusinessId,
+                        draftId = draftId,
+                        transactionId = savedTransaction.id,
                     )
                 }
                 // Phase 8.1 proof handling branches three ways:
@@ -675,6 +695,7 @@ class TransactionFormViewModel @Inject constructor(
                 ocrRunning = true,
                 serverDraftError = null,
                 pendingScreenshotId = null,
+                pendingDraftId = null,
             )
         }
         orphanUploadJob = viewModelScope.launch {
@@ -712,6 +733,7 @@ class TransactionFormViewModel @Inject constructor(
                         // Banner already shows "Drafting…"; nothing to do.
                     }
                     is DraftState.Ready -> {
+                        _state.update { it.copy(pendingDraftId = pollState.draft.id) }
                         applyDraftIfFieldsBlank(pollState.draft.toOcrDraft())
                     }
                     is DraftState.Failed -> {
@@ -777,6 +799,7 @@ class TransactionFormViewModel @Inject constructor(
                         // Keep the spinner up; nothing to do until we get a terminal state.
                     }
                     is DraftState.Ready -> {
+                        _state.update { it.copy(pendingDraftId = state.draft.id) }
                         val draft = state.draft.toOcrDraft()
                         applyDraftIfFieldsBlank(draft)
                         persistDraftStatus(

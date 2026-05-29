@@ -8,6 +8,7 @@ import com.danielanazodo.proofledger.data.local.dao.LocalBusinessDao
 import com.danielanazodo.proofledger.data.local.dao.LocalCounterpartyDao
 import com.danielanazodo.proofledger.data.local.dao.LocalProfileDao
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
+import com.danielanazodo.proofledger.data.local.dao.LocalSyncEventDao
 import com.danielanazodo.proofledger.data.local.dao.LocalTransactionDao
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_1_2
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_2_3
@@ -17,6 +18,7 @@ import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_5_6
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_6_7
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_7_8
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_8_9
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_9_10
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -41,6 +43,7 @@ object DatabaseModule {
                 MIGRATION_6_7,
                 MIGRATION_7_8,
                 MIGRATION_8_9,
+                MIGRATION_9_10,
             )
             .build()
 
@@ -63,6 +66,10 @@ object DatabaseModule {
     @Provides
     fun provideLocalScreenshotDao(db: AppDatabase): LocalScreenshotDao =
         db.localScreenshotDao()
+
+    @Provides
+    fun provideLocalSyncEventDao(db: AppDatabase): LocalSyncEventDao =
+        db.localSyncEventDao()
 
     @Provides
     fun provideLocalTransactionDao(db: AppDatabase): LocalTransactionDao =

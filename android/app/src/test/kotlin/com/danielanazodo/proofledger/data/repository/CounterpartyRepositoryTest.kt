@@ -2,7 +2,9 @@ package com.danielanazodo.proofledger.data.repository
 
 import com.danielanazodo.proofledger.data.local.SyncStatus
 import com.danielanazodo.proofledger.data.local.dao.LocalCounterpartyDao
+import com.danielanazodo.proofledger.data.local.dao.LocalSyncEventDao
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
+import com.danielanazodo.proofledger.data.local.entity.LocalSyncEventEntity
 import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.HealthResponse
 import com.danielanazodo.proofledger.data.remote.dto.BusinessCreateDto
@@ -22,6 +24,7 @@ import com.danielanazodo.proofledger.data.remote.dto.TransactionDraftConfirmDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDraftDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionUpdateDto
+import com.danielanazodo.proofledger.data.sync.SyncEventLogger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -43,12 +46,14 @@ class CounterpartyRepositoryTest {
         val api = FakeApiService()
         val row = counterparty(syncStatus = SyncStatus.PENDING_UPLOAD)
         dao.upsert(row)
-        val repository = CounterpartyRepository(api, dao)
+        val events = FakeSyncEventDao()
+        val repository = CounterpartyRepository(api, dao, SyncEventLogger(events))
 
         repository.deleteCounterparty(row.id)
 
         assertNull(dao.getByIdIncludingDeleted(row.id))
         assertEquals(0, api.deleteCounterpartyCalls)
+        assertEquals(emptyList<LocalSyncEventEntity>(), events.rows)
     }
 
     @Test
@@ -61,7 +66,8 @@ class CounterpartyRepositoryTest {
             lastSyncError = "Previous failure",
         )
         dao.upsert(row)
-        val repository = CounterpartyRepository(api, dao)
+        val events = FakeSyncEventDao()
+        val repository = CounterpartyRepository(api, dao, SyncEventLogger(events))
 
         repository.syncPending(businessId)
 
@@ -69,6 +75,48 @@ class CounterpartyRepositoryTest {
         assertEquals(SyncStatus.SYNCED, updated.syncStatus)
         assertNull(updated.lastSyncError)
         assertEquals(1, api.deleteCounterpartyCalls)
+        assertEquals("delete", events.rows.single().action)
+        assertEquals("success", events.rows.single().status)
+    }
+
+    @Test
+    fun `failed pending upload writes local sync event`() = runBlocking {
+        val dao = FakeCounterpartyDao()
+        val api = FakeApiService(createCounterpartyFailure = RuntimeException("offline"))
+        val events = FakeSyncEventDao()
+        val row = counterparty(syncStatus = SyncStatus.PENDING_UPLOAD)
+        dao.upsert(row)
+        val repository = CounterpartyRepository(api, dao, SyncEventLogger(events))
+
+        repository.syncPending(businessId)
+
+        val updated = dao.getByIdIncludingDeleted(row.id)!!
+        assertEquals(SyncStatus.FAILED, updated.syncStatus)
+        val event = events.rows.single()
+        assertEquals("person", event.entityType)
+        assertEquals("create", event.action)
+        assertEquals("failure", event.status)
+    }
+
+    private class FakeSyncEventDao : LocalSyncEventDao {
+        val rows = mutableListOf<LocalSyncEventEntity>()
+
+        override suspend fun insert(event: LocalSyncEventEntity) {
+            rows += event
+        }
+
+        override fun observeRecent(
+            businessId: String,
+            limit: Int,
+        ): Flow<List<LocalSyncEventEntity>> =
+            flowOf(rows.filter { it.businessId == businessId }.take(limit))
+
+        override fun observeFailures(): Flow<List<LocalSyncEventEntity>> =
+            flowOf(rows.filter { it.status == "failure" })
+
+        override suspend fun clear() {
+            rows.clear()
+        }
     }
 
     private fun counterparty(
@@ -151,6 +199,7 @@ class CounterpartyRepositoryTest {
 
     private class FakeApiService(
         private val deleteCounterparty404: Boolean = false,
+        private val createCounterpartyFailure: Throwable? = null,
     ) : ApiService {
         var deleteCounterpartyCalls = 0
 
@@ -175,7 +224,21 @@ class CounterpartyRepositoryTest {
         override suspend fun createCounterparty(
             businessId: String,
             body: CounterpartyCreateDto,
-        ): CounterpartyDto = error("not used")
+        ): CounterpartyDto {
+            createCounterpartyFailure?.let { throw it }
+            return CounterpartyDto(
+                id = body.id,
+                businessId = businessId,
+                name = body.name,
+                normalizedName = body.name.trim().lowercase(),
+                type = body.type,
+                phone = body.phone,
+                notes = body.notes,
+                createdAt = "2026-05-29T00:00:00Z",
+                updatedAt = "2026-05-29T00:00:00Z",
+                deletedAt = null,
+            )
+        }
         override suspend fun getCounterparty(
             businessId: String,
             counterpartyId: String,

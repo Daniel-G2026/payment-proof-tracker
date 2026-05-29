@@ -12,6 +12,7 @@ import com.danielanazodo.proofledger.data.remote.dto.DuplicateCandidateRequestDt
 import com.danielanazodo.proofledger.data.remote.dto.TransactionCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionUpdateDto
+import com.danielanazodo.proofledger.data.sync.SyncEventLogger
 import com.danielanazodo.proofledger.data.sync.toSyncErrorMessage
 import java.time.Instant
 import java.time.LocalDateTime
@@ -30,6 +31,7 @@ class TransactionRepository @Inject constructor(
     private val counterpartyDao: LocalCounterpartyDao,
     private val screenshotDao: LocalScreenshotDao,
     private val proofRepository: ProofRepository,
+    private val syncEventLogger: SyncEventLogger,
 ) {
     fun observeTransactions(businessId: String): Flow<List<LocalTransactionEntity>> =
         localDao.observeByBusiness(businessId)
@@ -89,7 +91,7 @@ class TransactionRepository @Inject constructor(
             ).map { it.toDuplicateCandidate() }
         }.getOrDefault(emptyList())
 
-        return (local + remote)
+        val merged = (local + remote)
             .groupBy { it.transaction.id }
             .map { (_, candidates) ->
                 val best = candidates.maxBy { it.score }
@@ -100,6 +102,14 @@ class TransactionRepository @Inject constructor(
             }
             .sortedByDescending { it.score }
             .take(5)
+        syncEventLogger.log(
+            businessId = businessId,
+            entityType = "transaction",
+            entityId = excludeTransactionId,
+            action = "duplicate_check",
+            status = if (merged.isEmpty()) "no_duplicate" else "duplicate_found",
+        )
+        return merged
     }
 
     suspend fun refreshFromRemote(businessId: String) {
@@ -132,14 +142,26 @@ class TransactionRepository @Inject constructor(
 
     private suspend fun syncCreate(businessId: String, local: LocalTransactionEntity) {
         runCatching { api.createTransaction(businessId, local.toCreateDto()) }
-            .onSuccess { remote -> localDao.upsert(remote.toEntity(SyncStatus.SYNCED)) }
-            .onFailure { t -> localDao.upsert(local.toFailed(t)) }
+            .onSuccess { remote ->
+                localDao.upsert(remote.toEntity(SyncStatus.SYNCED))
+                logSync(local, "create", "success")
+            }
+            .onFailure { t ->
+                localDao.upsert(local.toFailed(t))
+                logSync(local, "create", "failure", t)
+            }
     }
 
     private suspend fun syncUpdate(local: LocalTransactionEntity) {
         runCatching { api.updateTransaction(local.businessId, local.id, local.toUpdateDto()) }
-            .onSuccess { remote -> localDao.upsert(remote.toEntity(SyncStatus.SYNCED)) }
-            .onFailure { t -> localDao.upsert(local.toFailed(t)) }
+            .onSuccess { remote ->
+                localDao.upsert(remote.toEntity(SyncStatus.SYNCED))
+                logSync(local, "update", "success")
+            }
+            .onFailure { t ->
+                localDao.upsert(local.toFailed(t))
+                logSync(local, "update", "failure", t)
+            }
     }
 
     private suspend fun syncCreateOrUpdate(businessId: String, local: LocalTransactionEntity) {
@@ -148,11 +170,13 @@ class TransactionRepository @Inject constructor(
             update
                 .onSuccess { remote ->
                     localDao.upsert(remote.toEntity(SyncStatus.SYNCED))
+                    logSync(local, "update", "success")
                     return
                 }
                 .onFailure { t ->
                     if ((t as? HttpException)?.code() != 404) {
                         localDao.upsert(local.toFailed(t))
+                        logSync(local, "update", "failure", t)
                         return
                     }
                 }
@@ -170,6 +194,7 @@ class TransactionRepository @Inject constructor(
                         lastSyncError = null,
                     )
                 )
+                logSync(local, "delete", "success")
             }
             .onFailure { t ->
                 if ((t as? HttpException)?.code() == 404) {
@@ -180,8 +205,10 @@ class TransactionRepository @Inject constructor(
                             lastSyncError = null,
                         )
                     )
+                    logSync(local, "delete", "success")
                 } else {
                     localDao.upsert(local.toFailed(t))
+                    logSync(local, "delete", "failure", t)
                 }
             }
     }
@@ -320,11 +347,13 @@ class TransactionRepository @Inject constructor(
                 onSuccess = { remote ->
                     val synced = remote.toEntity(SyncStatus.SYNCED)
                     localDao.upsert(synced)
+                    logSync(local, "create", "success")
                     synced
                 },
                 onFailure = { t ->
                     val failed = local.toFailed(t)
                     localDao.upsert(failed)
+                    logSync(local, "create", "failure", t)
                     failed
                 },
             )
@@ -367,11 +396,13 @@ class TransactionRepository @Inject constructor(
             onSuccess = { remote ->
                 val synced = remote.toEntity(SyncStatus.SYNCED)
                 localDao.upsert(synced)
+                logSync(updated, "update", "success")
                 synced
             },
             onFailure = { t ->
                 val failed = updated.toFailed(t)
                 localDao.upsert(failed)
+                logSync(updated, "update", "failure", t)
                 failed
             },
         )
@@ -405,8 +436,12 @@ class TransactionRepository @Inject constructor(
                         syncStatus = SyncStatus.SYNCED,
                     )
                 )
+                logSync(pending, "delete", "success")
             }
-            .onFailure { t -> localDao.upsert(pending.toFailed(t)) }
+            .onFailure { t ->
+                localDao.upsert(pending.toFailed(t))
+                logSync(pending, "delete", "failure", t)
+            }
     }
 
     suspend fun clearLocal() {
@@ -490,6 +525,35 @@ class TransactionRepository @Inject constructor(
             referenceNumber = referenceNumber,
             screenshotId = screenshotId,
         )
+
+    suspend fun logDuplicateWarningIgnored(
+        businessId: String,
+        transactionId: String?,
+    ) {
+        syncEventLogger.log(
+            businessId = businessId,
+            entityType = "transaction",
+            entityId = transactionId,
+            action = "duplicate_warning_ignored",
+            status = "success",
+        )
+    }
+
+    private suspend fun logSync(
+        row: LocalTransactionEntity,
+        action: String,
+        status: String,
+        throwable: Throwable? = null,
+    ) {
+        syncEventLogger.log(
+            businessId = row.businessId,
+            entityType = "transaction",
+            entityId = row.id,
+            action = action,
+            status = status,
+            errorMessage = throwable?.toSyncErrorMessage(),
+        )
+    }
 }
 
 data class DuplicateCandidate(

@@ -18,6 +18,7 @@ from app.schemas.transaction import (
     TransactionOut,
     TransactionUpdate,
 )
+from app.services.audit import add_audit_event
 
 router = APIRouter(
     prefix="/businesses/{business_id}/transactions",
@@ -219,6 +220,16 @@ def duplicate_candidates(
         key=lambda item: (item[2], item[0].transaction_date, item[0].created_at),
         reverse=True,
     )[:5]
+    add_audit_event(
+        db,
+        business_id=business_id,
+        actor_id=current_user.id,
+        entity_type="transaction",
+        entity_id=payload.exclude_transaction_id,
+        action="duplicate_check",
+        status="duplicate_found" if ranked else "no_duplicate",
+    )
+    db.commit()
     return [
         DuplicateCandidateOut(
             transaction=TransactionOut.model_validate(row),
@@ -270,6 +281,15 @@ def create_transaction(
     try:
         db.flush()  # assign PK so the screenshot link references a real row
         _link_orphan_screenshot(db, business_id, transaction.id, payload.screenshot_id)
+        add_audit_event(
+            db,
+            business_id=business_id,
+            actor_id=current_user.id,
+            entity_type="transaction",
+            entity_id=transaction.id,
+            action="create",
+            status="success",
+        )
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -355,6 +375,15 @@ def update_transaction(
         setattr(transaction, field, value)
     if incoming_screenshot_id is not None:
         _link_orphan_screenshot(db, business_id, transaction.id, incoming_screenshot_id)
+    add_audit_event(
+        db,
+        business_id=business_id,
+        actor_id=current_user.id,
+        entity_type="transaction",
+        entity_id=transaction.id,
+        action="update",
+        status="success",
+    )
     db.commit()
     db.refresh(transaction)
     return TransactionOut.model_validate(transaction)
@@ -370,4 +399,13 @@ def delete_transaction(
     _require_member(db, current_user.id, business_id)
     transaction = _get_transaction(db, business_id, transaction_id)
     transaction.deleted_at = datetime.now(timezone.utc)
+    add_audit_event(
+        db,
+        business_id=business_id,
+        actor_id=current_user.id,
+        entity_type="transaction",
+        entity_id=transaction.id,
+        action="delete",
+        status="success",
+    )
     db.commit()
