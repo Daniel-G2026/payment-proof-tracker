@@ -192,6 +192,11 @@ class CounterpartyRepositoryTest {
 
         override fun observeById(id: String): Flow<LocalCounterpartyEntity?> = flowOf(rows[id])
 
+        override fun observeRowsNeedingAttention(
+            businessId: String,
+        ): Flow<List<LocalCounterpartyEntity>> =
+            flowOf(rows.values.filter { it.businessId == businessId && it.syncStatus != SyncStatus.SYNCED })
+
         override suspend fun clear() {
             rows.clear()
         }

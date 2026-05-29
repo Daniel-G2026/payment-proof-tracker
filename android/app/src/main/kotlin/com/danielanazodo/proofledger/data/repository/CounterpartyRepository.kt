@@ -7,8 +7,9 @@ import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyUpdateDto
-import com.danielanazodo.proofledger.data.sync.toSyncErrorMessage
+import com.danielanazodo.proofledger.data.sync.AUTH_EXPIRED_SYNC_MESSAGE
 import com.danielanazodo.proofledger.data.sync.SyncEventLogger
+import com.danielanazodo.proofledger.data.sync.toSyncErrorMessage
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
@@ -49,8 +50,11 @@ class CounterpartyRepository @Inject constructor(
     /** Back-compat alias — sync worker now uses [syncPending]. */
     suspend fun syncPendingUploads(businessId: String) = syncPending(businessId)
 
-    suspend fun syncPending(businessId: String) {
-        val rows = localDao.getRowsNeedingSync(businessId)
+    suspend fun syncPending(
+        businessId: String,
+        includeAuthExpiredFailures: Boolean = false,
+    ) {
+        val rows = localDao.getRowsNeedingSync(businessId).filterForRetry(includeAuthExpiredFailures)
         rows.forEach { local ->
             when {
                 local.deletedAt != null || local.syncStatus == SyncStatus.PENDING_DELETE ->
@@ -141,6 +145,18 @@ class CounterpartyRepository @Inject constructor(
             lastSyncAttemptAt = System.currentTimeMillis(),
             lastSyncError = t.toSyncErrorMessage(),
         )
+
+    private fun List<LocalCounterpartyEntity>.filterForRetry(
+        includeAuthExpiredFailures: Boolean,
+    ): List<LocalCounterpartyEntity> =
+        if (includeAuthExpiredFailures) {
+            this
+        } else {
+            filterNot {
+                it.syncStatus == SyncStatus.FAILED &&
+                    it.lastSyncError == AUTH_EXPIRED_SYNC_MESSAGE
+            }
+        }
 
     suspend fun createCounterparty(
         businessId: String,

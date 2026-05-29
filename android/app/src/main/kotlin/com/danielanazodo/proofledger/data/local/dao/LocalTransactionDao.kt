@@ -99,6 +99,16 @@ interface LocalTransactionDao {
         """
         SELECT * FROM local_transaction
         WHERE businessId = :businessId
+          AND syncStatus IN ('PENDING_UPLOAD', 'PENDING_UPDATE', 'PENDING_DELETE', 'FAILED')
+        ORDER BY updatedAt DESC, createdAt DESC
+        """
+    )
+    fun observeRowsNeedingAttention(businessId: String): Flow<List<LocalTransactionEntity>>
+
+    @Query(
+        """
+        SELECT * FROM local_transaction
+        WHERE businessId = :businessId
           AND deletedAt IS NULL
           AND (:excludeTransactionId IS NULL OR id != :excludeTransactionId)
           AND (

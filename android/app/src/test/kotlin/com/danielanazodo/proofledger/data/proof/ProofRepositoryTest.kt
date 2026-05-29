@@ -93,6 +93,27 @@ class ProofRepositoryTest {
         assertEquals(listOf(row.remoteScreenshotId), api.deletedScreenshotIds)
     }
 
+    @Test
+    fun `backup failure writes local sync event`() = runBlocking {
+        val dao = FakeScreenshotDao()
+        val events = FakeSyncEventDao()
+        val row = proof(backupStatus = ProofBackupStatus.PENDING_BACKUP)
+        dao.upsert(row)
+        val repository = repository(
+            dao = dao,
+            api = FakeApiService(uploadFailure = RuntimeException("offline")),
+            events = events,
+        )
+
+        runCatching { repository.upload(row.id) }
+
+        val event = events.rows.single()
+        assertEquals("proof", event.entityType)
+        assertEquals(row.id, event.entityId)
+        assertEquals("backup", event.action)
+        assertEquals("failure", event.status)
+    }
+
     private fun repository(
         dao: FakeScreenshotDao = FakeScreenshotDao(),
         fileStore: FakeProofFileStore = FakeProofFileStore(),
@@ -183,6 +204,11 @@ class ProofRepositoryTest {
         override fun observeByBusiness(businessId: String): Flow<List<LocalScreenshotEntity>> =
             flowOf(visibleForBusiness(businessId))
 
+        override fun observeRowsNeedingAttention(
+            businessId: String,
+        ): Flow<List<LocalScreenshotEntity>> =
+            flowOf(rows.values.filter { it.businessId == businessId && it.backupStatus != ProofBackupStatus.BACKED_UP })
+
         fun visibleForBusiness(businessId: String): List<LocalScreenshotEntity> =
             rows.values.filter {
                 it.businessId == businessId &&
@@ -265,6 +291,7 @@ class ProofRepositoryTest {
 
     private class FakeApiService(
         private val deleteFailure: Throwable? = null,
+        private val uploadFailure: Throwable? = null,
     ) : ApiService {
         val deletedScreenshotIds = mutableListOf<String>()
 
@@ -335,7 +362,27 @@ class ProofRepositoryTest {
             width: RequestBody,
             height: RequestBody,
             file: MultipartBody.Part,
-        ): ScreenshotDto = error("not used")
+        ): ScreenshotDto {
+            uploadFailure?.let { throw it }
+            return ScreenshotDto(
+                id = "remote-proof-1",
+                businessId = businessId,
+                transactionId = "transaction-1",
+                uploadedBy = "owner-1",
+                mimeType = "image/jpeg",
+                uploadedFileSize = 100L,
+                originalFileSize = 100L,
+                width = 100,
+                height = 200,
+                storageKey = "business-1/remote-proof-1.jpg",
+                storageStatus = "stored",
+                imageSha256 = "hash",
+                createdAt = "2026-05-29T00:00:00Z",
+                updatedAt = "2026-05-29T00:00:00Z",
+                deletedAt = null,
+                draftStatus = null,
+            )
+        }
         override suspend fun uploadOrphanScreenshot(
             businessId: String,
             id: RequestBody,

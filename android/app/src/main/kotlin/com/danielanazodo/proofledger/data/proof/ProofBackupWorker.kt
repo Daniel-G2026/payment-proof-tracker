@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.danielanazodo.proofledger.data.sync.isAuthExpiredSyncFailure
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import retrofit2.HttpException
@@ -28,6 +29,7 @@ class ProofBackupWorker @AssistedInject constructor(
         if (runAttemptCount < MAX_ATTEMPTS - 1) Result.retry() else Result.failure()
 
     private fun isTerminal(t: Throwable): Boolean {
+        if (t.isAuthExpiredSyncFailure()) return true
         val code = (t as? HttpException)?.code() ?: return false
         // Retry only on transient HTTP failures. 4xx outcomes (auth missing,
         // file too big, wrong mime, transaction gone) won't change by trying

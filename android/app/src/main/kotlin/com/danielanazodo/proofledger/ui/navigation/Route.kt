@@ -8,6 +8,7 @@ sealed class Route(val path: String) {
     data object CreateBusiness : Route("create_business")
     data object BusinessSelect : Route("business_select")
     data object Dashboard : Route("dashboard")
+    data object SyncIssues : Route("sync_issues")
     data object SharedProofIntake : Route("shared-proof/{intakeToken}") {
         fun path(intakeToken: String): String = "shared-proof/${Uri.encode(intakeToken)}"
     }

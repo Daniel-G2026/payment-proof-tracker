@@ -8,6 +8,8 @@ import com.danielanazodo.proofledger.data.local.entity.LocalBusinessEntity
 import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.dto.BusinessCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.BusinessDto
+import com.danielanazodo.proofledger.data.sync.AUTH_EXPIRED_SYNC_MESSAGE
+import com.danielanazodo.proofledger.data.sync.SyncEventLogger
 import com.danielanazodo.proofledger.data.sync.toSyncErrorMessage
 import java.util.UUID
 import javax.inject.Inject
@@ -18,6 +20,7 @@ class BusinessRepository @Inject constructor(
     private val api: ApiService,
     private val businessDao: LocalBusinessDao,
     private val metadataDao: LocalAppMetadataDao,
+    private val syncEventLogger: SyncEventLogger,
 ) {
 
     suspend fun getLocalBusinesses(): List<LocalBusinessEntity> = businessDao.getAll()
@@ -71,6 +74,7 @@ class BusinessRepository @Inject constructor(
             onSuccess = { remote ->
                 val synced = remote.toEntity(System.currentTimeMillis(), SyncStatus.SYNCED)
                 businessDao.upsert(synced)
+                logSync(local, "create", "success")
                 synced
             },
             onFailure = { t ->
@@ -80,6 +84,7 @@ class BusinessRepository @Inject constructor(
                     lastSyncError = t.toSyncErrorMessage(),
                 )
                 businessDao.upsert(failed)
+                logSync(local, "create", "failure", t)
                 failed
             },
         )
@@ -87,9 +92,9 @@ class BusinessRepository @Inject constructor(
 
     /** Drain any business rows stuck in PENDING_* or FAILED — only POST/create
      *  is supported for businesses today. */
-    suspend fun syncPending() {
+    suspend fun syncPending(includeAuthExpiredFailures: Boolean = false) {
         val rows = businessDao.getRowsNeedingSync()
-        rows.forEach { local ->
+        rows.filterForRetry(includeAuthExpiredFailures).forEach { local ->
             runCatching {
                 api.createBusiness(
                     BusinessCreateDto(
@@ -101,6 +106,7 @@ class BusinessRepository @Inject constructor(
             }
                 .onSuccess { remote ->
                     businessDao.upsert(remote.toEntity(System.currentTimeMillis(), SyncStatus.SYNCED))
+                    logSync(local, "create", "success")
                 }
                 .onFailure { t ->
                     businessDao.upsert(
@@ -110,6 +116,7 @@ class BusinessRepository @Inject constructor(
                             lastSyncError = t.toSyncErrorMessage(),
                         )
                     )
+                    logSync(local, "create", "failure", t)
                 }
         }
     }
@@ -163,6 +170,34 @@ class BusinessRepository @Inject constructor(
             syncStatus = status,
             lastSyncAttemptAt = now,
         )
+
+    private fun List<LocalBusinessEntity>.filterForRetry(
+        includeAuthExpiredFailures: Boolean,
+    ): List<LocalBusinessEntity> =
+        if (includeAuthExpiredFailures) {
+            this
+        } else {
+            filterNot {
+                it.syncStatus == SyncStatus.FAILED &&
+                    it.lastSyncError == AUTH_EXPIRED_SYNC_MESSAGE
+            }
+        }
+
+    private suspend fun logSync(
+        row: LocalBusinessEntity,
+        action: String,
+        status: String,
+        throwable: Throwable? = null,
+    ) {
+        syncEventLogger.log(
+            businessId = row.id,
+            entityType = "business",
+            entityId = row.id,
+            action = action,
+            status = status,
+            errorMessage = throwable?.toSyncErrorMessage(),
+        )
+    }
 
     private companion object {
         const val KEY_SELECTED_BUSINESS = "selected_business_id"

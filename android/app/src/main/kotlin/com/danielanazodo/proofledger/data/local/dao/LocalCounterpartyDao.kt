@@ -78,6 +78,16 @@ interface LocalCounterpartyDao {
     @Query("SELECT * FROM local_counterparty WHERE id = :id AND deletedAt IS NULL LIMIT 1")
     fun observeById(id: String): Flow<LocalCounterpartyEntity?>
 
+    @Query(
+        """
+        SELECT * FROM local_counterparty
+        WHERE businessId = :businessId
+          AND syncStatus IN ('PENDING_UPLOAD', 'PENDING_UPDATE', 'PENDING_DELETE', 'FAILED')
+        ORDER BY updatedAt DESC, createdAt DESC
+        """
+    )
+    fun observeRowsNeedingAttention(businessId: String): Flow<List<LocalCounterpartyEntity>>
+
     @Query("DELETE FROM local_counterparty")
     suspend fun clear()
 }

@@ -74,6 +74,21 @@ interface LocalScreenshotDao {
         """
         SELECT * FROM local_screenshot
         WHERE businessId = :businessId
+          AND backupStatus IN (
+            'PENDING_BACKUP',
+            'WAITING_FOR_WIFI',
+            'BACKUP_FAILED',
+            'PENDING_REMOTE_DELETE'
+          )
+        ORDER BY updatedAt DESC, createdAt DESC
+        """
+    )
+    fun observeRowsNeedingAttention(businessId: String): Flow<List<LocalScreenshotEntity>>
+
+    @Query(
+        """
+        SELECT * FROM local_screenshot
+        WHERE businessId = :businessId
           AND backupStatus IN (:statuses)
           AND (:importantOnly = 0 OR isImportant = 1)
           AND (:direction IS NULL OR transactionDirection = :direction)

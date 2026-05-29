@@ -10,6 +10,7 @@ import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.ProfileRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import com.danielanazodo.proofledger.data.proof.ProofRepository
+import com.danielanazodo.proofledger.data.sync.SyncIssueRepository
 import com.danielanazodo.proofledger.ui.format.currentWeekRange
 import com.danielanazodo.proofledger.ui.format.monthPrefix
 import com.danielanazodo.proofledger.ui.format.todayIsoDate
@@ -33,6 +34,7 @@ data class DashboardUiState(
     val recordCount: Int = 0,
     val recordsWithProofCount: Int = 0,
     val missingProofCount: Int = 0,
+    val syncIssueCount: Int = 0,
     val syncing: Boolean = false,
     val signedOut: Boolean = false,
 )
@@ -49,6 +51,7 @@ class DashboardViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val authRepository: AuthRepository,
     private val proofRepository: ProofRepository,
+    private val syncIssueRepository: SyncIssueRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DashboardUiState())
@@ -112,6 +115,13 @@ class DashboardViewModel @Inject constructor(
                         missingProofCount = (it.recordCount - recordsWithProof).coerceAtLeast(0),
                     )
                 }
+            }
+        }
+        viewModelScope.launch {
+            val business = businessRepository.getSelectedBusiness()
+            val businessId = business?.id ?: return@launch
+            syncIssueRepository.observeIssueCount(businessId).collect { count ->
+                _state.update { it.copy(syncIssueCount = count) }
             }
         }
     }

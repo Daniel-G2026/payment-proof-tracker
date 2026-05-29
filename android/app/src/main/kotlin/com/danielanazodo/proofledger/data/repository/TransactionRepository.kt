@@ -12,6 +12,7 @@ import com.danielanazodo.proofledger.data.remote.dto.DuplicateCandidateRequestDt
 import com.danielanazodo.proofledger.data.remote.dto.TransactionCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionUpdateDto
+import com.danielanazodo.proofledger.data.sync.AUTH_EXPIRED_SYNC_MESSAGE
 import com.danielanazodo.proofledger.data.sync.SyncEventLogger
 import com.danielanazodo.proofledger.data.sync.toSyncErrorMessage
 import java.time.Instant
@@ -126,8 +127,11 @@ class TransactionRepository @Inject constructor(
      * through update; PENDING_DELETE goes through delete. Any retry that fails
      * again lands back in FAILED with an updated lastSyncError.
      */
-    suspend fun syncPending(businessId: String) {
-        val rows = localDao.getRowsNeedingSync(businessId)
+    suspend fun syncPending(
+        businessId: String,
+        includeAuthExpiredFailures: Boolean = false,
+    ) {
+        val rows = localDao.getRowsNeedingSync(businessId).filterForRetry(includeAuthExpiredFailures)
         rows.forEach { local ->
             when {
                 local.deletedAt != null || local.syncStatus == SyncStatus.PENDING_DELETE ->
@@ -219,6 +223,18 @@ class TransactionRepository @Inject constructor(
             lastSyncAttemptAt = System.currentTimeMillis(),
             lastSyncError = t.toSyncErrorMessage(),
         )
+
+    private fun List<LocalTransactionEntity>.filterForRetry(
+        includeAuthExpiredFailures: Boolean,
+    ): List<LocalTransactionEntity> =
+        if (includeAuthExpiredFailures) {
+            this
+        } else {
+            filterNot {
+                it.syncStatus == SyncStatus.FAILED &&
+                    it.lastSyncError == AUTH_EXPIRED_SYNC_MESSAGE
+            }
+        }
 
     private suspend fun shouldWaitForCounterparty(local: LocalTransactionEntity): Boolean {
         val counterpartyId = local.counterpartyId ?: return false

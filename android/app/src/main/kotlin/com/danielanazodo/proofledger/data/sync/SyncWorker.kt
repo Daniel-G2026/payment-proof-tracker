@@ -42,7 +42,15 @@ class SyncWorker @AssistedInject constructor(
         }
     }.fold(
         onSuccess = { Result.success() },
-        onFailure = { if (runAttemptCount < MAX_ATTEMPTS - 1) Result.retry() else Result.failure() },
+        onFailure = { t ->
+            if (t.isAuthExpiredSyncFailure()) {
+                Result.failure()
+            } else if (runAttemptCount < MAX_ATTEMPTS - 1) {
+                Result.retry()
+            } else {
+                Result.failure()
+            }
+        },
     )
 
     companion object {

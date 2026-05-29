@@ -62,6 +62,7 @@ fun EmptyDashboardScreen(
     onViewTransactions: () -> Unit,
     onViewCounterparties: () -> Unit,
     onViewProofBackup: () -> Unit,
+    onViewSyncIssues: () -> Unit,
     onTransactionClick: (String) -> Unit,
     onTabSelected: (MainTab) -> Unit,
     viewModel: DashboardViewModel = hiltViewModel(),
@@ -70,6 +71,7 @@ fun EmptyDashboardScreen(
     var range by rememberSaveable { mutableStateOf(DashboardRange.Monthly) }
     val addMoneyIn = rememberDebouncedClick(onClick = onAddMoneyIn)
     val viewRecords = rememberDebouncedClick(onClick = onViewTransactions)
+    val viewSyncIssues = rememberDebouncedClick(onClick = onViewSyncIssues)
     val transactionClick = rememberDebouncedClick(onClick = onTransactionClick)
     val signOut = rememberDebouncedClick(onClick = viewModel::signOut)
 
@@ -171,6 +173,30 @@ fun EmptyDashboardScreen(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
+                    }
+                }
+            }
+
+            if (state.syncIssueCount > 0) {
+                item {
+                    GroupedPanel {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Sync issue", color = NeutralInk, style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    "${formatCompactCount(state.syncIssueCount)} item${if (state.syncIssueCount == 1) "" else "s"} need attention.",
+                                    color = NeutralMuted,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                            TextButton(onClick = viewSyncIssues) {
+                                Text("Review", color = NeutralInk, fontWeight = FontWeight.Medium)
+                            }
+                        }
                     }
                 }
             }
