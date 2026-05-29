@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -283,6 +283,8 @@ def list_screenshots(
     limit: int = Query(default=DEFAULT_LIST_LIMIT, ge=1, le=MAX_LIST_LIMIT),
     offset: int = Query(default=0, ge=0),
     transaction_id: uuid.UUID | None = Query(default=None),
+    since: datetime | None = Query(default=None),
+    after_id: uuid.UUID | None = Query(default=None),
 ) -> list[ScreenshotOut]:
     _require_member(db, current_user.id, business_id)
     stmt = select(Screenshot).where(
@@ -291,12 +293,43 @@ def list_screenshots(
     )
     if transaction_id is not None:
         stmt = stmt.where(Screenshot.transaction_id == transaction_id)
+    if since is not None:
+        stmt = stmt.where(_cursor_after_filter(db, since, after_id))
     stmt = (
-        stmt.order_by(Screenshot.created_at.desc(), Screenshot.id)
+        stmt.order_by(Screenshot.updated_at.desc(), Screenshot.id.desc())
         .limit(limit)
-        .offset(offset)
     )
+    if since is None:
+        stmt = stmt.offset(offset)
     return [ScreenshotOut.model_validate(row) for row in db.execute(stmt).scalars().all()]
+
+
+def _cursor_after_filter(
+    db: Session,
+    since: datetime,
+    after_id: uuid.UUID | None,
+):
+    """Return rows after a `(updated_at DESC, id DESC)` cursor.
+
+    SQLite stores `func.now()` defaults as second-precision text while
+    SQLAlchemy binds Python datetimes with microseconds. Normalizing the
+    SQLite comparison to seconds prevents duplicate pages in tests while
+    keeping native timestamp comparison for Postgres.
+    """
+    if db.bind is not None and db.bind.dialect.name == "sqlite":
+        updated_at = func.strftime("%Y-%m-%d %H:%M:%S", Screenshot.updated_at)
+        cursor_updated_at = since.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        updated_at = Screenshot.updated_at
+        cursor_updated_at = since
+
+    before_cursor = updated_at < cursor_updated_at
+    if after_id is None:
+        return before_cursor
+    return or_(
+        before_cursor,
+        and_(updated_at == cursor_updated_at, Screenshot.id < after_id),
+    )
 
 
 @router.get("/screenshots/{screenshot_id}", response_model=ScreenshotOut)

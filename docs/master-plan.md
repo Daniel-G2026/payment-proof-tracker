@@ -2211,7 +2211,14 @@ Make offline-first behavior reliable.
   operates in. Apply the same pattern to transactions/counterparties lists
   if they grow large enough to matter.
 
-  **Status: not yet implemented (deferred).** An attempt in the Phase 10
+  **Status: implemented for screenshots.** The endpoint still accepts
+  `limit`/`offset` for compatibility, but clients can now use
+  `since=<updated_at>&after_id=<uuid>` for stable cursor paging ordered by
+  `(updated_at DESC, id DESC)`. The implementation uses a SQLite-safe
+  timestamp comparison path in tests. Transaction/counterparty cursor
+  pagination remains optional until true delta sync needs it.
+
+  **Historical note:** An attempt in the Phase 10
   later-items slice was reverted before commit because the cursor
   comparison hit a SQLAlchemy + SQLite portability problem:
 

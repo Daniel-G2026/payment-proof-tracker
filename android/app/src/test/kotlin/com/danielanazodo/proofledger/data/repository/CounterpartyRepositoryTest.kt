@@ -98,6 +98,26 @@ class CounterpartyRepositoryTest {
         assertEquals("failure", event.status)
     }
 
+    @Test
+    fun `stale pending update becomes conflict instead of retry failure`() = runBlocking {
+        val dao = FakeCounterpartyDao()
+        val api = FakeApiService(updateCounterpartyFailure = http409())
+        val events = FakeSyncEventDao()
+        val row = counterparty(syncStatus = SyncStatus.PENDING_UPDATE)
+        dao.upsert(row)
+        val repository = CounterpartyRepository(api, dao, SyncEventLogger(events))
+
+        repository.syncPending(businessId)
+
+        val updated = dao.getByIdIncludingDeleted(row.id)!!
+        assertEquals(SyncStatus.CONFLICT, updated.syncStatus)
+        assertEquals("Server has a newer version of this item.", updated.lastSyncError)
+        assertEquals("failure", events.rows.single().status)
+    }
+
+    private fun http409(): HttpException =
+        HttpException(Response.error<Any>(409, "".toResponseBody(null)))
+
     private class FakeSyncEventDao : LocalSyncEventDao {
         val rows = mutableListOf<LocalSyncEventEntity>()
 
@@ -205,6 +225,7 @@ class CounterpartyRepositoryTest {
     private class FakeApiService(
         private val deleteCounterparty404: Boolean = false,
         private val createCounterpartyFailure: Throwable? = null,
+        private val updateCounterpartyFailure: Throwable? = null,
     ) : ApiService {
         var deleteCounterpartyCalls = 0
 
@@ -252,7 +273,21 @@ class CounterpartyRepositoryTest {
             businessId: String,
             counterpartyId: String,
             body: CounterpartyUpdateDto,
-        ): CounterpartyDto = error("not used")
+        ): CounterpartyDto {
+            updateCounterpartyFailure?.let { throw it }
+            return CounterpartyDto(
+                id = counterpartyId,
+                businessId = businessId,
+                name = body.name ?: "Adewale Supplies",
+                normalizedName = (body.name ?: "Adewale Supplies").trim().lowercase(),
+                type = body.type ?: "supplier",
+                phone = body.phone,
+                notes = body.notes,
+                createdAt = "2026-05-29T00:00:00Z",
+                updatedAt = "2026-05-29T00:00:00Z",
+                deletedAt = null,
+            )
+        }
         override suspend fun getCounterpartySummary(
             businessId: String,
             counterpartyId: String,

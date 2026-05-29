@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -15,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings
 from app.db.base import Base
-from app.db.models import BusinessMember, Profile
+from app.db.models import BusinessMember, Profile, Screenshot
 from app.main import app
 from app.services.proof_storage import ProofStorage, sign_screenshot_url, signed_url_secret
 
@@ -377,6 +378,54 @@ def test_list_screenshots_supports_pagination(client_for):
     assert bad.status_code == 422
 
 
+def test_list_screenshots_supports_cursor_pagination_with_same_timestamp(client_for):
+    client = client_for(uuid.uuid4(), "alice@example.com")
+    business_id = _create_business(client)
+    transaction_id = _create_transaction(client, business_id)
+    rows = [
+        _upload(client, business_id, transaction_id, f"p{index}".encode()).json()
+        for index in range(5)
+    ]
+
+    # Force the SQLite test path into the hard case that broke the reverted
+    # attempt: every row has the same second-precision timestamp.
+    fixed_updated_at = datetime.fromisoformat(rows[0]["updated_at"])
+    db = TestingSessionLocal()
+    try:
+        for row in db.query(Screenshot).filter(Screenshot.business_id == business_id).all():
+            row.updated_at = fixed_updated_at
+        db.commit()
+    finally:
+        db.close()
+
+    first = client.get(
+        f"/businesses/{business_id}/screenshots",
+        params={"limit": 2},
+    ).json()
+    cursor = first[-1]
+    second = client.get(
+        f"/businesses/{business_id}/screenshots",
+        params={
+            "limit": 2,
+            "since": cursor["updated_at"],
+            "after_id": cursor["id"],
+        },
+    ).json()
+    third_cursor = second[-1]
+    third = client.get(
+        f"/businesses/{business_id}/screenshots",
+        params={
+            "limit": 2,
+            "since": third_cursor["updated_at"],
+            "after_id": third_cursor["id"],
+        },
+    ).json()
+
+    combined = first + second + third
+    assert len(combined) == 5
+    assert len({row["id"] for row in combined}) == 5
+
+
 def test_signed_url_secret_refuses_to_fall_back_in_production():
     original_environment = settings.environment
     original_secret = settings.proof_signed_url_secret
@@ -640,5 +689,3 @@ def test_list_screenshots_filters_by_transaction_id(client_for):
     ).json()
     assert len(filtered) == 2
     assert all(row["transaction_id"] == str(transaction_a) for row in filtered)
-
-

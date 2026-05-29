@@ -14,6 +14,7 @@ import com.danielanazodo.proofledger.data.remote.dto.TransactionDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionUpdateDto
 import com.danielanazodo.proofledger.data.sync.AUTH_EXPIRED_SYNC_MESSAGE
 import com.danielanazodo.proofledger.data.sync.SyncEventLogger
+import com.danielanazodo.proofledger.data.sync.isSyncConflictFailure
 import com.danielanazodo.proofledger.data.sync.toSyncErrorMessage
 import java.time.Instant
 import java.time.LocalDateTime
@@ -219,7 +220,7 @@ class TransactionRepository @Inject constructor(
 
     private fun LocalTransactionEntity.toFailed(t: Throwable): LocalTransactionEntity =
         copy(
-            syncStatus = SyncStatus.FAILED,
+            syncStatus = if (t.isSyncConflictFailure()) SyncStatus.CONFLICT else SyncStatus.FAILED,
             lastSyncAttemptAt = System.currentTimeMillis(),
             lastSyncError = t.toSyncErrorMessage(),
         )

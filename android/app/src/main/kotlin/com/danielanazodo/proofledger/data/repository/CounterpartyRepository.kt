@@ -9,6 +9,7 @@ import com.danielanazodo.proofledger.data.remote.dto.CounterpartyDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyUpdateDto
 import com.danielanazodo.proofledger.data.sync.AUTH_EXPIRED_SYNC_MESSAGE
 import com.danielanazodo.proofledger.data.sync.SyncEventLogger
+import com.danielanazodo.proofledger.data.sync.isSyncConflictFailure
 import com.danielanazodo.proofledger.data.sync.toSyncErrorMessage
 import java.time.Instant
 import java.time.LocalDateTime
@@ -141,7 +142,7 @@ class CounterpartyRepository @Inject constructor(
 
     private fun LocalCounterpartyEntity.toFailed(t: Throwable): LocalCounterpartyEntity =
         copy(
-            syncStatus = SyncStatus.FAILED,
+            syncStatus = if (t.isSyncConflictFailure()) SyncStatus.CONFLICT else SyncStatus.FAILED,
             lastSyncAttemptAt = System.currentTimeMillis(),
             lastSyncError = t.toSyncErrorMessage(),
         )

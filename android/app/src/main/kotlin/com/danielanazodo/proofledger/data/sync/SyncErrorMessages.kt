@@ -27,3 +27,6 @@ fun Throwable.toSyncErrorMessage(): String {
 
 fun Throwable.isAuthExpiredSyncFailure(): Boolean =
     (this as? HttpException)?.code() in setOf(401, 403)
+
+fun Throwable.isSyncConflictFailure(): Boolean =
+    (this as? HttpException)?.code() == 409

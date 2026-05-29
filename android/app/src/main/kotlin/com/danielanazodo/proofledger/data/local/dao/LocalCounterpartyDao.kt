@@ -82,7 +82,7 @@ interface LocalCounterpartyDao {
         """
         SELECT * FROM local_counterparty
         WHERE businessId = :businessId
-          AND syncStatus IN ('PENDING_UPLOAD', 'PENDING_UPDATE', 'PENDING_DELETE', 'FAILED')
+          AND syncStatus IN ('PENDING_UPLOAD', 'PENDING_UPDATE', 'PENDING_DELETE', 'FAILED', 'CONFLICT')
         ORDER BY updatedAt DESC, createdAt DESC
         """
     )
