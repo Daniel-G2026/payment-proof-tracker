@@ -200,4 +200,5 @@ private fun ProofBackupStatus.userLabel(): String = when (this) {
     ProofBackupStatus.BACKING_UP -> "Backing up"
     ProofBackupStatus.BACKED_UP -> "Backed up"
     ProofBackupStatus.BACKUP_FAILED -> "Backup issue"
+    ProofBackupStatus.PENDING_REMOTE_DELETE -> "Removing proof"
 }

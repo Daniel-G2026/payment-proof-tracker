@@ -11,13 +11,17 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+interface BackupWorkScheduler {
+    fun enqueue(proofId: String, wifiOnly: Boolean)
+}
+
 @Singleton
-class BackupWorkScheduler @Inject constructor(
+class WorkManagerBackupWorkScheduler @Inject constructor(
     @ApplicationContext context: Context,
-) {
+) : BackupWorkScheduler {
     private val workManager = WorkManager.getInstance(context)
 
-    fun enqueue(proofId: String, wifiOnly: Boolean) {
+    override fun enqueue(proofId: String, wifiOnly: Boolean) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(if (wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
             .build()

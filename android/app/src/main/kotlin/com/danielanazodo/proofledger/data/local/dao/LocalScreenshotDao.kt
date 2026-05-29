@@ -49,10 +49,25 @@ interface LocalScreenshotDao {
     @Query("SELECT * FROM local_screenshot")
     suspend fun findAll(): List<LocalScreenshotEntity>
 
-    @Query("SELECT * FROM local_screenshot WHERE transactionId = :transactionId ORDER BY createdAt DESC LIMIT 1")
+    @Query(
+        """
+        SELECT * FROM local_screenshot
+        WHERE transactionId = :transactionId
+          AND backupStatus != 'PENDING_REMOTE_DELETE'
+        ORDER BY createdAt DESC
+        LIMIT 1
+        """
+    )
     fun observeLatestForTransaction(transactionId: String): Flow<LocalScreenshotEntity?>
 
-    @Query("SELECT * FROM local_screenshot WHERE businessId = :businessId ORDER BY createdAt DESC")
+    @Query(
+        """
+        SELECT * FROM local_screenshot
+        WHERE businessId = :businessId
+          AND backupStatus != 'PENDING_REMOTE_DELETE'
+        ORDER BY createdAt DESC
+        """
+    )
     fun observeByBusiness(businessId: String): Flow<List<LocalScreenshotEntity>>
 
     @Query(

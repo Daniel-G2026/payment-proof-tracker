@@ -22,11 +22,17 @@ data class PreparedProofFile(
     val imageSha256: String,
 )
 
+interface ProofFileStore {
+    fun prepare(uri: Uri, id: String = UUID.randomUUID().toString()): PreparedProofFile
+    fun deleteForId(id: String)
+    fun sha256(uri: Uri): String
+}
+
 @Singleton
-class ProofFileStore @Inject constructor(
+class AndroidProofFileStore @Inject constructor(
     @ApplicationContext private val context: Context,
-) {
-    fun prepare(uri: Uri, id: String = UUID.randomUUID().toString()): PreparedProofFile {
+) : ProofFileStore {
+    override fun prepare(uri: Uri, id: String): PreparedProofFile {
         val mimeType = context.contentResolver.getType(uri)
             ?: mimeTypeFromPath(uri.path)
             ?: "image/jpeg"
@@ -66,14 +72,14 @@ class ProofFileStore @Inject constructor(
         )
     }
 
-    fun deleteForId(id: String) {
+    override fun deleteForId(id: String) {
         val originalsDir = File(context.filesDir, "proofs/originals")
         val uploadsDir = File(context.filesDir, "proofs/uploads")
         originalsDir.listFiles { _, name -> name.startsWith("$id.") }?.forEach { it.delete() }
         uploadsDir.listFiles { _, name -> name.startsWith("$id.") }?.forEach { it.delete() }
     }
 
-    fun sha256(uri: Uri): String {
+    override fun sha256(uri: Uri): String {
         val digest = MessageDigest.getInstance("SHA-256")
         context.contentResolver.openInputStream(uri).use { input ->
             requireNotNull(input) { "Could not open proof image." }

@@ -314,10 +314,16 @@ def delete_screenshot(
     current_user: CurrentUser,
     db: DbSession,
 ) -> None:
-    screenshot = _get_screenshot(db, screenshot_id)
+    screenshot = db.get(Screenshot, screenshot_id)
+    if screenshot is None:
+        raise HTTPException(status_code=404, detail="Screenshot not found.")
     _require_member(db, current_user.id, screenshot.business_id)
+    if screenshot.deleted_at is not None:
+        ProofStorage().delete(screenshot.storage_key)
+        return
     screenshot.deleted_at = datetime.now(tz=UTC)
     db.commit()
+    ProofStorage().delete(screenshot.storage_key)
 
 
 @router.get("/screenshots/{screenshot_id}/signed-url", response_model=SignedScreenshotUrl)

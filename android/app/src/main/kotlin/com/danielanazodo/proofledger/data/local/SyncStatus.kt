@@ -40,6 +40,7 @@ enum class ProofBackupStatus {
     BACKING_UP,
     BACKED_UP,
     BACKUP_FAILED,
+    PENDING_REMOTE_DELETE,
 }
 
 class ProofStatusConverter {

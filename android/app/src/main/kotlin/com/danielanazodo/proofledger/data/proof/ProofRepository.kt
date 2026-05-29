@@ -155,17 +155,16 @@ class ProofRepository @Inject constructor(
     }
 
     /**
-     * Remove a proof row and its on-disk files. Safe to call for rows in any
-     * backup state — the local files always go, the DAO row always goes.
-     * Backend cleanup of an already-uploaded screenshot is a TODO; today the
-     * remote copy is left in place.
+     * Remove a proof row and its on-disk files. Already-uploaded proofs keep a
+     * hidden tombstone if remote cleanup fails, so a later worker retry can
+     * finish deleting the server copy without showing a broken local proof.
      */
     suspend fun deleteProof(proofId: String) {
-        screenshotDao.getById(proofId) ?: return
+        val row = screenshotDao.getById(proofId) ?: return
         withContext(Dispatchers.IO) {
             fileStore.deleteForId(proofId)
         }
-        screenshotDao.deleteById(proofId)
+        deleteRemoteOrQueue(row)
     }
 
     /** Cascade-delete every proof attached to a transaction. Called when the
@@ -175,7 +174,7 @@ class ProofRepository @Inject constructor(
             withContext(Dispatchers.IO) {
                 fileStore.deleteForId(row.id)
             }
-            screenshotDao.deleteById(row.id)
+            deleteRemoteOrQueue(row)
         }
     }
 
@@ -402,6 +401,10 @@ class ProofRepository @Inject constructor(
 
     suspend fun upload(proofId: String) {
         val proof = screenshotDao.getById(proofId) ?: return
+        if (proof.backupStatus == ProofBackupStatus.PENDING_REMOTE_DELETE) {
+            finishPendingRemoteDelete(proof)
+            return
+        }
         if (proof.backupStatus == ProofBackupStatus.BACKED_UP) return
         val now = System.currentTimeMillis()
         screenshotDao.upsert(
@@ -461,6 +464,60 @@ class ProofRepository @Inject constructor(
             )
         )
         scheduler.enqueue(proofId, wifiOnly)
+    }
+
+    private suspend fun deleteRemoteOrQueue(row: LocalScreenshotEntity) {
+        if (row.remoteScreenshotId.isNullOrBlank()) {
+            screenshotDao.deleteById(row.id)
+            return
+        }
+        runCatching { deleteRemoteScreenshot(row.remoteScreenshotId) }
+            .onSuccess {
+                screenshotDao.deleteById(row.id)
+            }
+            .onFailure { t ->
+                val now = System.currentTimeMillis()
+                screenshotDao.upsert(
+                    row.copy(
+                        backupStatus = ProofBackupStatus.PENDING_REMOTE_DELETE,
+                        lastBackupAttemptAt = now,
+                        lastBackupError = t.toProofBackupMessage(),
+                        updatedAt = now,
+                    )
+                )
+                scheduler.enqueue(row.id, wifiOnly = false)
+            }
+    }
+
+    private suspend fun finishPendingRemoteDelete(row: LocalScreenshotEntity) {
+        val remoteId = row.remoteScreenshotId
+        if (remoteId.isNullOrBlank()) {
+            screenshotDao.deleteById(row.id)
+            return
+        }
+        runCatching { deleteRemoteScreenshot(remoteId) }
+            .onSuccess {
+                screenshotDao.deleteById(row.id)
+            }
+            .onFailure { t ->
+                screenshotDao.upsert(
+                    row.copy(
+                        lastBackupAttemptAt = System.currentTimeMillis(),
+                        lastBackupError = t.toProofBackupMessage(),
+                        updatedAt = System.currentTimeMillis(),
+                    )
+                )
+                throw t
+            }
+    }
+
+    private suspend fun deleteRemoteScreenshot(screenshotId: String) {
+        try {
+            api.deleteScreenshot(screenshotId)
+        } catch (t: HttpException) {
+            if (t.code() == 404) return
+            throw t
+        }
     }
 
     private suspend fun pendingRows(

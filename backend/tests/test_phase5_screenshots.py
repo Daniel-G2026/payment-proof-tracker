@@ -323,14 +323,30 @@ def test_delete_screenshot_soft_deletes_and_hides_from_list(client_for):
     business_id = _create_business(client)
     transaction_id = _create_transaction(client, business_id)
     screenshot_id = _upload(client, business_id, transaction_id, b"proof").json()["id"]
+    storage_path = Path(settings.proof_storage_local_dir) / str(business_id) / f"{screenshot_id}.jpg"
+    assert storage_path.exists()
 
     resp = client.delete(f"/screenshots/{screenshot_id}")
     assert resp.status_code == 204
+    assert not storage_path.exists()
     assert client.get(f"/screenshots/{screenshot_id}").status_code == 404
 
     listed = client.get(f"/businesses/{business_id}/screenshots")
     assert listed.status_code == 200
     assert all(row["id"] != screenshot_id for row in listed.json())
+
+
+def test_delete_screenshot_is_idempotent_for_owner(client_for):
+    client = client_for(uuid.uuid4(), "alice@example.com")
+    business_id = _create_business(client)
+    transaction_id = _create_transaction(client, business_id)
+    screenshot_id = _upload(client, business_id, transaction_id, b"proof").json()["id"]
+
+    first = client.delete(f"/screenshots/{screenshot_id}")
+    second = client.delete(f"/screenshots/{screenshot_id}")
+
+    assert first.status_code == 204
+    assert second.status_code == 204
 
 
 def test_delete_screenshot_rejects_non_member(client_for):
