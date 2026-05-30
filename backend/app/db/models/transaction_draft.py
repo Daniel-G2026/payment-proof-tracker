@@ -17,12 +17,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.db.base import Base
+
 # Generic JSON in the Python model so SQLite tests can use the same metadata;
 # Postgres deployments get JSONB via the type variant + the explicit JSONB in
 # the Alembic migration.
 _JsonType = JSON().with_variant(JSONB(), "postgresql")
-
-from app.db.base import Base
 
 
 class TransactionDraft(Base):

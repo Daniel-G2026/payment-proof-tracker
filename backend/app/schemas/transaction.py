@@ -5,7 +5,6 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
 # Field-length caps: Postgres `text` will happily store megabytes per row, but
 # nothing in this product needs that. Caps bound RAM use on list endpoints
 # and block bad-apple users sending 50 MB notes. Sized to be generous for

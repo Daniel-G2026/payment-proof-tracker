@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select
@@ -404,7 +404,7 @@ def delete_transaction(
 ) -> None:
     _require_member(db, current_user.id, business_id)
     transaction = _get_transaction(db, business_id, transaction_id)
-    transaction.deleted_at = datetime.now(timezone.utc)
+    transaction.deleted_at = datetime.now(UTC)
     add_audit_event(
         db,
         business_id=business_id,

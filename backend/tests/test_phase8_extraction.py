@@ -29,16 +29,14 @@ from app.db.models import AuditEvent, Profile, Screenshot, TransactionDraft
 from app.db.models.transaction_draft import (
     DRAFT_ERROR_UNREADABLE,
     DRAFT_STATUS_FAILED,
-    DRAFT_STATUS_PROCESSING,
     DRAFT_STATUS_QUEUED,
     DRAFT_STATUS_RATE_LIMITED,
     DRAFT_STATUS_READY,
 )
 from app.main import app
 from app.services import extraction as extraction_service
-from app.worker import vision, worker as worker_module
+from app.worker import worker as worker_module
 from app.worker.vision import VisionExtraction, normalize
-
 
 # --- shared test DB plumbing --------------------------------------------
 
@@ -540,11 +538,11 @@ class FakePipeline:
         self._store = store
         self._ops: list[tuple[str, str, int | None]] = []
 
-    def incr(self, key: str) -> "FakePipeline":
+    def incr(self, key: str) -> FakePipeline:
         self._ops.append(("incr", key, None))
         return self
 
-    def expire(self, key: str, seconds: int) -> "FakePipeline":
+    def expire(self, key: str, seconds: int) -> FakePipeline:
         self._ops.append(("expire", key, seconds))
         return self
 

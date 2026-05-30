@@ -40,5 +40,36 @@ class Settings(BaseSettings):
     # is only about the full model response blob.
     extraction_raw_retention_days: int = 30
 
+    # ------------------------------------------------------------------
+    # Phase 12 — observability, hardening, and deployment.
+    # ------------------------------------------------------------------
+
+    # Structured logging. JSON in prod (one object per line, parseable by any
+    # log aggregator); flip log_json=false for human-readable dev output.
+    log_level: str = "INFO"
+    log_json: bool = True
+
+    # Error reporting. Sentry only initializes when a DSN is set, so dev/test
+    # never phones home. traces_sample_rate stays 0 unless you want APM spans.
+    sentry_dsn: str = ""
+    sentry_traces_sample_rate: float = 0.0
+
+    # CORS. Comma-separated allowed origins for a future web dashboard
+    # (master-plan §4.7 / §12). Empty disables CORS entirely — mobile clients
+    # don't need it. Never set this to "*" in production: only the dashboard
+    # origin(s) should be allowed.
+    cors_allow_origins: str = ""
+
+    # Per-user HTTP rate limiting (Redis token bucket). Closes the gap where an
+    # authenticated client loops POSTs to fill object storage (master-plan
+    # §12). Fails *open* if Redis is unreachable so a Redis blip never blocks
+    # legitimate uploads. Disabled in the test suite via conftest.
+    rate_limit_enabled: bool = True
+    rate_limit_upload_per_minute: int = 20
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]
+
 
 settings = Settings()

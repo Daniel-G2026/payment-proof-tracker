@@ -2236,25 +2236,51 @@ Improve product quality, trust, and validation measurement.
 
 ## Backend Tasks
 
-* Add structured logging.
-* Add Sentry backend.
-* Add analytics event ingestion if needed.
-* Add rate limiting. The Phase 5 5 MB upload cap blocks single-request abuse,
-  but an authenticated user can still loop POSTs and fill object storage.
-  Per-user-per-route limits (e.g. ≤ N proof uploads per minute) close that.
+* **Add structured logging. Status: implemented.** `app/core/observability.py`
+  installs a JSON formatter on the root logger (`LOG_JSON=true`, one object per
+  line) for both the API and the worker. A `RequestLogMiddleware` logs one line
+  per request and stamps/propagates `X-Request-ID` for cross-tier tracing.
+* **Add Sentry backend. Status: implemented.** `init_sentry()` wires Sentry on
+  the API and worker, tagged `component=api`/`component=worker`, and only when
+  `SENTRY_DSN` is set (dev/test never report). The import is lazy so a missing
+  `sentry-sdk` degrades to a warning instead of a boot crash.
+* Add analytics event ingestion if needed. *(Still deferred — PostHog lives on
+  the client; no server ingestion endpoint needed yet.)*
+* **Add rate limiting. Status: implemented.** `app/services/rate_limit.py`
+  provides a Redis fixed-window per-user limiter (`RateLimiter` dependency,
+  fails open if Redis is down). Applied to the proof-upload route via
+  `RATE_LIMIT_UPLOAD_PER_MINUTE`, closing the "authenticated user loops POSTs
+  to fill object storage" gap.
 * Add better validation. Specifically:
   * Validate `currency` against an ISO 4217 allowlist (currently any string
     sticks, so a malicious PATCH like `{"currency": "<script>"}` survives
-    until a web dashboard renders it raw).
+    until a web dashboard renders it raw). *(Still open.)*
   * Enforce server-side string-length caps on every text column that
     accepts free input. Phase 5 added Pydantic `max_length` caps to all
     schemas under `app/schemas/`; the audit-log table (Phase 10) and any
-    later entities must match.
-* Add CORS configuration once the web dashboard (§4.7) is live. Only the
-  dashboard origin should be allowed — never `*`. Bearer-token auth means
-  CSRF is not an issue, but cross-origin reads on signed-URL responses still
-  need the right `Access-Control-Allow-Origin` headers to render.
-* Add backups/retention policy planning.
+    later entities must match. *(Still open for audit-log free text.)*
+* **Add CORS configuration. Status: implemented (off by default).** A
+  `CORSMiddleware` is wired but only registers when `CORS_ALLOW_ORIGINS` is
+  non-empty, so it stays dormant until the web dashboard (§4.7) ships. Config
+  takes a comma-separated origin allowlist — never `*`.
+* **Security response headers. Status: implemented.** `SecurityHeadersMiddleware`
+  adds `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and
+  HSTS outside development. The signed proof-content route also sets `nosniff`
+  + `Content-Disposition: inline` + `no-store` on the image bytes it serves.
+* **Deeper health/readiness checks. Status: implemented.** `GET /health` stays
+  a dependency-free liveness probe; `GET /health/ready` verifies Postgres
+  (`503` on failure) and reports Redis, so orchestrators can distinguish "up"
+  from "ready to serve."
+* **CI pipeline. Status: implemented.** `.github/workflows/ci.yml` runs
+  `ruff check` + the full `pytest` suite on every push/PR. The suite is
+  hermetic (in-memory SQLite + fakeredis via `tests/conftest.py`), so no
+  service containers are needed. A FastAPI-aware ruff baseline was established
+  (B008 immutable-calls for DI markers; line length owned by `ruff format`).
+* **Containerize the API + document deploy. Status: implemented.** The shared
+  `backend/Dockerfile` now serves the API under gunicorn + uvicorn workers; the
+  repo-root `docker-compose.yml` adds a one-shot `migrate` job and an `api`
+  service alongside the worker. See `backend/README.md` → Deployment.
+* Add backups/retention policy planning. *(Still open.)*
 
 ## Deliverables
 

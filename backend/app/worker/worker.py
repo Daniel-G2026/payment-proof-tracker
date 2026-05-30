@@ -18,7 +18,7 @@ from typing import Any
 
 from arq import cron
 from arq.jobs import Job  # noqa: F401  # re-exported for tests
-from sqlalchemy import text, update
+from sqlalchemy import update
 
 from app.core.config import settings
 from app.db import session as db_session
@@ -62,6 +62,10 @@ async def startup(ctx: dict[str, Any]) -> None:
     fighting a crash-loop. Jobs that arrive before the key is configured will
     fail cleanly via the normal `vision_error` path.
     """
+    from app.core.observability import configure_logging, init_sentry
+
+    configure_logging()
+    init_sentry("worker")
     try:
         ctx["vision"] = _build_vision_client()
     except Exception as exc:  # noqa: BLE001
@@ -161,7 +165,9 @@ async def _maybe_retry(ctx: dict[str, Any]) -> None:
     Uses arq's built-in `Retry` to defer the next attempt. The job's
     `job_try` is 1-indexed.
     """
-    from arq.worker import Retry  # local import: arq isn't imported at module load if tests patch it
+    from arq.worker import (
+        Retry,  # local import: arq isn't imported at module load if tests patch it
+    )
 
     job_try = ctx.get("job_try", 1)
     if job_try >= MAX_TRIES:

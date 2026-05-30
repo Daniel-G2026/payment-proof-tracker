@@ -461,8 +461,9 @@ def test_idempotent_upload_survives_integrity_race(client_for, monkeypatch):
     # Force the upload route down the IntegrityError branch by hiding the
     # existing row from the idempotency check. The INSERT then collides with
     # the row already in the DB.
-    from app.api.routes import screenshots as route
     from sqlalchemy.orm import Session as SASession
+
+    from app.api.routes import screenshots as route
 
     real_session_get = SASession.get
 

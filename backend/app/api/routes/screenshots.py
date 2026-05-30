@@ -26,6 +26,7 @@ from app.services.proof_storage import (
     sign_screenshot_url,
     verify_screenshot_signature,
 )
+from app.services.rate_limit import upload_rate_limiter
 
 router = APIRouter(tags=["screenshots"])
 
@@ -183,6 +184,7 @@ async def upload_screenshot(
     request: Request,
     current_user: CurrentUser,
     db: DbSession,
+    _rate_limit: Annotated[None, Depends(upload_rate_limiter)] = None,
 ) -> ScreenshotOut:
     _require_member(db, current_user.id, business_id)
     content_type = request.headers.get("content-type", "")
@@ -403,4 +405,16 @@ def get_screenshot_content(
     path: Path = ProofStorage().local_path(screenshot.storage_key)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Proof file not found.")
-    return Response(content=path.read_bytes(), media_type=screenshot.mime_type)
+    # nosniff + an explicit disposition so a browser (or a future web
+    # dashboard) can't be tricked into re-interpreting the proof bytes as
+    # markup. The upload path already allowlists + magic-byte-sniffs the mime,
+    # so serving it back with that exact type is safe.
+    return Response(
+        content=path.read_bytes(),
+        media_type=screenshot.mime_type,
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Content-Disposition": "inline",
+            "Cache-Control": "private, max-age=0, no-store",
+        },
+    )

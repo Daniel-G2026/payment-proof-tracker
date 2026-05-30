@@ -1,10 +1,11 @@
-# Minimal image for running the Phase 8 arq worker. The API itself is still
-# run locally via `uv run uvicorn` during development — this exists so
-# `docker compose up` can boot the worker alongside Postgres and Redis
-# without anyone having to remember a second terminal.
+# Shared image for both backend processes — the FastAPI API and the Phase 8
+# arq worker. Same base and dependencies; the CMD selects which one runs:
 #
-# Reusable for the API too if we ever want to containerize that side: same
-# base, just swap the CMD.
+#   - API (production):  gunicorn -k uvicorn.workers.UvicornWorker app.main:app
+#   - Worker:            arq app.worker.worker.WorkerSettings  (default CMD)
+#
+# docker-compose wires both services off this single image (see the repo-root
+# docker-compose.yml `api` and `worker` services).
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -26,5 +27,6 @@ COPY app ./app
 COPY alembic.ini ./
 COPY alembic ./alembic
 
-# Default to the worker. docker-compose can override.
+# Default to the worker. The `api` compose service / production deploy
+# overrides this with the gunicorn command above.
 CMD ["uv", "run", "arq", "app.worker.worker.WorkerSettings"]

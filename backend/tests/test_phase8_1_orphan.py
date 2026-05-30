@@ -32,7 +32,6 @@ from app.db.models import Profile, Screenshot
 from app.main import app
 from app.worker import worker as worker_module
 
-
 # --- shared test DB plumbing (same shape as test_phase8_extraction) -----
 
 engine = create_engine(

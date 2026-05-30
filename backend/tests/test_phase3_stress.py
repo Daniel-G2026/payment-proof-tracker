@@ -19,7 +19,6 @@ from app.db.base import Base
 from app.db.models import Profile
 from app.main import app
 
-
 engine = create_engine(
     "sqlite:///:memory:",
     connect_args={"check_same_thread": False},

@@ -19,11 +19,63 @@ services:
     ports:
       - "6379:6379"
 
+  # One-shot migration runner. Brings the schema up to head before the API and
+  # worker start serving. `docker compose up` waits on its completion via the
+  # `service_completed_successfully` condition below.
+  migrate:
+    build:
+      context: ./backend
+    container_name: proofledger_migrate
+    depends_on:
+      - postgres
+    env_file:
+      - backend/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://proofledger:proofledger_dev@postgres:5432/proofledger
+    command: ["uv", "run", "alembic", "upgrade", "head"]
+    restart: "no"
+
+  # FastAPI app served by gunicorn + uvicorn workers (the production process
+  # manager). In dev the bind mount hot-reloads source on `docker compose
+  # restart api`. Exposes the API on http://localhost:8000.
+  api:
+    build:
+      context: ./backend
+    container_name: proofledger_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - backend/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://proofledger:proofledger_dev@postgres:5432/proofledger
+      REDIS_URL: redis://redis:6379/0
+    command:
+      - uv
+      - run
+      - gunicorn
+      - app.main:app
+      - --worker-class
+      - uvicorn.workers.UvicornWorker
+      - --workers
+      - "2"
+      - --bind
+      - "0.0.0.0:8000"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/storage:/app/storage
+
   # Phase 8 — arq worker that processes extract_screenshot jobs and runs the
-  # daily purge_raw_json cron. The API process (run locally via uvicorn during
-  # development) enqueues jobs into the same Redis instance and this worker
-  # picks them up. Disable by `docker compose stop worker` or by setting
-  # EXTRACTION_ENABLED=false in backend/.env.
+  # daily purge_raw_json cron. The API process enqueues jobs into the same
+  # Redis instance and this worker picks them up. Disable by `docker compose
+  # stop worker` or by setting EXTRACTION_ENABLED=false in backend/.env.
   #
   # `host.docker.internal` lets the container reach the Postgres + Redis
   # containers above (which expose 5432/6379 to the host) without needing a

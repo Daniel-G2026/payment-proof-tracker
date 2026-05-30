@@ -48,7 +48,7 @@ class Screenshot(Base):
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    draft: Mapped["TransactionDraft | None"] = relationship(
+    draft: Mapped["TransactionDraft | None"] = relationship(  # noqa: F821 — SQLAlchemy string forward-ref
         "TransactionDraft",
         back_populates="screenshot",
         uselist=False,
