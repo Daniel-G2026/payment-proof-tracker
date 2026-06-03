@@ -26,8 +26,10 @@ import retrofit2.http.Part
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Streaming
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import okhttp3.ResponseBody
 
 data class HealthResponse(val status: String)
 
@@ -171,6 +173,20 @@ interface ApiService {
     suspend fun deleteScreenshot(
         @Path("screenshotId") screenshotId: String,
     )
+
+    /**
+     * Phase 11 — server-generated PDF statement for an inclusive date range.
+     * Online-only: the caller surfaces a friendly message on network failure
+     * and never blocks the (offline) CSV path. @Streaming so the raw bytes
+     * aren't fully buffered into a String by Retrofit's default converter.
+     */
+    @Streaming
+    @GET("businesses/{businessId}/export.pdf")
+    suspend fun exportPdf(
+        @Path("businessId") businessId: String,
+        @Query("start_date") startDate: String,
+        @Query("end_date") endDate: String,
+    ): ResponseBody
 
     @GET("screenshots/{screenshotId}/signed-url")
     suspend fun getScreenshotSignedUrl(

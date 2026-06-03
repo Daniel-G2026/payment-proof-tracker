@@ -4,17 +4,42 @@ import android.net.Uri
 import com.danielanazodo.proofledger.data.export.ExportFileWriter
 import com.danielanazodo.proofledger.data.local.SyncStatus
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
+import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.ui.format.PeriodUnit
 import com.danielanazodo.proofledger.ui.format.ReportPeriod
+import kotlinx.coroutines.runBlocking
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody
+import okhttp3.ResponseBody.Companion.toResponseBody
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mockito.Mockito.mock
 
 class ReportRepositoryTest {
 
-    private val repository = ReportRepository(NotUsedExportFileWriter)
+    private val repository = ReportRepository(NotUsedExportFileWriter, StubApiService())
 
     private val june = ReportPeriod(PeriodUnit.MONTH, "2026-06-01", "2026-06-30")
+
+    @Test
+    fun `exportPdf fetches server bytes and writes them verbatim`() = runBlocking {
+        val pdfBytes = "%PDF-1.7 fake".toByteArray()
+        val writer = RecordingExportFileWriter()
+        val api = StubApiService(
+            exportPdfBody = pdfBytes.toResponseBody("application/pdf".toMediaType()),
+        )
+        val repo = ReportRepository(writer, api)
+
+        repo.exportPdf("business-1", june)
+
+        assertEquals("business-1", api.exportPdfBusinessId)
+        assertEquals("2026-06-01", api.exportPdfStart)
+        assertEquals("2026-06-30", api.exportPdfEnd)
+        assertEquals("proofledger-2026-06-01-to-2026-06-30.pdf", writer.lastBytesFileName)
+        assertArrayEquals(pdfBytes, writer.lastBytes)
+    }
 
     @Test
     fun `summarize totals only records inside the period`() {
@@ -161,5 +186,129 @@ class ReportRepositoryTest {
     private object NotUsedExportFileWriter : ExportFileWriter {
         override fun writeText(fileName: String, content: String): Uri =
             throw UnsupportedOperationException("not used in these tests")
+
+        override fun writeBytes(fileName: String, bytes: ByteArray): Uri =
+            throw UnsupportedOperationException("not used in these tests")
+    }
+
+    /** Captures what exportPdf hands the writer, returning a stub Uri. */
+    private class RecordingExportFileWriter : ExportFileWriter {
+        var lastBytesFileName: String? = null
+        var lastBytes: ByteArray? = null
+
+        override fun writeText(fileName: String, content: String): Uri =
+            throw UnsupportedOperationException("not used in these tests")
+
+        override fun writeBytes(fileName: String, bytes: ByteArray): Uri {
+            lastBytesFileName = fileName
+            lastBytes = bytes
+            // android.net.Uri can't be instantiated in a plain JVM test, so we
+            // return a Mockito mock. The test asserts on the captured bytes;
+            // the returned Uri is never dereferenced.
+            return mock(Uri::class.java)
+        }
+    }
+
+    /**
+     * Only exportPdf is exercised; every other call is "not used". Records the
+     * exportPdf args so the test can assert the period was passed as ISO dates.
+     */
+    private class StubApiService(
+        private val exportPdfBody: ResponseBody? = null,
+    ) : ApiService {
+        var exportPdfBusinessId: String? = null
+        var exportPdfStart: String? = null
+        var exportPdfEnd: String? = null
+
+        override suspend fun exportPdf(
+            businessId: String,
+            startDate: String,
+            endDate: String,
+        ): ResponseBody {
+            exportPdfBusinessId = businessId
+            exportPdfStart = startDate
+            exportPdfEnd = endDate
+            return exportPdfBody ?: error("no body configured")
+        }
+
+        override suspend fun health(): com.danielanazodo.proofledger.data.remote.HealthResponse =
+            error("not used")
+        override suspend fun getMe() = error("not used")
+        override suspend fun updateMe(
+            body: com.danielanazodo.proofledger.data.remote.dto.ProfileUpdateDto,
+        ) = error("not used")
+        override suspend fun listBusinesses() = error("not used")
+        override suspend fun createBusiness(
+            body: com.danielanazodo.proofledger.data.remote.dto.BusinessCreateDto,
+        ) = error("not used")
+        override suspend fun getBusiness(id: String) = error("not used")
+        override suspend fun listCounterparties(
+            businessId: String,
+            search: String?,
+            type: String?,
+        ) = error("not used")
+        override suspend fun createCounterparty(
+            businessId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.CounterpartyCreateDto,
+        ) = error("not used")
+        override suspend fun getCounterparty(businessId: String, counterpartyId: String) =
+            error("not used")
+        override suspend fun updateCounterparty(
+            businessId: String,
+            counterpartyId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.CounterpartyUpdateDto,
+        ) = error("not used")
+        override suspend fun deleteCounterparty(businessId: String, counterpartyId: String) =
+            error("not used")
+        override suspend fun getCounterpartySummary(businessId: String, counterpartyId: String) =
+            error("not used")
+        override suspend fun listTransactions(
+            businessId: String,
+            direction: String?,
+            search: String?,
+            startDate: String?,
+            endDate: String?,
+        ) = error("not used")
+        override suspend fun createTransaction(
+            businessId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.TransactionCreateDto,
+        ) = error("not used")
+        override suspend fun duplicateCandidates(
+            businessId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.DuplicateCandidateRequestDto,
+        ) = error("not used")
+        override suspend fun getTransaction(businessId: String, transactionId: String) =
+            error("not used")
+        override suspend fun updateTransaction(
+            businessId: String,
+            transactionId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.TransactionUpdateDto,
+        ) = error("not used")
+        override suspend fun deleteTransaction(businessId: String, transactionId: String) =
+            error("not used")
+        override suspend fun uploadScreenshot(
+            businessId: String,
+            id: okhttp3.RequestBody,
+            transactionId: okhttp3.RequestBody,
+            originalFileSize: okhttp3.RequestBody,
+            width: okhttp3.RequestBody,
+            height: okhttp3.RequestBody,
+            file: okhttp3.MultipartBody.Part,
+        ) = error("not used")
+        override suspend fun uploadOrphanScreenshot(
+            businessId: String,
+            id: okhttp3.RequestBody,
+            originalFileSize: okhttp3.RequestBody,
+            width: okhttp3.RequestBody,
+            height: okhttp3.RequestBody,
+            file: okhttp3.MultipartBody.Part,
+        ) = error("not used")
+        override suspend fun deleteScreenshot(screenshotId: String) = error("not used")
+        override suspend fun getScreenshotSignedUrl(screenshotId: String) = error("not used")
+        override suspend fun getScreenshotDraft(screenshotId: String) = error("not used")
+        override suspend fun confirmDraft(
+            draftId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.TransactionDraftConfirmDto,
+        ) = error("not used")
     }
 }

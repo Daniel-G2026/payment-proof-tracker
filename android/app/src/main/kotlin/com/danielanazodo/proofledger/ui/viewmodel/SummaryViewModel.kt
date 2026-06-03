@@ -34,6 +34,7 @@ data class SummaryUiState(
     val canGoNext: Boolean = false,
     val exporting: Boolean = false,
     val shareUri: Uri? = null,
+    val shareMimeType: String = "text/csv",
     val message: String? = null,
 )
 
@@ -110,9 +111,39 @@ class SummaryViewModel @Inject constructor(
                     action = "export_created",
                     status = "success",
                 )
-                _state.update { it.copy(shareUri = uri) }
+                _state.update { it.copy(shareUri = uri, shareMimeType = "text/csv") }
             } catch (t: Throwable) {
                 _state.update { it.copy(message = "Couldn't create the file. Try again.") }
+            } finally {
+                _state.update { it.copy(exporting = false) }
+            }
+        }
+    }
+
+    /**
+     * Online-only PDF export: the backend renders it. A network failure (e.g.
+     * offline) shows a clear message and never crashes; CSV stays available
+     * offline. Mirrors [onExportCsv]'s exporting/shareUri/log flow.
+     */
+    fun onExportPdf() {
+        val id = businessId ?: return
+        if (_state.value.exporting) return
+        viewModelScope.launch {
+            _state.update { it.copy(exporting = true) }
+            try {
+                val uri = reportRepository.exportPdf(id, _state.value.period)
+                syncEventLogger.log(
+                    businessId = id,
+                    entityType = "export",
+                    entityId = null,
+                    action = "export_created",
+                    status = "success",
+                )
+                _state.update { it.copy(shareUri = uri, shareMimeType = "application/pdf") }
+            } catch (t: Throwable) {
+                _state.update {
+                    it.copy(message = "Connect to the internet to generate a PDF.")
+                }
             } finally {
                 _state.update { it.copy(exporting = false) }
             }

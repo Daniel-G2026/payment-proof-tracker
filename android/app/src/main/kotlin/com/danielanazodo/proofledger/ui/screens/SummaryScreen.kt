@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -45,6 +46,7 @@ import com.danielanazodo.proofledger.ui.components.GroupedPanel
 import com.danielanazodo.proofledger.ui.components.MetricLine
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.ProofLedgerFilterChip
+import com.danielanazodo.proofledger.ui.components.QuietButton
 import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
 import com.danielanazodo.proofledger.ui.components.SectionLabel
 import com.danielanazodo.proofledger.ui.components.SummaryPanel
@@ -76,12 +78,15 @@ fun SummaryScreen(
 
     LaunchedEffect(state.shareUri) {
         state.shareUri?.let { uri ->
+            val isPdf = state.shareMimeType == "application/pdf"
             val send = Intent(Intent.ACTION_SEND).apply {
-                type = "text/csv"
+                type = state.shareMimeType
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(send, "Share CSV"))
+            context.startActivity(
+                Intent.createChooser(send, if (isPdf) "Share PDF" else "Share CSV"),
+            )
             viewModel.onShareHandled()
         }
     }
@@ -144,15 +149,29 @@ fun SummaryScreen(
             }
 
             item {
+                val hasRecords = (summary?.recordCount ?: 0) > 0
                 PrimaryActionButton(
                     text = if (state.exporting) "Preparing…" else "Export CSV",
                     onClick = viewModel::onExportCsv,
-                    enabled = !state.exporting && (summary?.recordCount ?: 0) > 0,
+                    enabled = !state.exporting && hasRecords,
                     icon = Icons.Filled.Download,
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "Saves a spreadsheet of these records and opens the share sheet. Works offline.",
+                    color = NeutralMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.height(16.dp))
+                QuietButton(
+                    text = if (state.exporting) "Preparing…" else "Export PDF",
+                    onClick = viewModel::onExportPdf,
+                    enabled = !state.exporting && hasRecords,
+                    icon = Icons.Filled.PictureAsPdf,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Makes a printable PDF statement. Needs the internet.",
                     color = NeutralMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )

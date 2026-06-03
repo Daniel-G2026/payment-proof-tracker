@@ -391,6 +391,11 @@ class ProofRepositoryTest {
             height: RequestBody,
             file: MultipartBody.Part,
         ): ScreenshotDto = error("not used")
+        override suspend fun exportPdf(
+            businessId: String,
+            startDate: String,
+            endDate: String,
+        ): okhttp3.ResponseBody = error("not used")
         override suspend fun getScreenshotSignedUrl(screenshotId: String): SignedScreenshotUrlDto =
             error("not used")
         override suspend fun getScreenshotDraft(screenshotId: String): TransactionDraftDto =
