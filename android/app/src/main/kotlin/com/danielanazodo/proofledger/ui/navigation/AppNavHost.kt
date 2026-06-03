@@ -32,6 +32,7 @@ import com.danielanazodo.proofledger.ui.screens.ProofBackupScreen
 import com.danielanazodo.proofledger.ui.screens.SharedProofIntakeScreen
 import com.danielanazodo.proofledger.ui.screens.SignInScreen
 import com.danielanazodo.proofledger.ui.screens.SettingsScreen
+import com.danielanazodo.proofledger.ui.screens.SummaryScreen
 import com.danielanazodo.proofledger.ui.screens.SyncIssuesScreen
 import com.danielanazodo.proofledger.ui.screens.TransactionDetailScreen
 import com.danielanazodo.proofledger.ui.screens.TransactionFormScreen
@@ -171,10 +172,14 @@ private fun ResolvedGraph(
                 onViewTransactions = { navController.navigateOnce(Route.TransactionList.path) },
                 onViewCounterparties = { navController.navigateOnce(Route.CounterpartyList.path) },
                 onViewProofBackup = { navController.navigateOnce(Route.ProofBackup.path) },
+                onViewReports = { navController.navigateOnce(Route.Summary.path) },
                 onViewSyncIssues = { navController.navigateOnce(Route.SyncIssues.path) },
                 onTransactionClick = { id -> navController.navigateOnce(Route.TransactionDetail.path(id)) },
                 onTabSelected = onTabSelected,
             )
+        }
+        composable(Route.Summary.path) {
+            SummaryScreen(onBack = { navController.popBackStack() })
         }
         composable(Route.SyncIssues.path) {
             SyncIssuesScreen(

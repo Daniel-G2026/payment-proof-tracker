@@ -1,5 +1,7 @@
 package com.danielanazodo.proofledger.di
 
+import com.danielanazodo.proofledger.data.export.AndroidExportFileWriter
+import com.danielanazodo.proofledger.data.export.ExportFileWriter
 import com.danielanazodo.proofledger.data.proof.AndroidProofFileStore
 import com.danielanazodo.proofledger.data.proof.BackupWorkScheduler
 import com.danielanazodo.proofledger.data.proof.ProofFileStore
@@ -20,4 +22,8 @@ abstract class ProofModule {
     @Binds
     @Singleton
     abstract fun bindBackupWorkScheduler(scheduler: WorkManagerBackupWorkScheduler): BackupWorkScheduler
+
+    @Binds
+    @Singleton
+    abstract fun bindExportFileWriter(writer: AndroidExportFileWriter): ExportFileWriter
 }

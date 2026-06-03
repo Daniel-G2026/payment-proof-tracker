@@ -2195,10 +2195,41 @@ Make offline-first behavior reliable.
   handles this; transactions and counterparties do not.
 * Support client-generated IDs if helpful.
 * Add sync event logs.
+
+  **Status: implemented on-device only; server-side table deferred to
+  Phase 12.** Sync attempts are logged locally on Android
+  (`SyncEventLogger` → `LocalSyncEventEntity`), which is the robust place
+  for the common failure mode: a device with no connectivity can't report a
+  network failure *over* the network it lacks, so a local log is the only
+  one guaranteed writable offline. A server-side `sync_events` table (spec
+  §7.10) is a fleet-scale observability feature — useful for "show all
+  failed syncs across users this week" dashboards — and naturally belongs
+  with the Phase 12 analytics/structured-logging work, not Phase 10. The
+  Phase 10 deliverables ("data syncs reliably; user never loses local data")
+  are met by the sync machinery itself; server-side sync logging was only
+  ever a debugging aid. Accepted trade-off until Phase 12: sync failures
+  can't be inspected centrally — only from a user's device or report.
 * Add conflict handling basics.
 * Add audit log table + write create/edit/delete events for transactions
   (and any other entities that exist by this phase). Deferred here from
   Phase 3 so the event shape matches the stabilized sync-aware workflows.
+
+  **Status: implemented for transactions and counterparties.** The table is
+  `audit_events` (migrations `0009_audit_events` + `0010_audit_event_values`).
+  Each row carries `action` (create/update/delete/duplicate_check/
+  duplicate_warning_ignored), `status`, an optional `error_message`, and
+  field-level `old_values`/`new_values` JSON diffs:
+  - create → `new_values` holds the created snapshot, `old_values` null;
+  - update → only the *changed* user-facing fields, before in `old_values`
+    and after in `new_values` (null/null when nothing material changed);
+  - delete → `old_values` holds the pre-delete snapshot, `new_values` null.
+  Audited fields are the user-facing content only (amounts, direction, dates,
+  counterparty, category, note, bank, reference for transactions; name/type/
+  phone/notes for counterparties) — not server bookkeeping. The diff columns
+  exist specifically so the Phase 12 edit-history UI can render *what*
+  changed, not just that an edit happened. UUID/date values are stringified
+  before storage by `app/services/audit.py`. No read API yet — events are
+  write-only until the Phase 12 history UI consumes them.
 * Add a `transaction_id` filter to `GET /businesses/{id}/screenshots` so a
   syncing client (or future web dashboard) can pull just the proofs tied to
   one transaction instead of paging the whole business. Deferred from
@@ -2301,6 +2332,65 @@ Give users trust and portability through summaries and exports.
 * User can generate monthly/weekly summaries.
 * User can export records for review/accountant/disputes.
 
+## Phase 11 implementation notes (first cut — summary + offline CSV)
+
+**Status: first cut shipped (Android-only, fully offline). PDF + backend
+reporting endpoints deferred to a second cut.**
+
+Decisions locked in during planning:
+
+* **PDF: backend-only (online), deferred.** PDF must be server-side
+  (`reportlab`) to keep the dependency off the APK, so it ships with the
+  second cut alongside the backend endpoints. CSV covers the
+  accountant/dispute deliverable offline in the meantime.
+* **First cut = summary screen + offline CSV.** Both are computed/generated
+  on-device from Room, so the whole Reports page works with no connectivity.
+* **No backend changes in the first cut.** The §9.7 backend `/summary` and
+  `/export.csv` endpoints are only needed by a future web dashboard; the
+  Android deliverable is satisfied locally. They land with the PDF cut.
+* **Export tracking is on-device.** `export_created` is logged via the
+  existing on-device `SyncEventLogger` (entity_type `export`), consistent
+  with the Phase 10 decision to keep sync/event logging on-device until the
+  Phase 12 server-side `sync_events` work. The §15 `export_created` analytics
+  event is satisfied without the deferred analytics ingestion.
+* **Periods are whole weeks or whole months only** — no free-form custom
+  start/end ranges. The user picks a unit (Month/Week) and can navigate to
+  *any* one of them: a ◀ ▶ stepper for adjacent periods (next is disabled
+  past today) plus a tap-to-jump dropdown listing periods that contain
+  records (current period always included). Defaults to the current month.
+* **CSV amount column = major-unit decimal** (e.g. `1250.00`) for
+  accountant/spreadsheet readability; directions render in plain language
+  ("Money in"/"Money out"); RFC-4180 quoting on free-text fields.
+* **Navigation:** a "Reports & export" entry on the Home dashboard opens a
+  dedicated full screen (not a popup) where the user picks the period, sees
+  totals (money in/out/net, top people, top categories), and taps Export CSV
+  → Android share sheet.
+
+Key files (Android):
+
+* `ui/format/ReportPeriod.kt` — whole week/month period model + stepping +
+  `periodsCovering` jump-list + `relativeLabel`.
+* `data/repository/ReportRepository.kt` — pure `summarize` + `buildCsv`;
+  `exportCsv` runs file IO on `Dispatchers.IO`.
+* `data/export/ExportFileWriter.kt` — interface + `AndroidExportFileWriter`
+  (cacheDir/exports + FileProvider URI), mirroring `ProofFileStore`.
+* `ui/viewmodel/SummaryViewModel.kt`, `ui/screens/SummaryScreen.kt`.
+* Wiring: `Route.Summary` + `AppNavHost`, dashboard entry point,
+  `AndroidManifest.xml` FileProvider + `res/xml/file_paths.xml`,
+  `di/ProofModule.kt` writer binding.
+* Tests: `ReportRepositoryTest`, `ReportPeriodTest`.
+
+Verification: `:app:testDebugUnitTest` + `:app:assembleDebug` both pass.
+
+Second cut (remaining Phase 11 scope):
+
+* Backend `reports.py`: `GET /summary`, `GET /export.csv`, `GET /export.pdf`
+  (`reportlab` via `app/services/report_pdf.py`), export-event audit rows,
+  router registration, `test_phase11.py`.
+* Android PDF export action (online-only; disabled offline with a "connect to
+  generate a PDF" message), calling the backend `export.pdf` streaming
+  endpoint and sharing via the same FileProvider flow.
+
 ---
 
 # Phase 12: Polish, Analytics, and Reliability
@@ -2324,7 +2414,10 @@ Improve product quality, trust, and validation measurement.
   off the UI thread, and made dashboard sync indicators clear reliably after
   sync failures.
 * Add user-visible edit history UI for transactions, backed by the audit
-  log written in Phase 10.
+  log written in Phase 10. The `audit_events` rows already carry field-level
+  `old_values`/`new_values` diffs for transactions and counterparties, so
+  this UI can render *what* changed per edit — it needs a read endpoint
+  (none exists yet; events are write-only today) and the Compose screen.
 * Escape `%` and `_` in search input before building `LIKE` patterns on
   both Room (Android) and SQLAlchemy (backend) so a user searching for a
   literal `%` or `_` does not turn it into a SQL wildcard. Low priority —
@@ -2336,6 +2429,13 @@ Improve product quality, trust, and validation measurement.
 * Add structured logging.
 * Add Sentry backend.
 * Add analytics event ingestion if needed.
+* Add the server-side `sync_events` table + ingestion (spec §7.10), deferred
+  here from Phase 10. Devices already log sync attempts locally
+  (`SyncEventLogger`); this adds a way for them to report those attempts up
+  so failed syncs can be inspected centrally across users (a fleet-scale
+  observability feature that belongs with the rest of the analytics work).
+  Devices must queue reports and flush them when connectivity returns, since
+  the most common failure being reported is "no connectivity."
 * Add rate limiting. The Phase 5 5 MB upload cap blocks single-request abuse,
   but an authenticated user can still loop POSTs and fill object storage.
   Per-user-per-route limits (e.g. ≤ N proof uploads per minute) close that.

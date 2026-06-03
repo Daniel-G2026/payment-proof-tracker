@@ -18,11 +18,20 @@ from app.schemas.counterparty import (
     CounterpartySummaryOut,
     CounterpartyUpdate,
 )
+from app.services.audit import add_audit_event
 
 router = APIRouter(
     prefix="/businesses/{business_id}/counterparties",
     tags=["counterparties"],
 )
+
+# User-facing counterparty content recorded in the audit diff (normalized_name
+# is derived from name, so it's omitted to avoid redundant noise).
+_AUDIT_FIELDS = ("name", "type", "phone", "notes")
+
+
+def _audit_snapshot(counterparty: Counterparty) -> dict[str, object]:
+    return {field: getattr(counterparty, field) for field in _AUDIT_FIELDS}
 
 
 def _normalize_name(name: str) -> str:
@@ -90,6 +99,17 @@ def create_counterparty(
     )
     db.add(counterparty)
     try:
+        db.flush()
+        add_audit_event(
+            db,
+            business_id=business_id,
+            actor_id=current_user.id,
+            entity_type="counterparty",
+            entity_id=counterparty.id,
+            action="create",
+            status="success",
+            new_values=_audit_snapshot(counterparty),
+        )
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -165,12 +185,32 @@ def update_counterparty(
             status_code=status.HTTP_409_CONFLICT,
             detail="This record was updated elsewhere. Reload and try again.",
         )
+    old_values: dict[str, object] = {}
+    new_values: dict[str, object] = {}
     if "name" in data:
-        counterparty.name = data["name"].strip()
+        new_name = data["name"].strip()
+        if counterparty.name != new_name:
+            old_values["name"] = counterparty.name
+            new_values["name"] = new_name
+        counterparty.name = new_name
         counterparty.normalized_name = _normalize_name(data["name"])
     for field in ("type", "phone", "notes"):
+        if field in data and getattr(counterparty, field) != data[field]:
+            old_values[field] = getattr(counterparty, field)
+            new_values[field] = data[field]
         if field in data:
             setattr(counterparty, field, data[field])
+    add_audit_event(
+        db,
+        business_id=business_id,
+        actor_id=current_user.id,
+        entity_type="counterparty",
+        entity_id=counterparty.id,
+        action="update",
+        status="success",
+        old_values=old_values or None,
+        new_values=new_values or None,
+    )
     db.commit()
     db.refresh(counterparty)
     return CounterpartyOut.model_validate(counterparty)
@@ -185,7 +225,18 @@ def delete_counterparty(
 ) -> None:
     _require_member(db, current_user.id, business_id)
     counterparty = _get_counterparty(db, business_id, counterparty_id)
+    snapshot = _audit_snapshot(counterparty)
     counterparty.deleted_at = datetime.now(UTC)
+    add_audit_event(
+        db,
+        business_id=business_id,
+        actor_id=current_user.id,
+        entity_type="counterparty",
+        entity_id=counterparty.id,
+        action="delete",
+        status="success",
+        old_values=snapshot,
+    )
     db.commit()
 
 

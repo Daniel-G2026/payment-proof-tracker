@@ -20,6 +20,13 @@ This is an Android-native, offline-first payment proof tracker for small busines
 - After coding, run the relevant build/tests.
 - Keep architecture clean and modular.
 
+## Git Workflow
+- Use a branch-and-PR flow; do not commit directly to `main`.
+- Each phase (or cut of a phase) gets its own feature branch off `main`.
+- Keep commits logically scoped with descriptive messages (what + why).
+- Open a PR into `main`; merge after review/CI rather than pushing to `main`.
+- Only commit/push when explicitly asked.
+
 ## Architecture Boundaries
 - UI polish and redesign are expected later, including settings, multiple businesses, tabs, and navigation changes.
 - Keep infrastructure explicitly separate from UI so redesigns do not require storage/network rewrites.
@@ -30,7 +37,36 @@ This is an Android-native, offline-first payment proof tracker for small busines
 - If UI state becomes complex, add dedicated UI state/models instead of bending database entities around presentation needs.
 
 ## Current Phase
-Phase 10: Offline Sync Hardening (next).
+Phase 11: Reports and Exports — **first cut shipped, second cut remaining.**
+
+The first cut is Android-only and fully offline: a "Reports & export" entry on
+the Home dashboard opens a dedicated Summary screen with a Month/Week period
+picker (whole periods only — ◀ ▶ stepper, next disabled past today, plus a
+tap-to-jump dropdown; defaults to current month), totals (money in/out/net,
+top people, top categories computed locally from Room), and an **Export CSV**
+action that writes the file to cacheDir/exports and shares it via FileProvider.
+`export_created` logs on-device via `SyncEventLogger`. No backend changes —
+the §9.7 backend `/summary` + `/export.csv` endpoints are only needed by a
+future web dashboard and ship with the PDF cut. Verified with
+`:app:testDebugUnitTest` + `:app:assembleDebug`. See "Phase 11 implementation
+notes" in `docs/master-plan.md`. Second cut (deferred): backend
+summary/CSV/PDF endpoints (`reportlab`, online-only PDF) + the Android PDF
+export action + export-event audit rows.
+
+Phase 10 (Offline Sync Hardening) is complete: improved sync queue with
+dependency-ordered drain, retry with backoff, clear sync-status UI + a
+failed-sync screen, local-first dashboard, graceful auth/session-expiry
+handling, client-side event coalescing (create-then-delete collapses
+locally; 404 on a queued retry is terminal), idempotent client-ID-keyed
+CRUD on transactions/counterparties, optimistic-concurrency conflict checks
+(`expected_updated_at` → 409), the `screenshots` `transaction_id` filter +
+cursor pagination, and an `audit_events` table recording create/edit/delete
+for transactions and counterparties with field-level `old_values`/
+`new_values` diffs (see Phase 10 notes in `docs/master-plan.md`). Deferred
+to Phase 12: a server-side `sync_events` table (sync attempts are logged
+on-device for now) and the user-visible edit-history UI that reads the
+audit diffs. Transaction/counterparty cursor pagination remains deferred
+until true delta sync needs it.
 
 Completed: Phases 1–6 (foundation, auth + business setup, manual ledger MVP,
 counterparties, screenshot attachment, share-sheet intake), Phase 8

@@ -9,6 +9,7 @@ sealed class Route(val path: String) {
     data object BusinessSelect : Route("business_select")
     data object BusinessSwitch : Route("business_switch")
     data object Dashboard : Route("dashboard")
+    data object Summary : Route("summary")
     data object SyncIssues : Route("sync_issues")
     data object Settings : Route("settings")
     data object SharedProofIntake : Route("shared-proof/{intakeToken}") {

@@ -42,6 +42,21 @@
         </activity>
 
         <!--
+            FileProvider exposes generated export files (CSV/PDF) from
+            cacheDir/exports as shareable content:// URIs for the share sheet.
+            Phase 11 (Reports and Exports).
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!--
             PaymentProofApp implements Configuration.Provider so WorkManager
             picks up HiltWorkerFactory. The default startup initializer would
             otherwise boot WorkManager with its empty factory first and

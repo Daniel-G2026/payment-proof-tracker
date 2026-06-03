@@ -221,6 +221,18 @@ def test_transaction_create_update_delete_writes_audit_events(client_for):
         ]
         assert {event.business_id for event in events} == {business_id}
         assert {event.actor_id for event in events} == {user_id}
+
+        by_action = {event.action: event for event in events}
+        # Create records the full snapshot in new_values, nothing in old_values.
+        assert by_action["create"].old_values is None
+        assert by_action["create"].new_values["amount_minor"] == 125000
+        assert by_action["create"].new_values["note"] == "Deposit"
+        # Update records only the changed field, before and after.
+        assert by_action["update"].old_values == {"note": "Deposit"}
+        assert by_action["update"].new_values == {"note": "Updated"}
+        # Delete records the pre-delete snapshot in old_values.
+        assert by_action["delete"].old_values["note"] == "Updated"
+        assert by_action["delete"].new_values is None
     finally:
         db.close()
 

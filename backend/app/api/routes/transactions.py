@@ -111,6 +111,26 @@ def _validate_counterparty_id(
         )
 
 
+# Fields worth recording in the audit diff — the user-facing transaction
+# content, not server-managed bookkeeping (status/source/created_by/timestamps).
+_AUDIT_FIELDS = (
+    "amount_minor",
+    "currency",
+    "direction",
+    "transaction_date",
+    "counterparty_id",
+    "counterparty_name",
+    "category",
+    "note",
+    "bank_name",
+    "reference_number",
+)
+
+
+def _audit_snapshot(transaction: Transaction) -> dict[str, object]:
+    return {field: getattr(transaction, field) for field in _AUDIT_FIELDS}
+
+
 def _normalize_reference(value: str | None) -> str | None:
     if value is None:
         return None
@@ -289,6 +309,7 @@ def create_transaction(
             entity_id=transaction.id,
             action="create",
             status="success",
+            new_values=_audit_snapshot(transaction),
         )
         db.commit()
     except IntegrityError:
@@ -377,7 +398,16 @@ def update_transaction(
     # screenshot_id is not a column on Transaction — it's a linking instruction.
     # Pop it out before the setattr loop, handle separately, atomic with commit.
     incoming_screenshot_id = data.pop("screenshot_id", None)
+    old_values: dict[str, object] = {}
+    new_values: dict[str, object] = {}
     for field, value in data.items():
+        if field not in _AUDIT_FIELDS:
+            setattr(transaction, field, value)
+            continue
+        current = getattr(transaction, field)
+        if current != value:
+            old_values[field] = current
+            new_values[field] = value
         setattr(transaction, field, value)
     if incoming_screenshot_id is not None:
         _link_orphan_screenshot(db, business_id, transaction.id, incoming_screenshot_id)
@@ -389,6 +419,8 @@ def update_transaction(
         entity_id=transaction.id,
         action="update",
         status="success",
+        old_values=old_values or None,
+        new_values=new_values or None,
     )
     db.commit()
     db.refresh(transaction)
@@ -404,6 +436,7 @@ def delete_transaction(
 ) -> None:
     _require_member(db, current_user.id, business_id)
     transaction = _get_transaction(db, business_id, transaction_id)
+    snapshot = _audit_snapshot(transaction)
     transaction.deleted_at = datetime.now(timezone.utc)
     add_audit_event(
         db,
@@ -413,5 +446,6 @@ def delete_transaction(
         entity_id=transaction.id,
         action="delete",
         status="success",
+        old_values=snapshot,
     )
     db.commit()
