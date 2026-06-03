@@ -8,6 +8,7 @@ from app.api.routes import (
     counterparties,
     health,
     profiles,
+    reports,
     screenshots,
     transaction_drafts,
     transactions,
@@ -58,6 +59,7 @@ app.include_router(profiles.router)
 app.include_router(businesses.router)
 app.include_router(counterparties.router)
 app.include_router(transactions.router)
+app.include_router(reports.router)
 app.include_router(screenshots.router)
 app.include_router(transaction_drafts.router)
 
