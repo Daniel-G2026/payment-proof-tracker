@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_current_user, get_db
 from app.db.base import Base
-from app.db.models import BusinessMember, Profile
+from app.db.models import AuditEvent, BusinessMember, Profile
 from app.main import app
 
 engine = create_engine(
@@ -309,3 +309,49 @@ def test_patch_counterparty_rejects_stale_expected_updated_at(client_for):
         json={"notes": "stale", "expected_updated_at": "1999-01-01T00:00:00+00:00"},
     )
     assert rejected.status_code == 409
+
+
+def test_counterparty_create_update_delete_writes_audit_events(client_for):
+    user_id = uuid.uuid4()
+    client = client_for(user_id, "alice@example.com")
+    business_id = _create_business(client)
+    payload = _counterparty_payload()
+
+    created = client.post(f"/businesses/{business_id}/counterparties", json=payload)
+    patched = client.patch(
+        f"/businesses/{business_id}/counterparties/{payload['id']}",
+        json={"notes": "Updated note"},
+    )
+    deleted = client.delete(f"/businesses/{business_id}/counterparties/{payload['id']}")
+
+    assert created.status_code == 200, created.text
+    assert patched.status_code == 200, patched.text
+    assert deleted.status_code == 204
+
+    db = TestingSessionLocal()
+    try:
+        events = (
+            db.query(AuditEvent)
+            .filter(AuditEvent.entity_id == uuid.UUID(payload["id"]))
+            .all()
+        )
+        assert sorted((event.action, event.status) for event in events) == [
+            ("create", "success"),
+            ("delete", "success"),
+            ("update", "success"),
+        ]
+        assert {event.business_id for event in events} == {business_id}
+        assert {event.actor_id for event in events} == {user_id}
+
+        by_action = {event.action: event for event in events}
+        # name is only .strip()'d (internal whitespace preserved); the snapshot
+        # reflects the stored value, not the collapsed normalized_name.
+        assert by_action["create"].new_values["name"] == "Adewale   Supplies"
+        assert by_action["create"].new_values["type"] == "supplier"
+        assert by_action["create"].old_values is None
+        assert by_action["update"].old_values == {"notes": "Blocks and cement"}
+        assert by_action["update"].new_values == {"notes": "Updated note"}
+        assert by_action["delete"].old_values["notes"] == "Updated note"
+        assert by_action["delete"].new_values is None
+    finally:
+        db.close()
