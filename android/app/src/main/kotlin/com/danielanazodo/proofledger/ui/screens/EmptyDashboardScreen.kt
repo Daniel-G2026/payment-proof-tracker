@@ -62,6 +62,7 @@ fun EmptyDashboardScreen(
     onViewTransactions: () -> Unit,
     onViewCounterparties: () -> Unit,
     onViewProofBackup: () -> Unit,
+    onViewReports: () -> Unit,
     onViewSyncIssues: () -> Unit,
     onTransactionClick: (String) -> Unit,
     onTabSelected: (MainTab) -> Unit,
@@ -71,6 +72,7 @@ fun EmptyDashboardScreen(
     var range by rememberSaveable { mutableStateOf(DashboardRange.Monthly) }
     val addMoneyIn = rememberDebouncedClick(onClick = onAddMoneyIn)
     val viewRecords = rememberDebouncedClick(onClick = onViewTransactions)
+    val viewReports = rememberDebouncedClick(onClick = onViewReports)
     val viewSyncIssues = rememberDebouncedClick(onClick = onViewSyncIssues)
     val transactionClick = rememberDebouncedClick(onClick = onTransactionClick)
     val signOut = rememberDebouncedClick(onClick = viewModel::signOut)
@@ -229,8 +231,17 @@ fun EmptyDashboardScreen(
                 }
             }
             item {
-                TextButton(onClick = viewRecords) {
-                    Text("View all records", color = NeutralMuted, fontWeight = FontWeight.Medium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = viewRecords) {
+                        Text("View all records", color = NeutralMuted, fontWeight = FontWeight.Medium)
+                    }
+                    TextButton(onClick = viewReports) {
+                        Text("Reports & export", color = NeutralInk, fontWeight = FontWeight.Medium)
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
                 PrimaryActionButton(text = "Add record", onClick = addMoneyIn, icon = Icons.Filled.Add)
