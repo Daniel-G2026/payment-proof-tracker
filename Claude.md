@@ -20,6 +20,13 @@ This is an Android-native, offline-first payment proof tracker for small busines
 - After coding, run the relevant build/tests.
 - Keep architecture clean and modular.
 
+## Git Workflow
+- Use a branch-and-PR flow; do not commit directly to `main`.
+- Each phase (or cut of a phase) gets its own feature branch off `main`.
+- Keep commits logically scoped with descriptive messages (what + why).
+- Open a PR into `main`; merge after review/CI rather than pushing to `main`.
+- Only commit/push when explicitly asked.
+
 ## Architecture Boundaries
 - UI polish and redesign are expected later, including settings, multiple businesses, tabs, and navigation changes.
 - Keep infrastructure explicitly separate from UI so redesigns do not require storage/network rewrites.
