@@ -16,11 +16,14 @@ import com.danielanazodo.proofledger.ui.format.periodsCovering
 import com.danielanazodo.proofledger.ui.format.todayIsoDate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class SummaryUiState(
     val businessName: String = "",
@@ -54,6 +57,7 @@ class SummaryViewModel @Inject constructor(
 
     private var allTransactions: List<LocalTransactionEntity> = emptyList()
     private var businessId: String? = null
+    private var computeJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -63,7 +67,7 @@ class SummaryViewModel @Inject constructor(
             val id = business?.id ?: return@launch
             transactionRepository.observeTransactions(id).collect { transactions ->
                 allTransactions = transactions
-                recompute()
+                recompute(includePeriods = true)
             }
         }
     }
@@ -71,24 +75,25 @@ class SummaryViewModel @Inject constructor(
     fun onUnitChange(unit: PeriodUnit) {
         if (unit == _state.value.unit) return
         _state.update { it.copy(unit = unit, period = currentPeriod(unit)) }
-        recompute()
+        // Unit change alters which periods exist in the jump list.
+        recompute(includePeriods = true)
     }
 
     fun onPrevious() {
         _state.update { it.copy(period = it.period.previous()) }
-        recompute()
+        recompute(includePeriods = false)
     }
 
     fun onNext() {
         if (!_state.value.canGoNext) return
         _state.update { it.copy(period = it.period.next()) }
-        recompute()
+        recompute(includePeriods = false)
     }
 
     fun onPickPeriod(period: ReportPeriod) {
         if (period == _state.value.period) return
         _state.update { it.copy(period = period) }
-        recompute()
+        recompute(includePeriods = false)
     }
 
     fun onExportCsv() {
@@ -118,21 +123,41 @@ class SummaryViewModel @Inject constructor(
 
     fun clearMessage() = _state.update { it.copy(message = null) }
 
-    private fun recompute() {
-        val today = todayIsoDate()
-        val period = _state.value.period
-        _state.update {
-            it.copy(
-                summary = reportRepository.summarize(allTransactions, period),
-                availablePeriods = periodsCovering(
-                    it.unit,
-                    allTransactions.map { row -> row.transactionDate },
-                    today,
-                ),
-                // Block stepping into a period that hasn't finished/started yet:
-                // if the window ends before today, a later one is safe to view.
-                canGoNext = period.endIso < today,
-            )
+    /**
+     * Recompute the summary off the main thread so a large ledger never janks
+     * the UI (aggregation + building a Calendar per record in [periodsCovering]
+     * is O(n) with allocations). The job is cancellable so rapid period
+     * stepping doesn't pile up stale computations — only the latest wins.
+     *
+     * [includePeriods] is false on plain period changes (prev/next/pick): the
+     * jump list only depends on the record dates + unit, not the selected
+     * period, so there's no need to rebuild it on every step.
+     */
+    private fun recompute(includePeriods: Boolean) {
+        computeJob?.cancel()
+        computeJob = viewModelScope.launch {
+            val transactions = allTransactions
+            val unit = _state.value.unit
+            val period = _state.value.period
+            val today = todayIsoDate()
+            val (summary, periods) = withContext(Dispatchers.Default) {
+                val computedSummary = reportRepository.summarize(transactions, period)
+                val computedPeriods = if (includePeriods) {
+                    periodsCovering(unit, transactions.map { it.transactionDate }, today)
+                } else {
+                    null
+                }
+                computedSummary to computedPeriods
+            }
+            _state.update {
+                it.copy(
+                    summary = summary,
+                    availablePeriods = periods ?: it.availablePeriods,
+                    // Block stepping into a period that hasn't finished/started
+                    // yet: if the window ends before today, a later one is safe.
+                    canGoNext = period.endIso < today,
+                )
+            }
         }
     }
 }

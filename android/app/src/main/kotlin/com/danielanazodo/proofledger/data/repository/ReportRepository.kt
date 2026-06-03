@@ -83,7 +83,7 @@ class ReportRepository @Inject constructor(
                     row.referenceNumber.orEmpty(),
                     row.bankName.orEmpty(),
                     row.note.orEmpty(),
-                ).joinToString(",") { csvEscape(it) },
+                ).joinToString(",") { csvCell(it) },
             ).append("\r\n")
         }
         return sb.toString()
@@ -130,6 +130,28 @@ class ReportRepository @Inject constructor(
 
         fun csvFileName(period: ReportPeriod): String =
             "proofledger-${period.startIso}-to-${period.endIso}.csv"
+
+        // Characters that make a spreadsheet treat a cell as a formula.
+        private val CSV_FORMULA_TRIGGERS = setOf('=', '+', '-', '@', '\t', '\r')
+
+        /**
+         * Build one CSV cell: neutralize formula injection, then RFC-4180 quote.
+         *
+         * CSV injection (CWE-1236): counterparty names and notes are user- and
+         * AI-supplied, so a cell like `=HYPERLINK(...)` or `@SUM(...)` would be
+         * executed by Excel/Google Sheets when the accountant opens the export.
+         * RFC quoting does NOT stop this (the app strips CSV quotes before
+         * evaluating). Prefixing a triggering cell with a single quote makes the
+         * spreadsheet treat it as literal text.
+         */
+        fun csvCell(value: String): String {
+            val guarded = if (value.isNotEmpty() && value.first() in CSV_FORMULA_TRIGGERS) {
+                "'$value"
+            } else {
+                value
+            }
+            return csvEscape(guarded)
+        }
 
         /** RFC-4180 quoting: wrap in quotes and double internal quotes when needed. */
         fun csvEscape(value: String): String =

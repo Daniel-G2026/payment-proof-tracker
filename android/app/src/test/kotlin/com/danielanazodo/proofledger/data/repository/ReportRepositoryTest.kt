@@ -85,6 +85,49 @@ class ReportRepositoryTest {
         assertTrue(row.contains("\"Said \"\"thanks\"\"\""))
     }
 
+    @Test
+    fun `buildCsv neutralizes formula injection in user fields (CWE-1236)`() {
+        val transactions = listOf(
+            tx(
+                date = "2026-06-03",
+                direction = "money_in",
+                amountMinor = 10_00,
+                name = "=HYPERLINK(\"http://evil\")",
+                category = "-2+3",
+                note = "@SUM(A1:A9)",
+            ),
+        )
+
+        val row = repository.buildCsv(transactions, june).trim().split("\r\n")[1]
+
+        // Each formula-triggering cell is prefixed with a single quote so a
+        // spreadsheet treats it as text rather than executing it.
+        assertTrue(row.contains("'=HYPERLINK"))
+        assertTrue(row.contains("'-2+3"))
+        assertTrue(row.contains("'@SUM(A1:A9)"))
+    }
+
+    @Test
+    fun `summarize and buildCsv handle a large ledger`() {
+        val transactions = (0 until 5_000).map { i ->
+            tx(
+                date = "2026-06-%02d".format((i % 28) + 1),
+                direction = if (i % 2 == 0) "money_in" else "money_out",
+                amountMinor = 100,
+                name = "Person ${i % 50}",
+            )
+        }
+
+        val summary = repository.summarize(transactions, june)
+        assertEquals(5_000, summary.recordCount)
+        assertEquals(2_500 * 100L, summary.moneyInMinor)
+        assertEquals(2_500 * 100L, summary.moneyOutMinor)
+        assertEquals(5, summary.topCounterparties.size)
+
+        val lines = repository.buildCsv(transactions, june).trim().split("\r\n")
+        assertEquals(5_001, lines.size) // header + 5000 rows
+    }
+
     private fun tx(
         date: String,
         direction: String,
