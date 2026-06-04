@@ -76,6 +76,9 @@ fun EmptyDashboardScreen(
     val viewSyncIssues = rememberDebouncedClick(onClick = onViewSyncIssues)
     val transactionClick = rememberDebouncedClick(onClick = onTransactionClick)
     val signOut = rememberDebouncedClick(onClick = viewModel::signOut)
+    val downloadProofsNow = rememberDebouncedClick(onClick = viewModel::downloadProofsNow)
+    val waitForWifiProofDownload =
+        rememberDebouncedClick(onClick = viewModel::waitForWifiProofDownload)
 
     LaunchedEffect(state.signedOut) { if (state.signedOut) onSignedOut() }
 
@@ -197,6 +200,52 @@ fun EmptyDashboardScreen(
                             }
                             TextButton(onClick = viewSyncIssues) {
                                 Text("Review", color = NeutralInk, fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (state.pendingProofDownloadCount > 0) {
+                item {
+                    GroupedPanel {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                "Proof not on this phone",
+                                color = NeutralInk,
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Text(
+                                "${formatCompactCount(state.pendingProofDownloadCount)} proof" +
+                                    "${if (state.pendingProofDownloadCount == 1) "" else "s"} " +
+                                    "backed up to your account ${if (state.pendingProofDownloadCount == 1) "is" else "are"} " +
+                                    "not on this phone yet.",
+                                color = NeutralMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                TextButton(
+                                    onClick = downloadProofsNow,
+                                    enabled = !state.downloadingProofs,
+                                ) {
+                                    Text(
+                                        if (state.downloadingProofs) "Downloading…" else "Download now",
+                                        color = NeutralInk,
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                }
+                                TextButton(
+                                    onClick = waitForWifiProofDownload,
+                                    enabled = !state.downloadingProofs,
+                                ) {
+                                    Text("Wait for Wi-Fi", color = NeutralMuted)
+                                }
                             }
                         }
                     }

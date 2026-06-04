@@ -5,6 +5,7 @@ import com.danielanazodo.proofledger.data.local.ProofBackupPreference
 import com.danielanazodo.proofledger.data.local.ProofBackupStatus
 import com.danielanazodo.proofledger.data.local.dao.LocalAppMetadataDao
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
+import com.danielanazodo.proofledger.data.local.dao.LocalTransactionDao
 import com.danielanazodo.proofledger.data.local.entity.LocalAppMetadataEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalScreenshotEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
@@ -63,6 +64,7 @@ data class ManualBackupFilter(
 @Singleton
 class ProofRepository @Inject constructor(
     private val screenshotDao: LocalScreenshotDao,
+    private val transactionDao: LocalTransactionDao,
     private val metadataDao: LocalAppMetadataDao,
     private val fileStore: ProofFileStore,
     private val scheduler: BackupWorkScheduler,
@@ -74,6 +76,177 @@ class ProofRepository @Inject constructor(
 
     fun observeProofs(businessId: String): Flow<List<LocalScreenshotEntity>> =
         screenshotDao.observeByBusiness(businessId)
+
+    /** Number of proofs awaiting a download *decision* on this device. Drives
+     *  the dashboard "you have proof backed up that isn't on this phone" prompt
+     *  — zero on a normal device, non-zero only just after a fresh restore. */
+    fun observePendingDownloadCount(businessId: String): Flow<Int> =
+        screenshotDao.observePendingDownloadCount(businessId)
+
+    /**
+     * Proof restore — rebuild local proof *metadata* for a business from the
+     * server so a fresh device shows every transaction's "proof attached"
+     * badge immediately. Image bytes are intentionally NOT pulled here: rows
+     * land as [ProofBackupStatus.PENDING_DOWNLOAD] and the user decides when
+     * to download them (now vs on WiFi) — proofs can be large and the user is
+     * often on metered mobile data.
+     *
+     * Idempotent and safe to run on every sync: a proof we already have a
+     * local row for is left untouched, so we never overwrite bytes that are
+     * already on disk with an empty placeholder. Best-effort — a failed list
+     * call just returns and the next sync retries.
+     *
+     * Must run AFTER transactions are restored: each proof row carries
+     * denormalized transaction fields (amount/date/direction/counterparty)
+     * that we copy from the already-restored local transaction. A proof whose
+     * transaction isn't local yet is skipped and picked up on the next pass.
+     */
+    suspend fun refreshFromRemote(businessId: String) {
+        var offset = 0
+        while (true) {
+            val page = runCatching {
+                api.listScreenshots(businessId, RESTORE_PAGE_SIZE, offset)
+            }.getOrNull() ?: return
+            page.forEach { restoreMetadata(it) }
+            if (page.size < RESTORE_PAGE_SIZE) break
+            offset += page.size
+        }
+    }
+
+    private suspend fun restoreMetadata(dto: ScreenshotDto) {
+        // Orphan proofs (no transaction yet) are transient server-side and
+        // have no ledger row to hang off — skip. Soft-deleted too.
+        val transactionId = dto.transactionId ?: return
+        if (dto.deletedAt != null) return
+        // Already have it locally? Leave it: its bytes/paths may already be on
+        // disk and a placeholder would break the on-device viewer.
+        if (screenshotDao.getById(dto.id) != null) return
+        val txn = transactionDao.getById(transactionId) ?: return
+        val now = System.currentTimeMillis()
+        screenshotDao.upsert(
+            LocalScreenshotEntity(
+                id = dto.id,
+                businessId = dto.businessId,
+                transactionId = transactionId,
+                // Empty until the bytes are downloaded; the viewer treats a
+                // non-existent file as "not on this device yet".
+                localOriginalPath = "",
+                localUploadPath = null,
+                originalFileSizeBytes = dto.originalFileSize,
+                uploadFileSizeBytes = dto.uploadedFileSize,
+                mimeType = dto.mimeType,
+                width = dto.width,
+                height = dto.height,
+                transactionAmountMinor = txn.amountMinor,
+                transactionDate = txn.transactionDate,
+                transactionDirection = txn.direction,
+                counterpartyId = txn.counterpartyId,
+                counterpartyName = txn.counterpartyName,
+                isImportant = false,
+                backupStatus = ProofBackupStatus.PENDING_DOWNLOAD,
+                remoteScreenshotId = dto.id,
+                remoteStorageKey = dto.storageKey,
+                imageSha256 = dto.imageSha256,
+                createdAt = now,
+                updatedAt = now,
+                lastBackupAttemptAt = null,
+                lastBackupError = null,
+            )
+        )
+    }
+
+    /**
+     * Download every not-yet-downloaded proof for a business right now,
+     * regardless of network — the "Download now" choice. Best-effort per row;
+     * a single failure doesn't abort the rest. Returns the number that landed
+     * on disk successfully.
+     */
+    suspend fun downloadAllProofsNow(businessId: String): Int {
+        var downloaded = 0
+        screenshotDao.findNeedingDownload(businessId).forEach { row ->
+            runCatching { downloadProof(row.id) }.onSuccess { downloaded += 1 }
+        }
+        return downloaded
+    }
+
+    /**
+     * The "Wait for WiFi" choice: flip pending downloads to the WiFi-wait
+     * state and enqueue a WiFi-only worker per proof. The existing
+     * [ProofBackupWorker] routes each one back through [upload] → [downloadProof]
+     * once an unmetered network is available.
+     */
+    suspend fun scheduleProofDownloadsOnWifi(businessId: String) {
+        val now = System.currentTimeMillis()
+        screenshotDao.findNeedingDownload(businessId).forEach { row ->
+            screenshotDao.upsert(
+                row.copy(
+                    backupStatus = ProofBackupStatus.WAITING_FOR_WIFI_DOWNLOAD,
+                    updatedAt = now,
+                )
+            )
+            scheduler.enqueue(row.id, wifiOnly = true)
+        }
+    }
+
+    /**
+     * Pull the actual image bytes for one restored proof onto this device.
+     * Safe to call repeatedly: only acts on a proof still awaiting download.
+     * Throws on failure (so the WorkManager retry/backoff path sees it); the
+     * foreground "download all" caller wraps this in runCatching.
+     */
+    suspend fun downloadProof(proofId: String) {
+        val proof = screenshotDao.getById(proofId) ?: return
+        if (!proof.isAwaitingDownload()) return
+        val remoteId = proof.remoteScreenshotId
+        if (remoteId.isNullOrBlank()) return
+        val now = System.currentTimeMillis()
+        screenshotDao.upsert(
+            proof.copy(
+                backupStatus = ProofBackupStatus.DOWNLOADING,
+                lastBackupAttemptAt = now,
+                lastBackupError = null,
+                updatedAt = now,
+            )
+        )
+        val result = runCatching {
+            val signed = api.getScreenshotSignedUrl(remoteId)
+            withContext(Dispatchers.IO) {
+                api.downloadProofBytes(signed.url).use { body ->
+                    fileStore.writeDownloaded(proofId, body.bytes(), proof.mimeType)
+                }
+            }
+        }
+        val latest = screenshotDao.getById(proofId) ?: return
+        result.onSuccess { path ->
+            screenshotDao.upsert(
+                latest.copy(
+                    localOriginalPath = path,
+                    backupStatus = ProofBackupStatus.BACKED_UP,
+                    lastBackupAttemptAt = System.currentTimeMillis(),
+                    lastBackupError = null,
+                    updatedAt = System.currentTimeMillis(),
+                )
+            )
+            logProof(latest, "restore", "success")
+        }.onFailure { t ->
+            screenshotDao.upsert(
+                latest.copy(
+                    backupStatus = ProofBackupStatus.DOWNLOAD_FAILED,
+                    lastBackupAttemptAt = System.currentTimeMillis(),
+                    lastBackupError = t.toProofBackupMessage(),
+                    updatedAt = System.currentTimeMillis(),
+                )
+            )
+            logProof(latest, "restore", "failure", t.toProofBackupMessage())
+            throw t
+        }
+    }
+
+    private fun LocalScreenshotEntity.isAwaitingDownload(): Boolean =
+        backupStatus == ProofBackupStatus.PENDING_DOWNLOAD ||
+            backupStatus == ProofBackupStatus.WAITING_FOR_WIFI_DOWNLOAD ||
+            backupStatus == ProofBackupStatus.DOWNLOADING ||
+            backupStatus == ProofBackupStatus.DOWNLOAD_FAILED
 
     suspend fun attachProof(
         uri: Uri,
@@ -431,6 +604,13 @@ class ProofRepository @Inject constructor(
 
     suspend fun upload(proofId: String) {
         val proof = screenshotDao.getById(proofId) ?: return
+        // A row queued for restore (e.g. WAITING_FOR_WIFI_DOWNLOAD) reaches the
+        // same ProofBackupWorker as an upload. Route it to the download path so
+        // we reuse the worker's WiFi constraint + retry/backoff for free.
+        if (proof.isAwaitingDownload()) {
+            downloadProof(proofId)
+            return
+        }
         if (proof.backupStatus == ProofBackupStatus.PENDING_REMOTE_DELETE) {
             finishPendingRemoteDelete(proof)
             return
@@ -622,5 +802,9 @@ class ProofRepository @Inject constructor(
     companion object {
         private const val BACKUP_PREFERENCE_KEY = "proof_backup_preference"
         private val TEXT_MEDIA_TYPE = "text/plain".toMediaTypeOrNull()
+
+        // Matches the backend's MAX_LIST_LIMIT so restore walks the screenshot
+        // list in the largest pages the server allows.
+        private const val RESTORE_PAGE_SIZE = 200
     }
 }

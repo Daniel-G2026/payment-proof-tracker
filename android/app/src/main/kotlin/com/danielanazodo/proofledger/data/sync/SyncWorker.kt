@@ -5,6 +5,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.danielanazodo.proofledger.data.local.SyncStatus
+import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
@@ -28,6 +29,7 @@ class SyncWorker @AssistedInject constructor(
     private val businessRepository: BusinessRepository,
     private val counterpartyRepository: CounterpartyRepository,
     private val transactionRepository: TransactionRepository,
+    private val proofRepository: ProofRepository,
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result = runCatching {
         businessRepository.syncPending()
@@ -39,6 +41,11 @@ class SyncWorker @AssistedInject constructor(
             }
         businessRepository.getSelectedBusinessId()?.let { selected ->
             transactionRepository.refreshFromRemote(selected)
+            // Metadata only — restores "proof attached" badges without pulling
+            // image bytes. Byte downloads are user-gated (now vs WiFi), so this
+            // never spends metered data behind the user's back. Runs after the
+            // transaction refresh so each proof's denormalized fields resolve.
+            proofRepository.refreshFromRemote(selected)
         }
     }.fold(
         onSuccess = { Result.success() },

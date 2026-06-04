@@ -92,6 +92,28 @@ over drafting with a vision model. The OcrService / OcrDraftParser / OcrDraft
 classes and tests remain in tree so the flag can be flipped on for
 dogfooding without a revert.
 
+## Proof restore notes (post-Phase 11)
+
+Proof images now **restore on a fresh device**. Previously the app uploaded
+proof but had no download path, so a fresh sign-in restored the ledger but
+**not the screenshots** (the product's core proof). Android-only — the backend
+already exposed the screenshot list + signed-url/content endpoints, so no
+server changes.
+
+- `ProofRepository.refreshFromRemote(businessId)` restores **metadata only**
+  (the "proof attached" badges appear instantly; no metered-data byte pulls).
+  Runs after transactions so each proof's denormalized fields resolve from the
+  already-restored local txn. Skips orphan + soft-deleted proofs; idempotent;
+  never clobbers bytes already on disk.
+- Byte download is **user-gated**: `downloadAllProofsNow` (now) and
+  `scheduleProofDownloadsOnWifi` (defers to a WiFi-only `ProofBackupWorker`
+  via `upload()` routing). On-demand single download via `downloadProof`.
+- New `ProofBackupStatus` states: `PENDING_DOWNLOAD`,
+  `WAITING_FOR_WIFI_DOWNLOAD`, `DOWNLOADING`, `DOWNLOAD_FAILED`.
+- UI: dashboard "Proof not on this phone" prompt (Download now / Wait for
+  Wi-Fi); transaction detail shows a download placeholder + button instead of
+  a broken image. Verified with `:app:testDebugUnitTest` + `:app:assembleDebug`.
+
 ## Phase 8 implementation notes
 
 Stack: FastAPI + **arq** (Redis-backed async queue) + **Anthropic Claude

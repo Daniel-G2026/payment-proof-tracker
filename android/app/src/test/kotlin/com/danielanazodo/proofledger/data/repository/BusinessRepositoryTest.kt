@@ -22,6 +22,7 @@ import com.danielanazodo.proofledger.data.remote.dto.ProfileUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.ScreenshotDto
 import com.danielanazodo.proofledger.data.remote.dto.SignedScreenshotUrlDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionCreateDto
+import okhttp3.ResponseBody
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDraftConfirmDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDraftDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDto
@@ -252,6 +253,12 @@ class BusinessRepositoryTest {
             file: MultipartBody.Part,
         ): ScreenshotDto = error("not used")
         override suspend fun deleteScreenshot(screenshotId: String) {}
+        override suspend fun listScreenshots(
+            businessId: String,
+            limit: Int,
+            offset: Int,
+        ): List<ScreenshotDto> = emptyList()
+        override suspend fun downloadProofBytes(url: String): ResponseBody = error("not used")
         override suspend fun getScreenshotSignedUrl(screenshotId: String): SignedScreenshotUrlDto =
             error("not used")
         override suspend fun getScreenshotDraft(screenshotId: String): TransactionDraftDto =
