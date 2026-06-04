@@ -2,16 +2,22 @@ package com.danielanazodo.proofledger.data.proof
 
 import android.net.Uri
 import com.danielanazodo.proofledger.data.local.ProofBackupStatus
+import com.danielanazodo.proofledger.data.local.SyncStatus
 import com.danielanazodo.proofledger.data.local.dao.LocalAppMetadataDao
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
 import com.danielanazodo.proofledger.data.local.dao.LocalSyncEventDao
+import com.danielanazodo.proofledger.data.local.dao.LocalTransactionDao
 import com.danielanazodo.proofledger.data.local.entity.LocalAppMetadataEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalScreenshotEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalSyncEventEntity
+import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
 import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.HealthResponse
 import com.danielanazodo.proofledger.data.remote.dto.BusinessCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.BusinessDto
+import com.danielanazodo.proofledger.data.remote.dto.CategoryCreateDto
+import com.danielanazodo.proofledger.data.remote.dto.CategoryDto
+import com.danielanazodo.proofledger.data.remote.dto.CategoryUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartySummaryDto
@@ -33,6 +39,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -51,7 +58,13 @@ class ProofRepositoryTest {
             val api = FakeApiService(deleteFailure = RuntimeException("offline"))
             val row = proof(backupStatus = ProofBackupStatus.BACKED_UP)
             dao.upsert(row)
-            val repository = repository(dao, fileStore, scheduler, api, events)
+            val repository = repository(
+                dao = dao,
+                fileStore = fileStore,
+                scheduler = scheduler,
+                api = api,
+                events = events,
+            )
 
             repository.deleteProof(row.id)
 
@@ -114,14 +127,143 @@ class ProofRepositoryTest {
         assertEquals("failure", event.status)
     }
 
+    @Test
+    fun `refreshFromRemote restores linked proof as pending download and skips orphans`() =
+        runBlocking {
+            val dao = FakeScreenshotDao()
+            val transactionDao = FakeTransactionDao().apply { seed(transaction("transaction-1")) }
+            val api = FakeApiService(
+                screenshots = listOf(
+                    remoteScreenshot(id = "linked", transactionId = "transaction-1"),
+                    remoteScreenshot(id = "orphan", transactionId = null),
+                    remoteScreenshot(id = "missing-txn", transactionId = "transaction-404"),
+                ),
+            )
+            val repository = repository(dao = dao, transactionDao = transactionDao, api = api)
+
+            repository.refreshFromRemote("business-1")
+
+            val restored = dao.getById("linked")!!
+            assertEquals(ProofBackupStatus.PENDING_DOWNLOAD, restored.backupStatus)
+            assertEquals("", restored.localOriginalPath)
+            assertEquals("linked", restored.remoteScreenshotId)
+            // Denormalized transaction fields are copied from the local txn.
+            assertEquals(1200L, restored.transactionAmountMinor)
+            assertEquals("Adewale Supplies", restored.counterpartyName)
+            // Orphan (no txn) and unknown-transaction proofs are not restored.
+            assertNull(dao.getById("orphan"))
+            assertNull(dao.getById("missing-txn"))
+        }
+
+    @Test
+    fun `refreshFromRemote leaves an already-present proof untouched`() = runBlocking {
+        val dao = FakeScreenshotDao()
+        val transactionDao = FakeTransactionDao().apply { seed(transaction("transaction-1")) }
+        val existing = proof(id = "proof-1", backupStatus = ProofBackupStatus.BACKED_UP)
+        dao.upsert(existing)
+        val api = FakeApiService(
+            screenshots = listOf(remoteScreenshot(id = "proof-1", transactionId = "transaction-1")),
+        )
+        val repository = repository(dao = dao, transactionDao = transactionDao, api = api)
+
+        repository.refreshFromRemote("business-1")
+
+        // Same row object: bytes/paths already on disk must never be clobbered.
+        assertEquals(existing, dao.getById("proof-1"))
+    }
+
+    @Test
+    fun `downloadAllProofsNow fetches bytes and marks the proof backed up`() = runBlocking {
+        val dao = FakeScreenshotDao()
+        val fileStore = FakeProofFileStore()
+        val api = FakeApiService(downloadBytes = byteArrayOf(1, 2, 3))
+        dao.upsert(proof(backupStatus = ProofBackupStatus.PENDING_DOWNLOAD))
+        val repository = repository(dao = dao, fileStore = fileStore, api = api)
+
+        val count = repository.downloadAllProofsNow("business-1")
+
+        assertEquals(1, count)
+        val row = dao.getById("proof-1")!!
+        assertEquals(ProofBackupStatus.BACKED_UP, row.backupStatus)
+        assertEquals("/tmp/restored/proof-1.jpg", row.localOriginalPath)
+        assertEquals(listOf("proof-1"), fileStore.downloadedIds)
+    }
+
+    @Test
+    fun `scheduleProofDownloadsOnWifi flips rows to wifi wait and enqueues wifi-only work`() =
+        runBlocking {
+            val dao = FakeScreenshotDao()
+            val scheduler = FakeBackupWorkScheduler()
+            dao.upsert(proof(backupStatus = ProofBackupStatus.PENDING_DOWNLOAD))
+            val repository = repository(dao = dao, scheduler = scheduler)
+
+            repository.scheduleProofDownloadsOnWifi("business-1")
+
+            assertEquals(
+                ProofBackupStatus.WAITING_FOR_WIFI_DOWNLOAD,
+                dao.getById("proof-1")!!.backupStatus,
+            )
+            assertEquals(listOf("proof-1" to true), scheduler.enqueued)
+        }
+
+    private fun remoteScreenshot(
+        id: String = "remote-proof-1",
+        transactionId: String? = "transaction-1",
+        deletedAt: String? = null,
+    ): ScreenshotDto = ScreenshotDto(
+        id = id,
+        businessId = "business-1",
+        transactionId = transactionId,
+        uploadedBy = "owner-1",
+        mimeType = "image/jpeg",
+        uploadedFileSize = 100L,
+        originalFileSize = 120L,
+        width = 100,
+        height = 200,
+        storageKey = "business-1/$id.jpg",
+        storageStatus = "stored",
+        imageSha256 = "hash",
+        createdAt = "2026-05-29T00:00:00Z",
+        updatedAt = "2026-05-29T00:00:00Z",
+        deletedAt = deletedAt,
+        draftStatus = null,
+    )
+
+    private fun transaction(
+        id: String = "transaction-1",
+        businessId: String = "business-1",
+    ): LocalTransactionEntity = LocalTransactionEntity(
+        id = id,
+        businessId = businessId,
+        amountMinor = 1200L,
+        currency = "NGN",
+        direction = "money_in",
+        transactionDate = "2026-05-28",
+        counterpartyId = "cp-1",
+        counterpartyName = "Adewale Supplies",
+        category = "Materials",
+        note = null,
+        bankName = null,
+        referenceNumber = null,
+        source = "manual",
+        status = "complete",
+        createdAt = 100L,
+        updatedAt = 100L,
+        deletedAt = null,
+        syncStatus = SyncStatus.SYNCED,
+        lastSyncAttemptAt = null,
+    )
+
     private fun repository(
         dao: FakeScreenshotDao = FakeScreenshotDao(),
+        transactionDao: FakeTransactionDao = FakeTransactionDao(),
         fileStore: FakeProofFileStore = FakeProofFileStore(),
         scheduler: FakeBackupWorkScheduler = FakeBackupWorkScheduler(),
         api: FakeApiService = FakeApiService(),
         events: FakeSyncEventDao = FakeSyncEventDao(),
     ): ProofRepository = ProofRepository(
         screenshotDao = dao,
+        transactionDao = transactionDao,
         metadataDao = FakeMetadataDao(),
         fileStore = fileStore,
         scheduler = scheduler,
@@ -229,6 +371,24 @@ class ProofRepositoryTest {
         ): List<LocalScreenshotEntity> =
             rows.values.filter { it.businessId == businessId && it.backupStatus in statuses }
 
+        override suspend fun findNeedingDownload(businessId: String): List<LocalScreenshotEntity> =
+            rows.values.filter {
+                it.businessId == businessId &&
+                    it.backupStatus in setOf(
+                        ProofBackupStatus.PENDING_DOWNLOAD,
+                        ProofBackupStatus.WAITING_FOR_WIFI_DOWNLOAD,
+                        ProofBackupStatus.DOWNLOAD_FAILED,
+                    )
+            }
+
+        override fun observePendingDownloadCount(businessId: String): Flow<Int> =
+            flowOf(
+                rows.values.count {
+                    it.businessId == businessId &&
+                        it.backupStatus == ProofBackupStatus.PENDING_DOWNLOAD
+                }
+            )
+
         override suspend fun deleteById(id: String) {
             rows.remove(id)
         }
@@ -236,6 +396,71 @@ class ProofRepositoryTest {
         override suspend fun clear() {
             rows.clear()
         }
+    }
+
+    private class FakeTransactionDao : LocalTransactionDao {
+        private val rows = linkedMapOf<String, LocalTransactionEntity>()
+
+        fun seed(transaction: LocalTransactionEntity) {
+            rows[transaction.id] = transaction
+        }
+
+        override suspend fun getById(id: String): LocalTransactionEntity? = rows[id]
+
+        override suspend fun upsert(transaction: LocalTransactionEntity) {
+            rows[transaction.id] = transaction
+        }
+
+        override suspend fun upsertAll(transactions: List<LocalTransactionEntity>) {
+            transactions.forEach { rows[it.id] = it }
+        }
+
+        override suspend fun getByIdIncludingDeleted(id: String): LocalTransactionEntity? = rows[id]
+
+        override suspend fun deleteById(id: String) {
+            rows.remove(id)
+        }
+
+        override suspend fun clear() {
+            rows.clear()
+        }
+
+        override suspend fun getRowsNeedingSync(businessId: String): List<LocalTransactionEntity> =
+            error("not used")
+
+        override suspend fun getByBusinessAndSyncStatus(
+            businessId: String,
+            syncStatus: String,
+        ): List<LocalTransactionEntity> = error("not used")
+
+        override fun observeByBusiness(businessId: String): Flow<List<LocalTransactionEntity>> =
+            error("not used")
+
+        override fun observeFiltered(
+            businessId: String,
+            direction: String?,
+            search: String?,
+        ): Flow<List<LocalTransactionEntity>> = error("not used")
+
+        override fun observeByCounterparty(
+            businessId: String,
+            counterpartyId: String,
+        ): Flow<List<LocalTransactionEntity>> = error("not used")
+
+        override fun observeById(id: String): Flow<LocalTransactionEntity?> = error("not used")
+
+        override fun observeRowsNeedingAttention(
+            businessId: String,
+        ): Flow<List<LocalTransactionEntity>> = error("not used")
+
+        override suspend fun findDuplicateCandidates(
+            businessId: String,
+            amountMinor: Long,
+            direction: String,
+            transactionDate: String,
+            referenceNumber: String?,
+            excludeTransactionId: String?,
+        ): List<LocalTransactionEntity> = error("not used")
     }
 
     private class FakeMetadataDao : LocalAppMetadataDao {
@@ -271,6 +496,7 @@ class ProofRepositoryTest {
 
     private class FakeProofFileStore : ProofFileStore {
         val deletedIds = mutableListOf<String>()
+        val downloadedIds = mutableListOf<String>()
 
         override fun prepare(uri: Uri, id: String): PreparedProofFile = error("not used")
 
@@ -279,6 +505,11 @@ class ProofRepositoryTest {
         }
 
         override fun sha256(uri: Uri): String = error("not used")
+
+        override fun writeDownloaded(id: String, bytes: ByteArray, mimeType: String): String {
+            downloadedIds += id
+            return "/tmp/restored/$id.jpg"
+        }
     }
 
     private class FakeBackupWorkScheduler : BackupWorkScheduler {
@@ -292,6 +523,9 @@ class ProofRepositoryTest {
     private class FakeApiService(
         private val deleteFailure: Throwable? = null,
         private val uploadFailure: Throwable? = null,
+        private val screenshots: List<ScreenshotDto> = emptyList(),
+        private val signedUrl: String = "https://signed.example/proof",
+        private val downloadBytes: ByteArray = ByteArray(0),
     ) : ApiService {
         val deletedScreenshotIds = mutableListOf<String>()
 
@@ -306,6 +540,20 @@ class ProofRepositoryTest {
         override suspend fun listBusinesses(): List<BusinessDto> = emptyList()
         override suspend fun createBusiness(body: BusinessCreateDto): BusinessDto = error("not used")
         override suspend fun getBusiness(id: String): BusinessDto = error("not used")
+        override suspend fun listCategories(
+            businessId: String,
+            search: String?,
+        ): List<CategoryDto> = emptyList()
+        override suspend fun createCategory(
+            businessId: String,
+            body: CategoryCreateDto,
+        ): CategoryDto = error("not used")
+        override suspend fun updateCategory(
+            businessId: String,
+            categoryId: String,
+            body: CategoryUpdateDto,
+        ): CategoryDto = error("not used")
+        override suspend fun deleteCategory(businessId: String, categoryId: String) {}
         override suspend fun listCounterparties(
             businessId: String,
             search: String?,
@@ -396,8 +644,17 @@ class ProofRepositoryTest {
             startDate: String,
             endDate: String,
         ): okhttp3.ResponseBody = error("not used")
+        override suspend fun listScreenshots(
+            businessId: String,
+            limit: Int,
+            offset: Int,
+        ): List<ScreenshotDto> = if (offset == 0) screenshots else emptyList()
+
+        override suspend fun downloadProofBytes(url: String): ResponseBody =
+            downloadBytes.toResponseBody()
+
         override suspend fun getScreenshotSignedUrl(screenshotId: String): SignedScreenshotUrlDto =
-            error("not used")
+            SignedScreenshotUrlDto(url = signedUrl, expiresAt = "2026-05-29T00:00:00Z")
         override suspend fun getScreenshotDraft(screenshotId: String): TransactionDraftDto =
             error("not used")
         override suspend fun confirmDraft(

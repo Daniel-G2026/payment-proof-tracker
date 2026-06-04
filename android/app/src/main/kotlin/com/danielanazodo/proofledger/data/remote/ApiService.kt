@@ -2,6 +2,9 @@ package com.danielanazodo.proofledger.data.remote
 
 import com.danielanazodo.proofledger.data.remote.dto.BusinessCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.BusinessDto
+import com.danielanazodo.proofledger.data.remote.dto.CategoryCreateDto
+import com.danielanazodo.proofledger.data.remote.dto.CategoryDto
+import com.danielanazodo.proofledger.data.remote.dto.CategoryUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartySummaryDto
@@ -27,6 +30,7 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 import retrofit2.http.Streaming
+import retrofit2.http.Url
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
@@ -89,6 +93,31 @@ interface ApiService {
         @Path("businessId") businessId: String,
         @Path("counterpartyId") counterpartyId: String,
     ): CounterpartySummaryDto
+
+    @GET("businesses/{businessId}/categories")
+    suspend fun listCategories(
+        @Path("businessId") businessId: String,
+        @Query("search") search: String? = null,
+    ): List<CategoryDto>
+
+    @POST("businesses/{businessId}/categories")
+    suspend fun createCategory(
+        @Path("businessId") businessId: String,
+        @Body body: CategoryCreateDto,
+    ): CategoryDto
+
+    @PATCH("businesses/{businessId}/categories/{categoryId}")
+    suspend fun updateCategory(
+        @Path("businessId") businessId: String,
+        @Path("categoryId") categoryId: String,
+        @Body body: CategoryUpdateDto,
+    ): CategoryDto
+
+    @DELETE("businesses/{businessId}/categories/{categoryId}")
+    suspend fun deleteCategory(
+        @Path("businessId") businessId: String,
+        @Path("categoryId") categoryId: String,
+    )
 
     @GET("businesses/{businessId}/transactions")
     suspend fun listTransactions(
@@ -188,10 +217,34 @@ interface ApiService {
         @Query("end_date") endDate: String,
     ): ResponseBody
 
+    /**
+     * Proof restore — list a business's screenshots so a fresh device can
+     * rebuild the proof metadata. Paginated (server caps the page size); the
+     * caller walks offsets until a short page. Soft-deleted rows are excluded
+     * server-side.
+     */
+    @GET("businesses/{businessId}/screenshots")
+    suspend fun listScreenshots(
+        @Path("businessId") businessId: String,
+        @Query("limit") limit: Int,
+        @Query("offset") offset: Int,
+    ): List<ScreenshotDto>
+
     @GET("screenshots/{screenshotId}/signed-url")
     suspend fun getScreenshotSignedUrl(
         @Path("screenshotId") screenshotId: String,
     ): SignedScreenshotUrlDto
+
+    /**
+     * Proof restore — download the raw image bytes from a signed URL returned
+     * by [getScreenshotSignedUrl]. `@Streaming` keeps the body off-heap until
+     * the caller reads it, so a 5 MB proof never buffers fully in memory just
+     * to be written to disk. The URL is absolute (signed object store or the
+     * backend `/content` endpoint), hence `@Url`.
+     */
+    @Streaming
+    @GET
+    suspend fun downloadProofBytes(@Url url: String): ResponseBody
 
     /**
      * Phase 8 — poll the server-side extraction result for a screenshot.

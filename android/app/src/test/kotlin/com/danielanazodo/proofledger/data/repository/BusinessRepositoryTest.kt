@@ -11,6 +11,9 @@ import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.HealthResponse
 import com.danielanazodo.proofledger.data.remote.dto.BusinessCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.BusinessDto
+import com.danielanazodo.proofledger.data.remote.dto.CategoryCreateDto
+import com.danielanazodo.proofledger.data.remote.dto.CategoryDto
+import com.danielanazodo.proofledger.data.remote.dto.CategoryUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartySummaryDto
@@ -22,6 +25,7 @@ import com.danielanazodo.proofledger.data.remote.dto.ProfileUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.ScreenshotDto
 import com.danielanazodo.proofledger.data.remote.dto.SignedScreenshotUrlDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionCreateDto
+import okhttp3.ResponseBody
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDraftConfirmDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDraftDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDto
@@ -186,6 +190,20 @@ class BusinessRepositoryTest {
         override suspend fun updateMe(body: ProfileUpdateDto): ProfileDto = error("not used")
         override suspend fun listBusinesses(): List<BusinessDto> = emptyList()
         override suspend fun getBusiness(id: String): BusinessDto = error("not used")
+        override suspend fun listCategories(
+            businessId: String,
+            search: String?,
+        ): List<CategoryDto> = emptyList()
+        override suspend fun createCategory(
+            businessId: String,
+            body: CategoryCreateDto,
+        ): CategoryDto = error("not used")
+        override suspend fun updateCategory(
+            businessId: String,
+            categoryId: String,
+            body: CategoryUpdateDto,
+        ): CategoryDto = error("not used")
+        override suspend fun deleteCategory(businessId: String, categoryId: String) {}
         override suspend fun listCounterparties(
             businessId: String,
             search: String?,
@@ -257,6 +275,12 @@ class BusinessRepositoryTest {
             startDate: String,
             endDate: String,
         ): okhttp3.ResponseBody = error("not used")
+        override suspend fun listScreenshots(
+            businessId: String,
+            limit: Int,
+            offset: Int,
+        ): List<ScreenshotDto> = emptyList()
+        override suspend fun downloadProofBytes(url: String): ResponseBody = error("not used")
         override suspend fun getScreenshotSignedUrl(screenshotId: String): SignedScreenshotUrlDto =
             error("not used")
         override suspend fun getScreenshotDraft(screenshotId: String): TransactionDraftDto =

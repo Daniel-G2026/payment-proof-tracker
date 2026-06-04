@@ -6,6 +6,7 @@ import com.danielanazodo.proofledger.data.local.entity.LocalBusinessEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
 import com.danielanazodo.proofledger.data.repository.AuthRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
+import com.danielanazodo.proofledger.data.repository.CategoryRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.ProfileRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
@@ -37,6 +38,13 @@ data class DashboardUiState(
     val syncIssueCount: Int = 0,
     val syncing: Boolean = false,
     val signedOut: Boolean = false,
+    /** Proofs backed up to this account whose images aren't on this device yet
+     *  and are awaiting a download decision. Non-zero only just after a
+     *  fresh-device restore; drives the "download your proofs?" prompt. */
+    val pendingProofDownloadCount: Int = 0,
+    /** True while a "Download now" pass is running, so the prompt can show a
+     *  busy state instead of letting the user tap repeatedly. */
+    val downloadingProofs: Boolean = false,
 )
 
 /**
@@ -47,6 +55,7 @@ data class DashboardUiState(
 class DashboardViewModel @Inject constructor(
     private val businessRepository: BusinessRepository,
     private val transactionRepository: TransactionRepository,
+    private val categoryRepository: CategoryRepository,
     private val counterpartyRepository: CounterpartyRepository,
     private val profileRepository: ProfileRepository,
     private val authRepository: AuthRepository,
@@ -65,9 +74,15 @@ class DashboardViewModel @Inject constructor(
             viewModelScope.launch {
                 _state.update { it.copy(syncing = true) }
                 try {
+                    categoryRepository.syncPending(businessId)
                     counterpartyRepository.syncPendingUploads(businessId)
                     transactionRepository.syncPendingUploads(businessId)
+                    categoryRepository.refreshFromRemote(businessId)
                     transactionRepository.refreshFromRemote(businessId)
+                    // Restore proof metadata (badges + the download prompt) on
+                    // every dashboard open. Metadata only — image bytes are
+                    // pulled on the user's terms, never silently on mobile data.
+                    proofRepository.refreshFromRemote(businessId)
                 } finally {
                     _state.update { it.copy(syncing = false) }
                 }
@@ -124,14 +139,46 @@ class DashboardViewModel @Inject constructor(
                 _state.update { it.copy(syncIssueCount = count) }
             }
         }
+        viewModelScope.launch {
+            val business = businessRepository.getSelectedBusiness()
+            val businessId = business?.id ?: return@launch
+            proofRepository.observePendingDownloadCount(businessId).collect { count ->
+                _state.update { it.copy(pendingProofDownloadCount = count) }
+            }
+        }
+    }
+
+    /** "Download now": pull every not-yet-downloaded proof onto this device,
+     *  regardless of network. The pending count falls to zero as rows download,
+     *  which dismisses the prompt. */
+    fun downloadProofsNow() {
+        val businessId = _state.value.business?.id ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(downloadingProofs = true) }
+            try {
+                proofRepository.downloadAllProofsNow(businessId)
+            } finally {
+                _state.update { it.copy(downloadingProofs = false) }
+            }
+        }
+    }
+
+    /** "Wait for Wi-Fi": defer proof downloads to a WiFi-only background pass.
+     *  Pending rows leave the awaiting-decision state, so the prompt clears. */
+    fun waitForWifiProofDownload() {
+        val businessId = _state.value.business?.id ?: return
+        viewModelScope.launch {
+            proofRepository.scheduleProofDownloadsOnWifi(businessId)
+        }
     }
 
     fun signOut() {
         viewModelScope.launch {
             // Intentionally do NOT wipe local caches here. Two reasons:
             //   1. Sign-out + sign-back-in by the SAME user is the common case;
-            //      wiping forces a full re-fetch and (worse) permanently
-            //      destroys proof files we have no way to re-download.
+            //      wiping forces a full re-fetch (and a re-download of every
+            //      proof, even though restore now makes that possible) for no
+            //      benefit.
             //   2. Sign-in by a DIFFERENT user on this device is handled by
             //      StartupViewModel's user-mismatch detector, which wipes
             //      everything (including cascading proof cleanup) at that

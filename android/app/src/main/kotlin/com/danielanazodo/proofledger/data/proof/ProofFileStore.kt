@@ -26,6 +26,16 @@ interface ProofFileStore {
     fun prepare(uri: Uri, id: String = UUID.randomUUID().toString()): PreparedProofFile
     fun deleteForId(id: String)
     fun sha256(uri: Uri): String
+
+    /**
+     * Write already-downloaded proof bytes to internal storage under [id] and
+     * return the absolute path of the original file (what the viewer renders).
+     *
+     * Used by proof restore: the bytes come from the server, not a content://
+     * Uri, so this deliberately skips the EXIF-strip / re-compress pipeline in
+     * [prepare] — the server already holds the canonical processed image.
+     */
+    fun writeDownloaded(id: String, bytes: ByteArray, mimeType: String): String
 }
 
 @Singleton
@@ -80,6 +90,19 @@ class AndroidProofFileStore @Inject constructor(
             height = bounds.outHeight.takeIf { it > 0 },
             imageSha256 = sha256(originalFile),
         )
+    }
+
+    override fun writeDownloaded(id: String, bytes: ByteArray, mimeType: String): String {
+        val originalDir = File(context.filesDir, "proofs/originals").apply { mkdirs() }
+        val extension = ProofMimeTypes.extensionFor(mimeType.ifBlank { "image/jpeg" })
+        val originalFile = File(originalDir, "$id$extension")
+        try {
+            originalFile.outputStream().use { output -> output.write(bytes) }
+        } catch (t: Throwable) {
+            originalFile.delete()
+            throw t
+        }
+        return originalFile.absolutePath
     }
 
     override fun deleteForId(id: String) {

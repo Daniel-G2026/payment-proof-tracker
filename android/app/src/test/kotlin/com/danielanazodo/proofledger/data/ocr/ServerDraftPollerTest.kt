@@ -4,6 +4,9 @@ import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.HealthResponse
 import com.danielanazodo.proofledger.data.remote.dto.BusinessCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.BusinessDto
+import com.danielanazodo.proofledger.data.remote.dto.CategoryCreateDto
+import com.danielanazodo.proofledger.data.remote.dto.CategoryDto
+import com.danielanazodo.proofledger.data.remote.dto.CategoryUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartySummaryDto
@@ -25,6 +28,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -178,6 +182,16 @@ class ServerDraftPollerTest {
         override suspend fun listBusinesses(): List<BusinessDto> = emptyList()
         override suspend fun createBusiness(body: BusinessCreateDto): BusinessDto = error("not used")
         override suspend fun getBusiness(id: String): BusinessDto = error("not used")
+        override suspend fun listCategories(
+            businessId: String, search: String?
+        ): List<CategoryDto> = emptyList()
+        override suspend fun createCategory(
+            businessId: String, body: CategoryCreateDto
+        ): CategoryDto = error("not used")
+        override suspend fun updateCategory(
+            businessId: String, categoryId: String, body: CategoryUpdateDto
+        ): CategoryDto = error("not used")
+        override suspend fun deleteCategory(businessId: String, categoryId: String) {}
         override suspend fun listCounterparties(
             businessId: String, search: String?, type: String?
         ): List<CounterpartyDto> = emptyList()
@@ -233,6 +247,12 @@ class ServerDraftPollerTest {
             startDate: String,
             endDate: String,
         ): okhttp3.ResponseBody = error("not used")
+        override suspend fun listScreenshots(
+            businessId: String,
+            limit: Int,
+            offset: Int,
+        ): List<ScreenshotDto> = emptyList()
+        override suspend fun downloadProofBytes(url: String): ResponseBody = error("not used")
         override suspend fun getScreenshotSignedUrl(
             screenshotId: String
         ): SignedScreenshotUrlDto = error("not used")

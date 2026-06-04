@@ -6,9 +6,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import java.util.UUID
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
+import com.danielanazodo.proofledger.data.local.entity.LocalCategoryEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalScreenshotEntity
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
+import com.danielanazodo.proofledger.data.repository.CategoryRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import com.danielanazodo.proofledger.data.ocr.DraftState
@@ -52,6 +54,10 @@ data class TransactionFormUiState(
     val newCounterpartyType: String = defaultCounterpartyType(direction),
     val counterpartyName: String = "",
     val category: String = "",
+    /** Synced category picker options for this business (non-deleted,
+     *  non-archived). Drives the quick-pick chips; the chosen name is still
+     *  stored on the transaction as the [category] string snapshot. */
+    val categories: List<LocalCategoryEntity> = emptyList(),
     val note: String = "",
     val bankName: String = "",
     val referenceNumber: String = "",
@@ -106,6 +112,7 @@ class TransactionFormViewModel @Inject constructor(
     private val businessRepository: BusinessRepository,
     private val transactionRepository: TransactionRepository,
     private val counterpartyRepository: CounterpartyRepository,
+    private val categoryRepository: CategoryRepository,
     private val proofRepository: ProofRepository,
     private val sharedProofIntakeRepository: SharedProofIntakeRepository,
     private val ocrService: OcrService,
@@ -135,7 +142,13 @@ class TransactionFormViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            businessId = businessRepository.getSelectedBusinessId()
+            val id = businessRepository.getSelectedBusinessId()
+            businessId = id
+            if (id != null) {
+                categoryRepository.observeByBusiness(id).collect { rows ->
+                    _state.update { it.copy(categories = rows) }
+                }
+            }
         }
         initialIntakeToken?.let { token ->
             val item = sharedProofIntakeRepository.get(token)
@@ -286,6 +299,28 @@ class TransactionFormViewModel @Inject constructor(
         it.copy(newCounterpartyType = value, saved = false)
     }
     fun onCategoryChange(value: String) = _state.update { it.copy(category = value, saved = false) }
+
+    /** Quick-pick an existing category chip. Writes the canonical name into the
+     *  [TransactionFormUiState.category] string snapshot. */
+    fun onCategorySelect(name: String) = _state.update { it.copy(category = name, saved = false) }
+
+    /** Add a category the business hasn't used before. Creates it via the
+     *  repository (so it syncs and is offered next time) and selects it. If a
+     *  category with the same normalized name already exists, just select it
+     *  rather than creating a duplicate. */
+    fun onAddCategory(name: String) {
+        val cleaned = name.clean() ?: return
+        _state.update { it.copy(category = cleaned, saved = false) }
+        viewModelScope.launch {
+            val id = businessId ?: businessRepository.getSelectedBusinessId() ?: return@launch
+            businessId = id
+            val normalized = cleaned.normalizedName()
+            val existing = _state.value.categories.firstOrNull { it.normalizedName == normalized }
+            if (existing == null) {
+                categoryRepository.createCategory(id, cleaned)
+            }
+        }
+    }
     fun onNoteChange(value: String) = _state.update { it.copy(note = value, saved = false) }
     fun onBankNameChange(value: String) = _state.update {
         it.copy(bankName = value, saved = false, ocrFilledFields = it.ocrFilledFields - FIELD_BANK)
@@ -633,6 +668,10 @@ class TransactionFormViewModel @Inject constructor(
     }
 
     private fun String.clean(): String? = trim().ifBlank { null }
+
+    /** Mirrors the backend / CategoryRepository normalization so chip-match and
+     *  add-vs-select decisions agree across the stack. */
+    private fun String.normalizedName(): String = trim().lowercase().replace(Regex("\\s+"), " ")
 
     private fun TransactionFormUiState.hasResolvedCounterparty(): Boolean {
         val hasTypedName = counterpartyQuery.clean() != null

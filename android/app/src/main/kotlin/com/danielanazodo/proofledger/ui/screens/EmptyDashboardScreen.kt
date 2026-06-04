@@ -61,6 +61,7 @@ fun EmptyDashboardScreen(
     onAddMoneyOut: () -> Unit,
     onViewTransactions: () -> Unit,
     onViewCounterparties: () -> Unit,
+    onManageCategories: () -> Unit,
     onViewProofBackup: () -> Unit,
     onViewReports: () -> Unit,
     onViewSyncIssues: () -> Unit,
@@ -73,9 +74,13 @@ fun EmptyDashboardScreen(
     val addMoneyIn = rememberDebouncedClick(onClick = onAddMoneyIn)
     val viewRecords = rememberDebouncedClick(onClick = onViewTransactions)
     val viewReports = rememberDebouncedClick(onClick = onViewReports)
+    val manageCategories = rememberDebouncedClick(onClick = onManageCategories)
     val viewSyncIssues = rememberDebouncedClick(onClick = onViewSyncIssues)
     val transactionClick = rememberDebouncedClick(onClick = onTransactionClick)
     val signOut = rememberDebouncedClick(onClick = viewModel::signOut)
+    val downloadProofsNow = rememberDebouncedClick(onClick = viewModel::downloadProofsNow)
+    val waitForWifiProofDownload =
+        rememberDebouncedClick(onClick = viewModel::waitForWifiProofDownload)
 
     LaunchedEffect(state.signedOut) { if (state.signedOut) onSignedOut() }
 
@@ -203,6 +208,52 @@ fun EmptyDashboardScreen(
                 }
             }
 
+            if (state.pendingProofDownloadCount > 0) {
+                item {
+                    GroupedPanel {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                "Proof not on this phone",
+                                color = NeutralInk,
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Text(
+                                "${formatCompactCount(state.pendingProofDownloadCount)} proof" +
+                                    "${if (state.pendingProofDownloadCount == 1) "" else "s"} " +
+                                    "backed up to your account ${if (state.pendingProofDownloadCount == 1) "is" else "are"} " +
+                                    "not on this phone yet.",
+                                color = NeutralMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                TextButton(
+                                    onClick = downloadProofsNow,
+                                    enabled = !state.downloadingProofs,
+                                ) {
+                                    Text(
+                                        if (state.downloadingProofs) "Downloading…" else "Download now",
+                                        color = NeutralInk,
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                }
+                                TextButton(
+                                    onClick = waitForWifiProofDownload,
+                                    enabled = !state.downloadingProofs,
+                                ) {
+                                    Text("Wait for Wi-Fi", color = NeutralMuted)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             item { SectionLabel("Recent records") }
             if (state.recentTransactions.isEmpty()) {
                 item {
@@ -241,6 +292,14 @@ fun EmptyDashboardScreen(
                     }
                     TextButton(onClick = viewReports) {
                         Text("Reports & export", color = NeutralInk, fontWeight = FontWeight.Medium)
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Start,
+                ) {
+                    TextButton(onClick = manageCategories) {
+                        Text("Manage categories", color = NeutralMuted, fontWeight = FontWeight.Medium)
                     }
                 }
                 Spacer(Modifier.height(8.dp))

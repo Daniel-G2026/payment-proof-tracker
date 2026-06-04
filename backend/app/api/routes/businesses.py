@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_db
-from app.db.models import Business, BusinessMember
+from app.db.models import Business, BusinessMember, Category
+from app.db.models.category import default_category_seed
 from app.schemas.business import BusinessCreate, BusinessOut, BusinessUpdate
 
 router = APIRouter(prefix="/businesses", tags=["businesses"])
@@ -82,6 +83,10 @@ def create_business(
     )
     db.add(business)
     db.add(membership)
+    # Seed the construction default categories so the picker is never empty.
+    # Stable per-business UUIDs keep this idempotent under retries.
+    for row in default_category_seed(business.id):
+        db.add(Category(**row))
     db.commit()
     db.refresh(business)
     return BusinessOut.model_validate(business)
