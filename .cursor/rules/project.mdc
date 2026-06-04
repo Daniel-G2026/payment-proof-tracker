@@ -1,0 +1,52 @@
+---
+description: Core working rules for the payment-proof-tracker repo (defers to CLAUDE.md)
+globs:
+alwaysApply: true
+---
+
+# Project rules
+
+`CLAUDE.md` at the repo root is the source of truth for product scope,
+architecture, and current phase. Read it and follow it. The rules below are the
+load-bearing points restated so they are never skipped — if anything here
+conflicts with `CLAUDE.md`, `CLAUDE.md` wins.
+
+## Product
+Android-native, offline-first **payment proof tracker**. v1 is being built
+**niche-first for the construction market** (the founder's mother's construction
+business is the reason it exists). Keep the construction-ness in seed data and
+language; keep the storage schema generic so going general later is a content
+change, not a migration. NOT full accounting software — no tax, payroll, bank
+integration, invoicing, or WhatsApp bot in v1. Use plain language: money in,
+money out, proof, who paid, who you paid.
+
+## Build discipline
+- Build **one phase at a time**. Do **not** implement future-phase features early.
+- Before coding, inspect the repo and propose which files will change.
+- After coding, run the relevant build/tests:
+  `:app:testDebugUnitTest` and `:app:assembleDebug` for Android.
+- Keep architecture clean and modular.
+
+## Git workflow
+- **Never commit directly to `main`.** Branch-and-PR only.
+- Each phase (or cut of a phase) gets its own feature branch off `main`.
+- Logically scoped commits with descriptive what + why messages.
+- Open a PR into `main`; merge after review/CI.
+- Only commit/push when explicitly asked.
+
+## Architecture boundaries (keep infra separate from UI)
+- Compose screens must **not** call Room DAOs, Retrofit/API services,
+  WorkManager, file storage, or token storage directly.
+- Screens read ViewModel state and send simple user events.
+- ViewModels coordinate screen behavior, validation, and repository calls;
+  heavy data/sync/backup/auth/file logic lives in repositories/services.
+- Infrastructure classes must not depend on Compose or screen layout.
+- If UI state gets complex, add dedicated UI state models — don't bend database
+  entities around presentation.
+
+## Proof & trust
+- Payment screenshots are preserved as proof; OCR/AI creates **drafts only**, and
+  user confirmation is required before final transaction creation.
+- Prefer blank fields over wrong pre-fills — a wrong auto-fill costs more trust
+  than an empty one.
+- Failures should be visible, not silent.
