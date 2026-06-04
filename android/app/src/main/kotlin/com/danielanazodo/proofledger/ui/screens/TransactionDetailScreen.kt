@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -142,7 +143,7 @@ private fun TransactionDetailContent(
     PrimaryActionButton("Edit record", onClick = edit, icon = Icons.Filled.Edit)
     QuietButton("Delete record", onClick = delete, contentColor = MoneyOutRed, icon = Icons.Filled.Delete)
 
-    if (fullProofOpen && proof != null) {
+    if (fullProofOpen && proof != null && proof.localOriginalPath.isNotBlank()) {
         Dialog(onDismissRequest = { fullProofOpen = false }) {
             Card {
                 AsyncImage(
@@ -165,28 +166,65 @@ private fun ProofCard(
     val open = rememberDebouncedClick(onClick = onOpen)
     val toggleImportant = rememberDebouncedClick { onImportantChange(!proof.isImportant) }
     val backUp = rememberDebouncedClick(onClick = onBackUpProof)
+    // A restored proof whose bytes aren't on this device yet has no local file.
+    // Show a download placeholder instead of a broken image; the same backup
+    // button doubles as "Download proof" because upload() routes a
+    // download-pending row to the download path.
+    val isOnDevice = proof.localOriginalPath.isNotBlank()
     GroupedPanel {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            AsyncImage(
-                model = File(proof.localOriginalPath),
-                contentDescription = "Payment proof preview",
-                modifier = Modifier.fillMaxWidth().height(190.dp).clickable(onClick = open),
-            )
+            if (isOnDevice) {
+                AsyncImage(
+                    model = File(proof.localOriginalPath),
+                    contentDescription = "Payment proof preview",
+                    modifier = Modifier.fillMaxWidth().height(190.dp).clickable(onClick = open),
+                )
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        "Proof saved to your account",
+                        color = NeutralInk,
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        "Not on this phone yet. Download it to view.",
+                        color = NeutralMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
             DetailLine("Backup", proof.backupStatus.userLabel())
             proof.lastBackupError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            if (isOnDevice) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    QuietButton(
+                        text = if (proof.isImportant) "Unmark important" else "Mark important",
+                        onClick = toggleImportant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    QuietButton(
+                        text = "Back up proof",
+                        onClick = backUp,
+                        enabled = proof.backupStatus != ProofBackupStatus.BACKED_UP &&
+                            proof.backupStatus != ProofBackupStatus.BACKING_UP,
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Filled.CloudUpload,
+                    )
+                }
+            } else {
                 QuietButton(
-                    text = if (proof.isImportant) "Unmark important" else "Mark important",
-                    onClick = toggleImportant,
-                    modifier = Modifier.weight(1f),
-                )
-                QuietButton(
-                    text = "Back up proof",
+                    text = if (proof.backupStatus == ProofBackupStatus.DOWNLOADING) {
+                        "Downloading…"
+                    } else {
+                        "Download proof"
+                    },
                     onClick = backUp,
-                    enabled = proof.backupStatus != ProofBackupStatus.BACKED_UP &&
-                        proof.backupStatus != ProofBackupStatus.BACKING_UP,
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Filled.CloudUpload,
+                    enabled = proof.backupStatus != ProofBackupStatus.DOWNLOADING,
+                    modifier = Modifier.fillMaxWidth(),
+                    icon = Icons.Filled.CloudDownload,
                 )
             }
         }
