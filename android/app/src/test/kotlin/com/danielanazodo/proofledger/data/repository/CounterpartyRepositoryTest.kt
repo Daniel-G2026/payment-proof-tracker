@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -335,6 +336,12 @@ class CounterpartyRepositoryTest {
             file: MultipartBody.Part,
         ): ScreenshotDto = error("not used")
         override suspend fun deleteScreenshot(screenshotId: String) {}
+        override suspend fun listScreenshots(
+            businessId: String,
+            limit: Int,
+            offset: Int,
+        ): List<ScreenshotDto> = emptyList()
+        override suspend fun downloadProofBytes(url: String): ResponseBody = error("not used")
         override suspend fun getScreenshotSignedUrl(screenshotId: String): SignedScreenshotUrlDto =
             error("not used")
         override suspend fun getScreenshotDraft(screenshotId: String): TransactionDraftDto =

@@ -160,5 +160,11 @@ class SyncIssueRepository @Inject constructor(
             ProofBackupStatus.SAVED_ON_PHONE_ONLY,
             ProofBackupStatus.BACKING_UP,
             ProofBackupStatus.BACKED_UP -> "Synced"
+            // Restore states don't flow into the issues list (the attention
+            // query excludes them), but the label must stay exhaustive.
+            ProofBackupStatus.DOWNLOAD_FAILED -> "Sync issue"
+            ProofBackupStatus.PENDING_DOWNLOAD,
+            ProofBackupStatus.WAITING_FOR_WIFI_DOWNLOAD,
+            ProofBackupStatus.DOWNLOADING -> "Waiting to sync"
         }
 }

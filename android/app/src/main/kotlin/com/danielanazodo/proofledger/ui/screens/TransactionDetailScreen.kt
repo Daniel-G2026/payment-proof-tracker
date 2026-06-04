@@ -201,4 +201,8 @@ private fun ProofBackupStatus.userLabel(): String = when (this) {
     ProofBackupStatus.BACKED_UP -> "Backed up"
     ProofBackupStatus.BACKUP_FAILED -> "Backup issue"
     ProofBackupStatus.PENDING_REMOTE_DELETE -> "Removing proof"
+    ProofBackupStatus.PENDING_DOWNLOAD -> "Not on this device"
+    ProofBackupStatus.WAITING_FOR_WIFI_DOWNLOAD -> "Will download on Wi-Fi"
+    ProofBackupStatus.DOWNLOADING -> "Downloading"
+    ProofBackupStatus.DOWNLOAD_FAILED -> "Download issue"
 }

@@ -114,6 +114,37 @@ interface LocalScreenshotDao {
         maxAmountMinor: Long?,
     ): List<LocalScreenshotEntity>
 
+    /** Restored proofs whose bytes are not on this device yet. Covers every
+     *  download-pending state (awaiting a user decision, waiting for WiFi, or
+     *  a failed attempt to retry) so a single "download all" pass picks them
+     *  all up. */
+    @Query(
+        """
+        SELECT * FROM local_screenshot
+        WHERE businessId = :businessId
+          AND backupStatus IN (
+            'PENDING_DOWNLOAD',
+            'WAITING_FOR_WIFI_DOWNLOAD',
+            'DOWNLOAD_FAILED'
+          )
+        ORDER BY createdAt DESC
+        """
+    )
+    suspend fun findNeedingDownload(businessId: String): List<LocalScreenshotEntity>
+
+    /** Count of proofs still awaiting a download *decision* (not those already
+     *  queued for WiFi). Drives the one-time "download your proofs?" prompt —
+     *  zero on a normal device, non-zero only right after a fresh-device
+     *  restore. */
+    @Query(
+        """
+        SELECT COUNT(*) FROM local_screenshot
+        WHERE businessId = :businessId
+          AND backupStatus = 'PENDING_DOWNLOAD'
+        """
+    )
+    fun observePendingDownloadCount(businessId: String): Flow<Int>
+
     @Query("DELETE FROM local_screenshot WHERE id = :id")
     suspend fun deleteById(id: String)
 

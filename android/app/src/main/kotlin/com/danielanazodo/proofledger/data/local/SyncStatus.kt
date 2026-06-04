@@ -41,6 +41,23 @@ enum class ProofBackupStatus {
     BACKED_UP,
     BACKUP_FAILED,
     PENDING_REMOTE_DELETE,
+
+    // Restore (download) states — the mirror image of the backup states, used
+    // when pulling proof bytes back down onto a fresh device. Metadata is
+    // restored first so the ledger shows "proof attached" immediately; the
+    // bytes follow, so we never block the ledger on a large download.
+    //
+    //   PENDING_DOWNLOAD          metadata restored, bytes not here yet, and
+    //                             the user hasn't chosen now-vs-WiFi. Drives
+    //                             the dashboard "download your proofs?" prompt.
+    //   WAITING_FOR_WIFI_DOWNLOAD user chose to wait for WiFi; a WiFi-only
+    //                             worker will pull the bytes when unmetered.
+    //   DOWNLOADING               a download is in flight.
+    //   DOWNLOAD_FAILED           the last download attempt failed; retryable.
+    PENDING_DOWNLOAD,
+    WAITING_FOR_WIFI_DOWNLOAD,
+    DOWNLOADING,
+    DOWNLOAD_FAILED,
 }
 
 class ProofStatusConverter {
