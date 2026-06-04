@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from app.api.routes import (
     businesses,
+    categories,
     counterparties,
     health,
     profiles,
@@ -56,6 +57,7 @@ app = FastAPI(
 app.include_router(health.router)
 app.include_router(profiles.router)
 app.include_router(businesses.router)
+app.include_router(categories.router)
 app.include_router(counterparties.router)
 app.include_router(transactions.router)
 app.include_router(screenshots.router)

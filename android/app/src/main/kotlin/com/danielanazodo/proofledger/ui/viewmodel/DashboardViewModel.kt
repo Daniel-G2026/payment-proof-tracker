@@ -6,6 +6,7 @@ import com.danielanazodo.proofledger.data.local.entity.LocalBusinessEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
 import com.danielanazodo.proofledger.data.repository.AuthRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
+import com.danielanazodo.proofledger.data.repository.CategoryRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.ProfileRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
@@ -54,6 +55,7 @@ data class DashboardUiState(
 class DashboardViewModel @Inject constructor(
     private val businessRepository: BusinessRepository,
     private val transactionRepository: TransactionRepository,
+    private val categoryRepository: CategoryRepository,
     private val counterpartyRepository: CounterpartyRepository,
     private val profileRepository: ProfileRepository,
     private val authRepository: AuthRepository,
@@ -72,8 +74,10 @@ class DashboardViewModel @Inject constructor(
             viewModelScope.launch {
                 _state.update { it.copy(syncing = true) }
                 try {
+                    categoryRepository.syncPending(businessId)
                     counterpartyRepository.syncPendingUploads(businessId)
                     transactionRepository.syncPendingUploads(businessId)
+                    categoryRepository.refreshFromRemote(businessId)
                     transactionRepository.refreshFromRemote(businessId)
                     // Restore proof metadata (badges + the download prompt) on
                     // every dashboard open. Metadata only — image bytes are

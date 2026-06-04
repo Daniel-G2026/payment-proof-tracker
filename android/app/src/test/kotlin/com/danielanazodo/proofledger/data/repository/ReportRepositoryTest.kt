@@ -51,6 +51,25 @@ class ReportRepositoryTest {
     }
 
     @Test
+    fun `summarize groups top categories by normalized name with a canonical label`() {
+        val transactions = listOf(
+            tx(date = "2026-06-02", direction = "money_out", amountMinor = 10_00, name = "a", category = "Transport"),
+            tx(date = "2026-06-03", direction = "money_out", amountMinor = 20_00, name = "b", category = "transport"),
+            tx(date = "2026-06-04", direction = "money_out", amountMinor = 30_00, name = "c", category = " Transport "),
+            tx(date = "2026-06-05", direction = "money_out", amountMinor = 5_00, name = "d", category = "Materials"),
+        )
+
+        val top = repository.summarize(transactions, june).topCategories
+
+        // The three Transport variants collapse into one bucket.
+        assertEquals(2, top.size)
+        val transport = top.first()
+        // Most common original spelling wins the label (Transport x2 vs transport x1).
+        assertEquals("Transport", transport.name)
+        assertEquals(60_00, transport.totalMinor)
+    }
+
+    @Test
     fun `buildCsv emits a header and one row per in-period record oldest first`() {
         val transactions = listOf(
             tx(date = "2026-06-20", direction = "money_out", amountMinor = 250_00, name = "Musa"),

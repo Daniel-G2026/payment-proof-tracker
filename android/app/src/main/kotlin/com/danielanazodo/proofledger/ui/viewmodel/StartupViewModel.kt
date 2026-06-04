@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.danielanazodo.proofledger.data.repository.AuthRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
+import com.danielanazodo.proofledger.data.repository.CategoryRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.ProfileRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
@@ -37,6 +38,7 @@ class StartupViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
     private val businessRepository: BusinessRepository,
+    private val categoryRepository: CategoryRepository,
     private val counterpartyRepository: CounterpartyRepository,
     private val transactionRepository: TransactionRepository,
 ) : ViewModel() {
@@ -80,6 +82,7 @@ class StartupViewModel @Inject constructor(
             // showing the old user's rows.
             transactionRepository.clearLocal()
             counterpartyRepository.clearLocal()
+            categoryRepository.clearLocal()
             businessRepository.clearAllLocal()
             profileRepository.clearLocal()
         }

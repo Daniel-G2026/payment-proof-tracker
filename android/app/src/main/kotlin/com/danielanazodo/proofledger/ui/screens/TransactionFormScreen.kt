@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -119,6 +120,8 @@ fun TransactionFormScreen(
     }
     val selectCounterparty = rememberDebouncedClick(onClick = viewModel::onCounterpartySelect)
     val addNewCounterparty = rememberDebouncedClick(onClick = viewModel::onAddNewCounterparty)
+    val selectCategory = rememberDebouncedClick(onClick = viewModel::onCategorySelect)
+    val addCategory = rememberDebouncedClick(onClick = viewModel::onAddCategory)
     val openFullProof = rememberDebouncedClick { fullProofOpen = true }
     val removeProof = rememberDebouncedClick(onClick = viewModel::onProofRemoved)
     val save = rememberDebouncedClick(onClick = viewModel::save)
@@ -255,6 +258,10 @@ fun TransactionFormScreen(
                     includeAll = false,
                 )
             }
+            // Category picker: tap a chip for a seeded/known category, or type
+            // a new one and tap "Add". The chosen name is stored on the
+            // transaction as a plain string; the chips just stop the field
+            // from being an unhelpful blank box and keep report grouping tidy.
             ProofLedgerTextField(
                 value = state.category,
                 onValueChange = viewModel::onCategoryChange,
@@ -262,6 +269,33 @@ fun TransactionFormScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+            Text(
+                "Tap a category, or type your own and tap Add.",
+                style = MaterialTheme.typography.bodySmall,
+                color = NeutralMuted,
+            )
+            val normalizedCategory = state.category.trim().lowercase().replace(Regex("\\s+"), " ")
+            if (state.categories.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    state.categories.forEach { category ->
+                        ProofLedgerFilterChip(
+                            selected = category.normalizedName == normalizedCategory,
+                            onClick = { selectCategory(category.name) },
+                            label = category.name,
+                        )
+                    }
+                }
+            }
+            val categoryExactMatch = state.categories.any { it.normalizedName == normalizedCategory }
+            if (normalizedCategory.isNotBlank() && !categoryExactMatch) {
+                AssistChip(
+                    onClick = { addCategory(state.category) },
+                    label = { Text("Add \"${state.category.trim()}\"") },
+                )
+            }
             ProofLedgerTextField(
                 value = state.bankName,
                 onValueChange = viewModel::onBankNameChange,

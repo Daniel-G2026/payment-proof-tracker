@@ -2,6 +2,9 @@ package com.danielanazodo.proofledger.data.remote
 
 import com.danielanazodo.proofledger.data.remote.dto.BusinessCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.BusinessDto
+import com.danielanazodo.proofledger.data.remote.dto.CategoryCreateDto
+import com.danielanazodo.proofledger.data.remote.dto.CategoryDto
+import com.danielanazodo.proofledger.data.remote.dto.CategoryUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartySummaryDto
@@ -90,6 +93,31 @@ interface ApiService {
         @Path("businessId") businessId: String,
         @Path("counterpartyId") counterpartyId: String,
     ): CounterpartySummaryDto
+
+    @GET("businesses/{businessId}/categories")
+    suspend fun listCategories(
+        @Path("businessId") businessId: String,
+        @Query("search") search: String? = null,
+    ): List<CategoryDto>
+
+    @POST("businesses/{businessId}/categories")
+    suspend fun createCategory(
+        @Path("businessId") businessId: String,
+        @Body body: CategoryCreateDto,
+    ): CategoryDto
+
+    @PATCH("businesses/{businessId}/categories/{categoryId}")
+    suspend fun updateCategory(
+        @Path("businessId") businessId: String,
+        @Path("categoryId") categoryId: String,
+        @Body body: CategoryUpdateDto,
+    ): CategoryDto
+
+    @DELETE("businesses/{businessId}/categories/{categoryId}")
+    suspend fun deleteCategory(
+        @Path("businessId") businessId: String,
+        @Path("categoryId") categoryId: String,
+    )
 
     @GET("businesses/{businessId}/transactions")
     suspend fun listTransactions(
