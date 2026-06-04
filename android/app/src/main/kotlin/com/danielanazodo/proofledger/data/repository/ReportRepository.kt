@@ -3,6 +3,7 @@ package com.danielanazodo.proofledger.data.repository
 import android.net.Uri
 import com.danielanazodo.proofledger.data.export.ExportFileWriter
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
+import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.ui.format.ReportPeriod
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -30,12 +31,15 @@ data class ReportSummary(
  * Owns reporting math and export-file generation. Aggregation is pure and
  * synchronous (operates on an already-loaded transaction list) so it's trivial
  * to unit-test without Room; only the file write touches IO and is pushed onto
- * [Dispatchers.IO]. No network — summaries and CSV are fully offline, computed
- * from local records, honoring offline-first.
+ * [Dispatchers.IO]. Summaries and CSV are fully offline, computed from local
+ * records, honoring offline-first. Only the PDF export ([exportPdf]) hits the
+ * network — the server renders it — so it is online-only by design; the caller
+ * surfaces a friendly message when offline.
  */
 @Singleton
 class ReportRepository @Inject constructor(
     private val exportFileWriter: ExportFileWriter,
+    private val api: ApiService,
 ) {
     fun summarize(
         transactions: List<LocalTransactionEntity>,
@@ -96,6 +100,21 @@ class ReportRepository @Inject constructor(
     ): Uri = withContext(Dispatchers.IO) {
         val content = buildCsv(transactions, period)
         exportFileWriter.writeText(csvFileName(period), content)
+    }
+
+    /**
+     * Fetch the server-rendered PDF for [period] and hand back a shareable URI.
+     * Online-only — the backend does the rendering. Network/IO run off the main
+     * thread; failures propagate to the caller, which shows a friendly message
+     * rather than crashing (CSV stays available offline regardless).
+     */
+    suspend fun exportPdf(
+        businessId: String,
+        period: ReportPeriod,
+    ): Uri = withContext(Dispatchers.IO) {
+        val body = api.exportPdf(businessId, period.startIso, period.endIso)
+        val bytes = body.use { it.bytes() }
+        exportFileWriter.writeBytes(pdfFileName(period), bytes)
     }
 
     private fun topBy(
@@ -160,6 +179,9 @@ class ReportRepository @Inject constructor(
 
         fun csvFileName(period: ReportPeriod): String =
             "proofledger-${period.startIso}-to-${period.endIso}.csv"
+
+        fun pdfFileName(period: ReportPeriod): String =
+            "proofledger-${period.startIso}-to-${period.endIso}.pdf"
 
         // Characters that make a spreadsheet treat a cell as a formula.
         private val CSV_FORMULA_TRIGGERS = setOf('=', '+', '-', '@', '\t', '\r')

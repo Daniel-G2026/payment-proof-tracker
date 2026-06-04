@@ -353,6 +353,11 @@ class CounterpartyRepositoryTest {
             file: MultipartBody.Part,
         ): ScreenshotDto = error("not used")
         override suspend fun deleteScreenshot(screenshotId: String) {}
+        override suspend fun exportPdf(
+            businessId: String,
+            startDate: String,
+            endDate: String,
+        ): okhttp3.ResponseBody = error("not used")
         override suspend fun listScreenshots(
             businessId: String,
             limit: Int,

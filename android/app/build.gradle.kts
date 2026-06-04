@@ -160,6 +160,7 @@ dependencies {
     implementation(libs.mlkit.text.recognition)
 
     testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
 
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.core)

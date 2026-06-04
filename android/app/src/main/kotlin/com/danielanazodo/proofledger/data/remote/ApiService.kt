@@ -204,6 +204,20 @@ interface ApiService {
     )
 
     /**
+     * Phase 11 — server-generated PDF statement for an inclusive date range.
+     * Online-only: the caller surfaces a friendly message on network failure
+     * and never blocks the (offline) CSV path. @Streaming so the raw bytes
+     * aren't fully buffered into a String by Retrofit's default converter.
+     */
+    @Streaming
+    @GET("businesses/{businessId}/export.pdf")
+    suspend fun exportPdf(
+        @Path("businessId") businessId: String,
+        @Query("start_date") startDate: String,
+        @Query("end_date") endDate: String,
+    ): ResponseBody
+
+    /**
      * Proof restore — list a business's screenshots so a fresh device can
      * rebuild the proof metadata. Paginated (server caps the page size); the
      * caller walks offsets until a short page. Soft-deleted rows are excluded

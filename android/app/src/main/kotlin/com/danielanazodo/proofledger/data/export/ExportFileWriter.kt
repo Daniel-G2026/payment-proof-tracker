@@ -16,6 +16,9 @@ import javax.inject.Singleton
  */
 interface ExportFileWriter {
     fun writeText(fileName: String, content: String): Uri
+
+    /** Write raw bytes (e.g. a server-generated PDF) and return a shareable URI. */
+    fun writeBytes(fileName: String, bytes: ByteArray): Uri
 }
 
 /**
@@ -27,7 +30,13 @@ interface ExportFileWriter {
 class AndroidExportFileWriter @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : ExportFileWriter {
-    override fun writeText(fileName: String, content: String): Uri {
+    override fun writeText(fileName: String, content: String): Uri =
+        writeFile(fileName) { it.writeText(content, Charsets.UTF_8) }
+
+    override fun writeBytes(fileName: String, bytes: ByteArray): Uri =
+        writeFile(fileName) { it.writeBytes(bytes) }
+
+    private inline fun writeFile(fileName: String, write: (File) -> Unit): Uri {
         val dir = File(context.cacheDir, EXPORT_DIR).apply { mkdirs() }
         // Best-effort prune of stale exports so the cache dir doesn't grow
         // unbounded across many shares. The current file is rewritten below.
@@ -35,7 +44,7 @@ class AndroidExportFileWriter @Inject constructor(
             if (existing.name != fileName) existing.delete()
         }
         val file = File(dir, fileName)
-        file.writeText(content, Charsets.UTF_8)
+        write(file)
         return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     }
 
