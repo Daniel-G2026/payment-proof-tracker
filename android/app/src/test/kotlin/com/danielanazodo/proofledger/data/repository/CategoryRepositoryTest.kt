@@ -149,6 +149,38 @@ class CategoryRepositoryTest {
         assertEquals("delete", events.rows.single().action)
     }
 
+    @Test
+    fun `deleteCategory of a never-synced row removes it locally without a backend call`() = runBlocking {
+        val dao = FakeCategoryDao()
+        val api = FakeApiService()
+        val events = FakeSyncEventDao()
+        dao.upsert(category(syncStatus = SyncStatus.PENDING_UPLOAD))
+        val repository = CategoryRepository(api, dao, SyncEventLogger(events))
+
+        repository.deleteCategory("category-1")
+
+        assertNull(dao.getByIdIncludingDeleted("category-1"))
+        assertEquals(0, api.deleteCategoryCalls)
+        assertTrue(events.rows.isEmpty())
+    }
+
+    @Test
+    fun `deleteCategory of a synced row (e g a default) soft-deletes via backend`() = runBlocking {
+        val dao = FakeCategoryDao()
+        val api = FakeApiService()
+        val events = FakeSyncEventDao()
+        dao.upsert(category(syncStatus = SyncStatus.SYNCED))
+        val repository = CategoryRepository(api, dao, SyncEventLogger(events))
+
+        repository.deleteCategory("category-1")
+
+        val updated = dao.getByIdIncludingDeleted("category-1")!!
+        assertEquals(SyncStatus.SYNCED, updated.syncStatus)
+        assertEquals(1, api.deleteCategoryCalls)
+        assertEquals("delete", events.rows.single().action)
+        assertEquals("success", events.rows.single().status)
+    }
+
     private fun http409(): HttpException =
         HttpException(Response.error<Any>(409, "".toResponseBody(null)))
 

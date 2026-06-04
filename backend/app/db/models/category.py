@@ -33,17 +33,16 @@ class Category(Base):
 # Niche-first: the categories table is generic, but the project ships with a
 # construction-business default list so the picker is never an empty box.
 # See memory `niche-first-construction` / `structured-categories-plan`.
+# Kept deliberately short: a small, broadly-applicable starter set beats a long
+# list that clutters every form. Situational categories (cement, transport,
+# fuel, rent, permits & fees, etc.) are left out on purpose — the user adds them
+# from the form when needed, and they stick for next time.
 DEFAULT_CONSTRUCTION_CATEGORIES: tuple[str, ...] = (
     "Materials",
-    "Cement",
     "Labour",
     "Wages",
     "Equipment & tools",
-    "Transport",
-    "Fuel",
-    "Rent",
     "Subcontractor",
-    "Permits & fees",
     "Client payment",
     "Miscellaneous",
 )

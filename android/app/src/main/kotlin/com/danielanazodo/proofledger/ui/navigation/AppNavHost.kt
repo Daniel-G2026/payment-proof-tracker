@@ -22,6 +22,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.danielanazodo.proofledger.ui.screens.BusinessSelectScreen
+import com.danielanazodo.proofledger.ui.screens.CategoryListScreen
 import com.danielanazodo.proofledger.ui.screens.CreateBusinessScreen
 import com.danielanazodo.proofledger.ui.screens.CounterpartyDetailScreen
 import com.danielanazodo.proofledger.ui.screens.CounterpartyFormScreen
@@ -171,6 +172,7 @@ private fun ResolvedGraph(
                 onAddMoneyOut = { navController.navigateOnce(Route.AddTransaction.path("money_out")) },
                 onViewTransactions = { navController.navigateOnce(Route.TransactionList.path) },
                 onViewCounterparties = { navController.navigateOnce(Route.CounterpartyList.path) },
+                onManageCategories = { navController.navigateOnce(Route.CategoryList.path) },
                 onViewProofBackup = { navController.navigateOnce(Route.ProofBackup.path) },
                 onViewReports = { navController.navigateOnce(Route.Summary.path) },
                 onViewSyncIssues = { navController.navigateOnce(Route.SyncIssues.path) },
@@ -257,6 +259,11 @@ private fun ResolvedGraph(
                 onBack = { navController.popBackStack() },
                 onEdit = { id -> navController.navigateOnce(Route.EditCounterparty.path(id)) },
                 onTransactionClick = { id -> navController.navigateOnce(Route.TransactionDetail.path(id)) },
+            )
+        }
+        composable(Route.CategoryList.path) {
+            CategoryListScreen(
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Route.TransactionList.path) {

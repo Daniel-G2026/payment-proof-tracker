@@ -51,7 +51,7 @@ class ReportRepository @Inject constructor(
             netMinor = moneyIn - moneyOut,
             recordCount = rows.size,
             topCounterparties = topBy(rows) { it.counterpartyName },
-            topCategories = topBy(rows) { it.category },
+            topCategories = topByNormalized(rows) { it.category },
         )
     }
 
@@ -108,6 +108,36 @@ class ReportRepository @Inject constructor(
             .map { (name, amounts) -> NamedTotal(name, amounts.sum()) }
             .sortedByDescending { it.totalMinor }
             .take(TOP_N)
+
+    /**
+     * Like [topBy] but groups by the *normalized* key (trim + lowercase +
+     * collapsed whitespace) so casing/spacing variants of the same category
+     * ("Transport" / "transport" / "Transport ") collapse into one bucket
+     * instead of fragmenting the report. The displayed label is the most common
+     * original spelling within the bucket (alphabetical tie-break).
+     */
+    private fun topByNormalized(
+        rows: List<LocalTransactionEntity>,
+        key: (LocalTransactionEntity) -> String?,
+    ): List<NamedTotal> =
+        rows
+            .mapNotNull { row ->
+                key(row)?.trim()?.takeIf { it.isNotBlank() }?.let { Triple(it.normalizedName(), it, row.amountMinor) }
+            }
+            .groupBy { it.first }
+            .map { (_, group) ->
+                val label = group
+                    .groupingBy { it.second }
+                    .eachCount()
+                    .entries
+                    .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+                    .first().key
+                NamedTotal(label, group.sumOf { it.third })
+            }
+            .sortedByDescending { it.totalMinor }
+            .take(TOP_N)
+
+    private fun String.normalizedName(): String = trim().lowercase().replace(Regex("\\s+"), " ")
 
     private companion object {
         const val DIRECTION_IN = "money_in"

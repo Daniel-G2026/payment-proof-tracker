@@ -61,6 +61,7 @@ fun EmptyDashboardScreen(
     onAddMoneyOut: () -> Unit,
     onViewTransactions: () -> Unit,
     onViewCounterparties: () -> Unit,
+    onManageCategories: () -> Unit,
     onViewProofBackup: () -> Unit,
     onViewReports: () -> Unit,
     onViewSyncIssues: () -> Unit,
@@ -73,6 +74,7 @@ fun EmptyDashboardScreen(
     val addMoneyIn = rememberDebouncedClick(onClick = onAddMoneyIn)
     val viewRecords = rememberDebouncedClick(onClick = onViewTransactions)
     val viewReports = rememberDebouncedClick(onClick = onViewReports)
+    val manageCategories = rememberDebouncedClick(onClick = onManageCategories)
     val viewSyncIssues = rememberDebouncedClick(onClick = onViewSyncIssues)
     val transactionClick = rememberDebouncedClick(onClick = onTransactionClick)
     val signOut = rememberDebouncedClick(onClick = viewModel::signOut)
@@ -290,6 +292,14 @@ fun EmptyDashboardScreen(
                     }
                     TextButton(onClick = viewReports) {
                         Text("Reports & export", color = NeutralInk, fontWeight = FontWeight.Medium)
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Start,
+                ) {
+                    TextButton(onClick = manageCategories) {
+                        Text("Manage categories", color = NeutralMuted, fontWeight = FontWeight.Medium)
                     }
                 }
                 Spacer(Modifier.height(8.dp))

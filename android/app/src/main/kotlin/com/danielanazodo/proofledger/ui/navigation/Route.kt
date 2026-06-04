@@ -24,6 +24,7 @@ sealed class Route(val path: String) {
     data object CounterpartyDetail : Route("counterparties/{counterpartyId}") {
         fun path(counterpartyId: String): String = "counterparties/$counterpartyId"
     }
+    data object CategoryList : Route("categories")
     data object TransactionList : Route("transactions")
     data object AddTransaction : Route("transactions/add/{direction}?intakeToken={intakeToken}") {
         fun path(direction: String, intakeToken: String? = null): String =

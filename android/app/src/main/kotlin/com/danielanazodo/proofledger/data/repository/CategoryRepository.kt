@@ -188,6 +188,43 @@ class CategoryRepository @Inject constructor(
             )
     }
 
+    /**
+     * Soft-delete a category (including a seeded default — they're ordinary
+     * rows). A never-synced row is removed locally with no backend call;
+     * otherwise it's marked PENDING_DELETE and the delete is attempted now,
+     * with sync retry as a fallback. The category name already written onto
+     * past transactions is a string snapshot and is unaffected.
+     */
+    suspend fun deleteCategory(categoryId: String) {
+        val current = localDao.getById(categoryId) ?: return
+        if (current.syncStatus == SyncStatus.PENDING_UPLOAD) {
+            localDao.deleteById(categoryId)
+            return
+        }
+        val now = System.currentTimeMillis()
+        val pending = current.copy(
+            deletedAt = now,
+            syncStatus = SyncStatus.PENDING_DELETE,
+            lastSyncAttemptAt = now,
+            lastSyncError = null,
+        )
+        localDao.upsert(pending)
+        runCatching { api.deleteCategory(current.businessId, current.id) }
+            .onSuccess {
+                localDao.upsert(pending.copy(updatedAt = now, syncStatus = SyncStatus.SYNCED))
+                logSync(pending, "delete", "success")
+            }
+            .onFailure { t ->
+                if ((t as? HttpException)?.code() == 404) {
+                    localDao.upsert(pending.copy(updatedAt = now, syncStatus = SyncStatus.SYNCED))
+                    logSync(pending, "delete", "success")
+                } else {
+                    localDao.upsert(pending.toFailed(t))
+                    logSync(pending, "delete", "failure", t)
+                }
+            }
+    }
+
     suspend fun clearLocal() {
         localDao.clear()
     }
