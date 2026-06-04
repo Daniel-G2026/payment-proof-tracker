@@ -2,15 +2,21 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_db
-from app.db.models import Business, BusinessMember, Transaction
+from app.db.models import Business, BusinessMember, Screenshot, Transaction
 from app.services.audit import add_audit_event
-from app.services.report_pdf import ReportRow, build_report_pdf
+from app.services.report_pdf import (
+    ReportRow,
+    build_report_insight,
+    build_report_pdf,
+    previous_period_range,
+)
 
 router = APIRouter(prefix="/businesses/{business_id}", tags=["reports"])
 
@@ -34,9 +40,9 @@ def _require_member(db: Session, profile_id: uuid.UUID, business_id: uuid.UUID) 
 def export_pdf(
     business_id: uuid.UUID,
     current_user: CurrentUser,
-    start_date: date = Query(..., description="Inclusive ISO start date."),
-    end_date: date = Query(..., description="Inclusive ISO end date."),
-    db: Session = Depends(get_db),
+    start_date: Annotated[date, Query(description="Inclusive ISO start date.")],
+    end_date: Annotated[date, Query(description="Inclusive ISO end date.")],
+    db: Annotated[Session, Depends(get_db)],
 ) -> Response:
     """Generate a PDF statement of records in [start_date, end_date] (inclusive).
 
@@ -63,6 +69,21 @@ def export_pdf(
         .order_by(Transaction.transaction_date.asc(), Transaction.created_at.asc())
     )
     transactions = list(db.execute(rows_stmt).scalars().all())
+    previous_start_date, previous_end_date = previous_period_range(start_date, end_date)
+    previous_transactions = list(
+        db.execute(
+            select(Transaction)
+            .where(
+                Transaction.business_id == business_id,
+                Transaction.deleted_at.is_(None),
+                Transaction.transaction_date >= previous_start_date,
+                Transaction.transaction_date <= previous_end_date,
+            )
+            .order_by(Transaction.transaction_date.asc(), Transaction.created_at.asc())
+        )
+        .scalars()
+        .all()
+    )
 
     # Reuse the counterparties /summary aggregation pattern for the totals so
     # the summary block matches what the client computes locally.
@@ -89,6 +110,7 @@ def export_pdf(
 
     rows = [
         ReportRow(
+            id=str(t.id),
             transaction_date=t.transaction_date,
             direction=t.direction,
             counterparty=t.counterparty_name or "",
@@ -98,6 +120,44 @@ def export_pdf(
         )
         for t in transactions
     ]
+    previous_rows = [
+        ReportRow(
+            id=str(t.id),
+            transaction_date=t.transaction_date,
+            direction=t.direction,
+            counterparty=t.counterparty_name or "",
+            category=t.category or "",
+            amount_minor=t.amount_minor,
+            reference=t.reference_number or "",
+        )
+        for t in previous_transactions
+    ]
+
+    transaction_ids = [t.id for t in transactions]
+    proof_transaction_ids = set()
+    if transaction_ids:
+        proof_transaction_ids = {
+            str(transaction_id)
+            for transaction_id in db.execute(
+                select(Screenshot.transaction_id)
+                .where(
+                    Screenshot.business_id == business_id,
+                    Screenshot.deleted_at.is_(None),
+                    Screenshot.transaction_id.is_not(None),
+                    Screenshot.transaction_id.in_(transaction_ids),
+                )
+                .distinct()
+            )
+            .scalars()
+            .all()
+        }
+    insight = build_report_insight(
+        rows=rows,
+        previous_rows=previous_rows,
+        start_date=start_date,
+        end_date=end_date,
+        proof_transaction_ids=proof_transaction_ids,
+    )
 
     pdf_bytes = build_report_pdf(
         business_name=business.name,
@@ -106,6 +166,7 @@ def export_pdf(
         money_in_minor=int(money_in or 0),
         money_out_minor=int(money_out or 0),
         rows=rows,
+        insight=insight,
     )
 
     add_audit_event(
