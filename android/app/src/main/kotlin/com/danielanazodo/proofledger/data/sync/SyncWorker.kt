@@ -7,6 +7,7 @@ import androidx.work.WorkerParameters
 import com.danielanazodo.proofledger.data.local.SyncStatus
 import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
+import com.danielanazodo.proofledger.data.repository.CategoryRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import dagger.assisted.Assisted
@@ -27,6 +28,7 @@ class SyncWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted params: WorkerParameters,
     private val businessRepository: BusinessRepository,
+    private val categoryRepository: CategoryRepository,
     private val counterpartyRepository: CounterpartyRepository,
     private val transactionRepository: TransactionRepository,
     private val proofRepository: ProofRepository,
@@ -36,10 +38,12 @@ class SyncWorker @AssistedInject constructor(
         businessRepository.getLocalBusinesses()
             .filter { it.syncStatus == SyncStatus.SYNCED }
             .forEach { business ->
+                categoryRepository.syncPending(business.id)
                 counterpartyRepository.syncPending(business.id)
                 transactionRepository.syncPending(business.id)
             }
         businessRepository.getSelectedBusinessId()?.let { selected ->
+            categoryRepository.refreshFromRemote(selected)
             transactionRepository.refreshFromRemote(selected)
             // Metadata only — restores "proof attached" badges without pulling
             // image bytes. Byte downloads are user-gated (now vs WiFi), so this

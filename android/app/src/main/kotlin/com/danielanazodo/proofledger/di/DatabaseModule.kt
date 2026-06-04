@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.danielanazodo.proofledger.data.local.AppDatabase
 import com.danielanazodo.proofledger.data.local.dao.LocalAppMetadataDao
 import com.danielanazodo.proofledger.data.local.dao.LocalBusinessDao
+import com.danielanazodo.proofledger.data.local.dao.LocalCategoryDao
 import com.danielanazodo.proofledger.data.local.dao.LocalCounterpartyDao
 import com.danielanazodo.proofledger.data.local.dao.LocalProfileDao
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
@@ -20,6 +21,7 @@ import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_7_8
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_8_9
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_9_10
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_10_11
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_11_12
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -46,6 +48,7 @@ object DatabaseModule {
                 MIGRATION_8_9,
                 MIGRATION_9_10,
                 MIGRATION_10_11,
+                MIGRATION_11_12,
             )
             .build()
 
@@ -60,6 +63,10 @@ object DatabaseModule {
     @Provides
     fun provideLocalBusinessDao(db: AppDatabase): LocalBusinessDao =
         db.localBusinessDao()
+
+    @Provides
+    fun provideLocalCategoryDao(db: AppDatabase): LocalCategoryDao =
+        db.localCategoryDao()
 
     @Provides
     fun provideLocalCounterpartyDao(db: AppDatabase): LocalCounterpartyDao =
