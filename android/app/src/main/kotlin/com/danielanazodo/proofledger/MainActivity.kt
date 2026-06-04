@@ -5,6 +5,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.lifecycle.lifecycleScope
 import com.danielanazodo.proofledger.data.proof.SharedProofIntakeRepository
 import com.danielanazodo.proofledger.ui.navigation.AppNavHost
@@ -24,7 +30,20 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             ProofLedgerTheme {
-                AppNavHost()
+                // App-wide "tap outside to dismiss": a tap that lands on empty
+                // space (not consumed by a field, button, or other clickable)
+                // clears focus, which both hides the soft keyboard and stops
+                // the caret blinking in the field the user just left.
+                val focusManager = LocalFocusManager.current
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectTapGestures(onTap = { focusManager.clearFocus() })
+                        },
+                ) {
+                    AppNavHost()
+                }
             }
         }
     }
