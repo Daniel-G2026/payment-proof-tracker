@@ -32,6 +32,7 @@ class SyncWorker @AssistedInject constructor(
     private val counterpartyRepository: CounterpartyRepository,
     private val transactionRepository: TransactionRepository,
     private val proofRepository: ProofRepository,
+    private val syncEventReporter: SyncEventReporter,
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result = runCatching {
         businessRepository.syncPending()
@@ -51,6 +52,10 @@ class SyncWorker @AssistedInject constructor(
             // transaction refresh so each proof's denormalized fields resolve.
             proofRepository.refreshFromRemote(selected)
         }
+        // Flush locally-logged sync attempts to the server-side sync_events
+        // table. Runs last (we're online if we got here) and is best-effort —
+        // unreported rows stay queued for the next run.
+        runCatching { syncEventReporter.flush() }
     }.fold(
         onSuccess = { Result.success() },
         onFailure = { t ->

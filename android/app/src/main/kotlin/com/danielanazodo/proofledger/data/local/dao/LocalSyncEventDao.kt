@@ -18,6 +18,15 @@ interface LocalSyncEventDao {
     @Query("SELECT * FROM local_sync_event WHERE status = 'failure' ORDER BY createdAt DESC")
     fun observeFailures(): Flow<List<LocalSyncEventEntity>>
 
+    @Query(
+        "SELECT * FROM local_sync_event WHERE reportedAt IS NULL " +
+            "ORDER BY createdAt ASC LIMIT :limit"
+    )
+    suspend fun unreported(limit: Int): List<LocalSyncEventEntity>
+
+    @Query("UPDATE local_sync_event SET reportedAt = :now WHERE id IN (:ids)")
+    suspend fun markReported(ids: List<String>, now: Long)
+
     @Query("DELETE FROM local_sync_event")
     suspend fun clear()
 }

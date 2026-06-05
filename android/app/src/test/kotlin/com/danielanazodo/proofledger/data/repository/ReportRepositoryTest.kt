@@ -240,6 +240,11 @@ class ReportRepositoryTest {
             entityType: String,
             entityId: String,
         ): List<com.danielanazodo.proofledger.data.remote.dto.AuditEventDto> = emptyList()
+        override suspend fun reportSyncEvents(
+            businessId: String,
+            events: List<com.danielanazodo.proofledger.data.remote.dto.SyncEventReportDto>,
+        ): com.danielanazodo.proofledger.data.remote.dto.SyncEventIngestResultDto =
+            com.danielanazodo.proofledger.data.remote.dto.SyncEventIngestResultDto(events.size, 0)
         var exportPdfBusinessId: String? = null
         var exportPdfStart: String? = null
         var exportPdfEnd: String? = null
