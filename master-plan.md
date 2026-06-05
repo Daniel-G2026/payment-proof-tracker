@@ -110,47 +110,63 @@ Use human language:
 
 ## 2. Initial ICP
 
+> **Reframed in the Phase 13 direction (project-based tracking).** The original
+> wording implied a pen-and-paper *cash* market. Investigation with a real
+> design partner — an installment house-sale / construction business — showed
+> the actual customer is defined by **digital proof frequency and project
+> structure**, not by income or formality. See Phase 13 for the project /
+> offer-letter / installment-balance model this ICP drives. (This supersedes the
+> earlier standalone `icp-rewrite-for-claude-code.md` note.)
+
 ### 2.1 First Target User
 
-The first target user is a Nigerian small-business operator, family business owner, contractor, supplier, subcontractor, or admin staff member who receives proof-of-payment screenshots through WhatsApp and currently records transactions manually in a notebook, spreadsheet, or memory-based system.
+The first target user runs a small business that (a) **receives digital proof of
+payment** — transfer screenshots, signed offer letters — and (b) **runs work as
+discrete projects**, with money coming in and money going out per project. They
+record this today by hand: flipping through documents, scrolling WhatsApp, or
+working **from memory**. That manual reconciliation is the pain we remove.
+
+The customer is defined by **proof-frequency and project structure, not by
+income or formality.**
+
+**Explicitly out of scope for v1: pure-cash businesses with no digital proof.**
+With no screenshot or offer letter to capture, the draft-then-confirm engine has
+nothing to work on.
 
 ### 2.2 User Characteristics
 
 The first user is likely:
 
-* Android-first
-* mobile-first
+* Android-first, mobile-first
 * not accounting-trained
 * busy and operationally overloaded
 * used to WhatsApp and screenshots
 * distrustful of complicated software
 * sensitive about financial data privacy
 * unwilling to spend hours learning new tools
-* comfortable with simple mobile workflows
 * focused on practical outcomes, not financial theory
 
 ### 2.3 First Beachhead Market
 
-Start with construction-adjacent SMEs:
+**Installment-based construction / house-sale businesses.** They sell houses on
+offer-letter installment plans: large amounts (proof matters, disputes are
+costly), relatively few buyers but long-lived **drifting** balances, and a
+high-friction daily question — *"who is due this month, and have they paid?"*
+Today, answering it means a receptionist flipping through every offer letter and
+cross-checking WhatsApp screenshots.
 
-* small contractors
-* suppliers
-* subcontractors
-* material vendors
-* family-run construction/service businesses
-* businesses that receive many transfer screenshots
-* businesses that need to know who has paid and who still owes
+The app stays general underneath, but the first UX language reflects this
+market:
 
-The app should remain general underneath, but the first UX language can reflect this market:
+* customer / buyer payments
+* supplier and subcontractor payments
+* material purchases, site expenses, wages, transport, equipment
+* land / site cost
 
-* customer payments
-* supplier payments
-* subcontractor payments
-* material purchases
-* site expenses
-* transport
-* wages
-* equipment
+**Expansion path — the counterparty graph.** The subcontractors, vendors, and
+drivers the beachhead pays are reachable later with a warm intro, always
+anchored to the proof workflow. Multi-market (M-Pesa / UPI / Pix) is a *later
+consequence* of winning the beachhead, not a v1 target.
 
 ---
 
@@ -2278,6 +2294,70 @@ Improve product quality, trust, and validation measurement.
 
 ---
 
+# Phase 13: Projects, Offer-Letter Intake, and Installment Balances
+
+## Goal
+
+Reframe the money-in side around **projects (houses)** for installment
+house-sale / construction businesses. Keep three things conceptually separate:
+what was **promised** (the offer-letter schedule), what actually **arrived**
+(payments with preserved proof), and the **gap as of today** (computed arrears)
+— plus money-out per project.
+
+Additive only: this layers above the existing transaction / screenshot /
+counterparty engine; nothing is torn down. It promotes the previously deferred
+§20.1 (Expected Payments / Balances) and §20.6 (Inventory / Project Tracking)
+into core scope. Full plan + open-decision answers live in the design brief
+`project-based-design-brief-for-claude-code.md` (which supersedes the older
+`icp-rewrite-for-claude-code.md`).
+
+## Model
+
+* **Project (development) → many units**; each unit has one buyer (a
+  counterparty — no new person table) and one versioned schedule; a buyer may
+  hold multiple units. A standalone house is a 1-unit project.
+* **Schedule = offer-letter installments** (amount + due date). The plan.
+* **Payments** = money-in transactions linked to a unit, with preserved proof.
+* **Balances are COMPUTED, not stored.** A pure waterfall function pours
+  date-ordered payments into the active schedule **oldest-first, cascading
+  overflow**, re-run on demand — so back-dated / corrected / re-poured payments
+  self-correct. The only stored allocation intent is an optional per-payment
+  **earmark** to a specific installment.
+
+## Locked decisions
+
+* Earmarking: auto by default, optional per-payment override.
+* Renegotiation: schedule is **versioned**; payments re-poured; old versions kept.
+* Missed: flag the instant a due date passes unfilled; **remember filled-late**.
+* Per-installment states: unpaid, partially-filled (+shortfall), filled,
+  filled-late, filled-ahead.
+* Home dashboard: calendar-month sweep — # people due this month, # fulfilled,
+  and **one combined total** (this-month shortfall + all past-due arrears);
+  per-person detail splits "behind" vs "due this month".
+* Project tag **optional** on transactions (a general / no-project bucket exists).
+* Offer letter: usually an AI-extracted document, but **manual schedule entry
+  always allowed**; low-confidence fields flagged for forced review, never
+  auto-committed.
+* Payment → buyer: **auto-suggest + manual confirm**; unit picker when a buyer
+  holds more than one unit.
+* Money-out: **actual spend only** first (budget-vs-actual deferred); add a
+  **"Land / site cost"** category.
+* **Owner-only** first cut (roles deferred).
+
+## Build order (cuts; manual slice before AI)
+
+1. Project + Unit objects.
+2. Manual schedule + the waterfall / arrears engine.
+3. Link payments to a unit + per-installment display states.
+4. Monthly arrears dashboard (becomes Home).
+5. Project-tagged money-out.
+6. Offer-letter AI extraction (a second AI-vision document type, reusing the
+   orphan-screenshot → draft → confirm engine).
+7. Docs / ICP reconciliation (the §2 rewrite above + §20.1 / §20.6 promotion).
+
+Each cut is additive schema + hardening + tests, then the next — its own
+branch/PR per the repo's one-cut-at-a-time discipline.
+
 ## 20. Later Phases / v2+
 
 Do not build these in v1 unless specifically required.
@@ -2408,6 +2488,9 @@ month.
 
 ## 20.1 Expected Payments / Balances
 
+> **Promoted into Phase 13** (Projects / Installment Balances) — now core scope,
+> not deferred. Retained here for history.
+
 Add ability to track:
 
 * money expected from customers
@@ -2458,6 +2541,9 @@ Once data is structured, add natural language questions:
 Do not build before the ledger data is clean.
 
 ## 20.6 Inventory / Project Tracking
+
+> **Promoted into Phase 13** (project objects + project-tagged money-out) — now
+> core scope, not deferred. Retained here for history.
 
 For construction-adjacent businesses, later add:
 
