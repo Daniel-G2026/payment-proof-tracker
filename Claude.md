@@ -37,17 +37,28 @@ This is an Android-native, offline-first payment proof tracker for small busines
 - If UI state becomes complex, add dedicated UI state/models instead of bending database entities around presentation needs.
 
 ## Current Phase
-Phase 12: Polish, Analytics, and Reliability.
 
-Add an explicit Phase 12 UI/navigation polish pass before treating the app as
-pilot-ready: the Home screen's small text-link row should stop carrying
-important destinations. "Manage categories" belongs on or near the Records tab
-as a real record-organization action (for example, a prominent secondary action
-near filters or an overflow/action button in the Records header). "Reports &
-export" also needs more weight than a small Home link. Decide during Phase 12
-whether it becomes a top-level Reports tab (preferred if the bottom nav remains
-comfortable at five items: Home, Records, Reports, People, Settings) or a
-prominent dashboard card/action with a secondary Records entry point.
+Phase 12 (Polish, Analytics, and Reliability) is **complete** (merged to `main`):
+security/validation hardening (upload rate-limiting, currency ISO-4217
+allowlist, search LIKE escaping, CORS); observability (backend Sentry +
+structured logging, mobile Sentry, PostHog analytics — all no-op without keys);
+a user-visible edit history over the `audit_events` diffs; the UI/navigation
+polish pass (Reports promoted to a top-level tab; "Manage categories" moved into
+the Records header; reusable loading/empty/error composables; a first-run
+onboarding tip); and the server-side `sync_events` table with on-device flush.
+Verified on `main` 2026-06-05: backend `uv run pytest` (147 passed),
+`:app:testDebugUnitTest`, and `:app:assembleDebug`. Deferred follow-ups: three
+unwired PostHog events (`screenshot_uploaded`, `draft_confirmed`,
+`export_created`), broader reusable-state-composable adoption, and on-device
+cold-start / low-end-device profiling (see `docs/performance-notes.md`).
+
+The next major direction is **Phase 13: Projects, Offer-Letter Intake, and
+Installment Balances** — reframing the money-in side around projects (houses):
+offer-letter installment schedules, computed (never stored) waterfall arrears
+balances, a monthly "who's due / who's behind" dashboard, and money-out per
+project. Additive over the existing engine; built manual-slice-before-AI,
+docs/contracts first. See the Phase 13 section and "Semantic edges" in
+`docs/master-plan.md`.
 
 Phase 11 (Reports and Exports) is complete. The Android app has a
 "Reports & export" entry on the Home dashboard that opens a dedicated Summary
