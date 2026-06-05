@@ -2540,19 +2540,60 @@ into core scope. Full plan + open-decision answers live in the design brief
   **"Land / site cost"** category.
 * **Owner-only** first cut (roles deferred).
 
-## Build order (cuts; manual slice before AI)
+## Semantic edges (locked before coding — Cut 0)
 
-1. Project + Unit objects.
-2. Manual schedule + the waterfall / arrears engine.
-3. Link payments to a unit + per-installment display states.
-4. Monthly arrears dashboard (becomes Home).
-5. Project-tagged money-out.
-6. Offer-letter AI extraction (a second AI-vision document type, reusing the
-   orphan-screenshot → draft → confirm engine).
-7. Docs / ICP reconciliation (the §2 rewrite above + §20.1 / §20.6 promotion).
+Allocation and renegotiation are where a small ambiguity becomes an expensive
+knot, so these rules are fixed up front:
 
-Each cut is additive schema + hardening + tests, then the next — its own
-branch/PR per the repo's one-cut-at-a-time discipline.
+* **Earmark across renegotiation = historical intent only.** When a schedule is
+  re-poured into a new active version, an `earmarked_installment_id` that
+  referenced a now-superseded version **no longer binds**; the payment reverts
+  to pure oldest-first waterfall under the new active schedule. (Upgrade path if
+  real usage shows earmarks + renegotiations collide often: give installments a
+  stable schedule-line identity that survives versioning and bind earmarks to
+  the line, not the version row. Deliberately avoided for v1 — both are edge
+  events.)
+* **"Filled late" = late under the ACTIVE schedule**, computed against current
+  due dates. A renegotiation that moves a due date can *un-late* a payment. The
+  app does **not** claim "was historically late under the old offer letter" —
+  that would need stored history we don't keep. UI wording reflects "late vs the
+  current plan."
+* **One active schedule per unit is enforced, not promised.** Backend: a partial
+  unique index (`WHERE is_active`) on `unit_id`. Android: app-level enforcement
+  in the repository + DAO tests (Room can't express the partial index cleanly).
+  Activating a new version deactivates the prior one in the same transaction.
+* **Dashboard counts buyers, not units.** "# people due this month" counts a
+  **buyer once** even if they hold several due units; unit-level detail (which
+  house, how much) shows underneath on tap. The combined arrears total still
+  sums across all units.
+* **Sync is dependency-ordered across the full chain:** businesses →
+  categories / counterparties → projects → units → (offer-letter screenshots, if
+  referenced) → schedule_versions → installments → transactions (carrying
+  `unit_id` / earmark). A pending row whose parent hasn't synced stays cleanly
+  pending — never pushed as an orphan; the drain is idempotent.
+* **Android DB bump = one coherent `Migration_12_13`** introducing all Phase 13
+  local tables/columns with a single exported schema JSON — not a multi-version
+  cascade. (Backend keeps one Alembic migration per table, conventional there.)
+
+## Build order (cuts — manual slice before AI)
+
+Each cut delivers **one user-visible outcome + one infrastructure outcome** and
+ships as its own branch/PR (additive schema + hardening + tests).
+
+* **Cut 0 — Contracts.** Write the Phase 13 docs first: worked allocation
+  examples, dashboard counting rules, and the renegotiation / earmark / late
+  semantics above. No code.
+* **Cut 1 — Projects + Units.** Objects only, with sync ordering and minimal
+  CRUD UI. (Visible: create/see projects & units. Infra: schema + sync.)
+* **Cut 2 — Manual schedule + pure allocation engine.** Versioned schedules +
+  the computed waterfall/arrears engine. **No payment-flow changes yet.**
+* **Cut 3 — Link existing payments to units.** Auto-suggest + confirm + unit
+  picker + optional earmark; per-installment display states. No AI.
+* **Cut 4 — Monthly arrears dashboard** (becomes Home).
+* **Cut 5 — Project-tagged money-out.**
+* **Cut 6 — Offer-letter AI extraction** (a second AI-vision document type
+  reusing the orphan-screenshot → draft → confirm engine). Kept last,
+  deliberately, until manual schedules and allocation are boringly reliable.
 
 ## 20. Later Phases / v2+
 
