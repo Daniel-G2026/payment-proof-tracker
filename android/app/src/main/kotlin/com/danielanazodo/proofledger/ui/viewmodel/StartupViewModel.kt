@@ -8,7 +8,9 @@ import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CategoryRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.ProfileRepository
+import com.danielanazodo.proofledger.data.repository.ProjectRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
+import com.danielanazodo.proofledger.data.repository.UnitRepository
 import com.danielanazodo.proofledger.ui.navigation.Route
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +42,8 @@ class StartupViewModel @Inject constructor(
     private val businessRepository: BusinessRepository,
     private val categoryRepository: CategoryRepository,
     private val counterpartyRepository: CounterpartyRepository,
+    private val projectRepository: ProjectRepository,
+    private val unitRepository: UnitRepository,
     private val transactionRepository: TransactionRepository,
 ) : ViewModel() {
 
@@ -83,6 +87,8 @@ class StartupViewModel @Inject constructor(
             transactionRepository.clearLocal()
             counterpartyRepository.clearLocal()
             categoryRepository.clearLocal()
+            unitRepository.clearLocal()
+            projectRepository.clearLocal()
             businessRepository.clearAllLocal()
             profileRepository.clearLocal()
         }

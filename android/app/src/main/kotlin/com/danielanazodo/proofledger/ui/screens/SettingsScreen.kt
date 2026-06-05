@@ -54,6 +54,7 @@ fun SettingsScreen(
     onProofBackup: () -> Unit,
     onSyncIssues: () -> Unit,
     onSwitchBusiness: () -> Unit,
+    onProjects: () -> Unit,
     onSignedOut: () -> Unit,
     onTabSelected: (MainTab) -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -87,6 +88,10 @@ fun SettingsScreen(
                     label = "Currency",
                     value = state.business?.currency ?: "NGN",
                     enabled = false,
+                )
+                SettingsRow(
+                    label = "Projects & units",
+                    onClick = onProjects,
                 )
                 SettingsRow(
                     label = "Switch business",

@@ -9,7 +9,9 @@ import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CategoryRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
+import com.danielanazodo.proofledger.data.repository.ProjectRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
+import com.danielanazodo.proofledger.data.repository.UnitRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 
@@ -30,6 +32,8 @@ class SyncWorker @AssistedInject constructor(
     private val businessRepository: BusinessRepository,
     private val categoryRepository: CategoryRepository,
     private val counterpartyRepository: CounterpartyRepository,
+    private val projectRepository: ProjectRepository,
+    private val unitRepository: UnitRepository,
     private val transactionRepository: TransactionRepository,
     private val proofRepository: ProofRepository,
     private val syncEventReporter: SyncEventReporter,
@@ -39,12 +43,20 @@ class SyncWorker @AssistedInject constructor(
         businessRepository.getLocalBusinesses()
             .filter { it.syncStatus == SyncStatus.SYNCED }
             .forEach { business ->
+                // Dependency-ordered drain (Phase 13): a unit references a
+                // project and a counterparty; a transaction references a unit.
+                // Push parents before children so a child never lands as an
+                // orphan — categories/counterparties → projects → units → txns.
                 categoryRepository.syncPending(business.id)
                 counterpartyRepository.syncPending(business.id)
+                projectRepository.syncPending(business.id)
+                unitRepository.syncPending(business.id)
                 transactionRepository.syncPending(business.id)
             }
         businessRepository.getSelectedBusinessId()?.let { selected ->
             categoryRepository.refreshFromRemote(selected)
+            projectRepository.refreshFromRemote(selected)
+            unitRepository.refreshFromRemote(selected)
             transactionRepository.refreshFromRemote(selected)
             // Metadata only — restores "proof attached" badges without pulling
             // image bytes. Byte downloads are user-gated (now vs WiFi), so this

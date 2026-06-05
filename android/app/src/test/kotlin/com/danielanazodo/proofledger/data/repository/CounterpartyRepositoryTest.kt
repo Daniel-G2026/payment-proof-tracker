@@ -238,6 +238,33 @@ class CounterpartyRepositoryTest {
         private val createCounterpartyFailure: Throwable? = null,
         private val updateCounterpartyFailure: Throwable? = null,
     ) : ApiService {
+        override suspend fun listProjects(
+            businessId: String,
+        ): List<com.danielanazodo.proofledger.data.remote.dto.ProjectDto> = emptyList()
+        override suspend fun createProject(
+            businessId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.ProjectCreateDto,
+        ): com.danielanazodo.proofledger.data.remote.dto.ProjectDto = error("not used")
+        override suspend fun updateProject(
+            businessId: String,
+            projectId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.ProjectUpdateDto,
+        ): com.danielanazodo.proofledger.data.remote.dto.ProjectDto = error("not used")
+        override suspend fun deleteProject(businessId: String, projectId: String) {}
+        override suspend fun listUnits(
+            businessId: String,
+            projectId: String?,
+        ): List<com.danielanazodo.proofledger.data.remote.dto.UnitDto> = emptyList()
+        override suspend fun createUnit(
+            businessId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.UnitCreateDto,
+        ): com.danielanazodo.proofledger.data.remote.dto.UnitDto = error("not used")
+        override suspend fun updateUnit(
+            businessId: String,
+            unitId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.UnitUpdateDto,
+        ): com.danielanazodo.proofledger.data.remote.dto.UnitDto = error("not used")
+        override suspend fun deleteUnit(businessId: String, unitId: String) {}
         override suspend fun listAuditEvents(
             businessId: String,
             entityType: String,

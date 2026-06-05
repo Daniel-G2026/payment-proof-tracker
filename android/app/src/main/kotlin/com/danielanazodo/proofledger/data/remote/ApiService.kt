@@ -16,6 +16,9 @@ import com.danielanazodo.proofledger.data.remote.dto.DuplicateCandidateDto
 import com.danielanazodo.proofledger.data.remote.dto.DuplicateCandidateRequestDto
 import com.danielanazodo.proofledger.data.remote.dto.ProfileDto
 import com.danielanazodo.proofledger.data.remote.dto.ProfileUpdateDto
+import com.danielanazodo.proofledger.data.remote.dto.ProjectCreateDto
+import com.danielanazodo.proofledger.data.remote.dto.ProjectDto
+import com.danielanazodo.proofledger.data.remote.dto.ProjectUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.ScreenshotDto
 import com.danielanazodo.proofledger.data.remote.dto.SignedScreenshotUrlDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionCreateDto
@@ -23,6 +26,9 @@ import com.danielanazodo.proofledger.data.remote.dto.TransactionDraftConfirmDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDraftDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionUpdateDto
+import com.danielanazodo.proofledger.data.remote.dto.UnitCreateDto
+import com.danielanazodo.proofledger.data.remote.dto.UnitDto
+import com.danielanazodo.proofledger.data.remote.dto.UnitUpdateDto
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -120,6 +126,55 @@ interface ApiService {
     suspend fun deleteCategory(
         @Path("businessId") businessId: String,
         @Path("categoryId") categoryId: String,
+    )
+
+    @GET("businesses/{businessId}/projects")
+    suspend fun listProjects(
+        @Path("businessId") businessId: String,
+    ): List<ProjectDto>
+
+    @POST("businesses/{businessId}/projects")
+    suspend fun createProject(
+        @Path("businessId") businessId: String,
+        @Body body: ProjectCreateDto,
+    ): ProjectDto
+
+    @PATCH("businesses/{businessId}/projects/{projectId}")
+    suspend fun updateProject(
+        @Path("businessId") businessId: String,
+        @Path("projectId") projectId: String,
+        @Body body: ProjectUpdateDto,
+    ): ProjectDto
+
+    @DELETE("businesses/{businessId}/projects/{projectId}")
+    suspend fun deleteProject(
+        @Path("businessId") businessId: String,
+        @Path("projectId") projectId: String,
+    )
+
+    @GET("businesses/{businessId}/units")
+    suspend fun listUnits(
+        @Path("businessId") businessId: String,
+        @Query("project_id") projectId: String? = null,
+    ): List<UnitDto>
+
+    @POST("businesses/{businessId}/units")
+    suspend fun createUnit(
+        @Path("businessId") businessId: String,
+        @Body body: UnitCreateDto,
+    ): UnitDto
+
+    @PATCH("businesses/{businessId}/units/{unitId}")
+    suspend fun updateUnit(
+        @Path("businessId") businessId: String,
+        @Path("unitId") unitId: String,
+        @Body body: UnitUpdateDto,
+    ): UnitDto
+
+    @DELETE("businesses/{businessId}/units/{unitId}")
+    suspend fun deleteUnit(
+        @Path("businessId") businessId: String,
+        @Path("unitId") unitId: String,
     )
 
     @GET("businesses/{businessId}/audit-events")
