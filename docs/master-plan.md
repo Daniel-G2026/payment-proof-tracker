@@ -2571,9 +2571,10 @@ knot, so these rules are fixed up front:
   referenced) → schedule_versions → installments → transactions (carrying
   `unit_id` / earmark). A pending row whose parent hasn't synced stays cleanly
   pending — never pushed as an orphan; the drain is idempotent.
-* **Android DB bump = one coherent `Migration_12_13`** introducing all Phase 13
-  local tables/columns with a single exported schema JSON — not a multi-version
-  cascade. (Backend keeps one Alembic migration per table, conventional there.)
+* **Android DB bump = one coherent `Migration_13_14`** (Phase 12 already used
+  `Migration_12_13`) introducing all Phase 13 local tables/columns with a single
+  exported schema JSON — not a multi-version cascade. Backend Alembic migrations
+  start at `0013` (head is `0012_sync_events`), one per table.
 
 ## Build order (cuts — manual slice before AI)
 
