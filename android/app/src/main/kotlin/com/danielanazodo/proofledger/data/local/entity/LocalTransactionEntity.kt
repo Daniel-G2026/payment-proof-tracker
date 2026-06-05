@@ -36,4 +36,9 @@ data class LocalTransactionEntity(
     val lastSyncAttemptAt: Long?,
     val lastSyncError: String? = null,
     val remoteUpdatedAt: String? = null,
+    // Phase 13 (additive, nullable). Money-in carries unitId; money-out carries
+    // projectId. Wired into the create/edit flow in Cut 3 / Cut 5 — defaulted to
+    // null here so Cut 1 leaves the transaction flow untouched.
+    val projectId: String? = null,
+    val unitId: String? = null,
 )

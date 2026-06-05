@@ -29,6 +29,8 @@ import com.danielanazodo.proofledger.ui.screens.CounterpartyFormScreen
 import com.danielanazodo.proofledger.ui.screens.CounterpartyListScreen
 import com.danielanazodo.proofledger.ui.screens.EmptyDashboardScreen
 import com.danielanazodo.proofledger.ui.screens.ProfileSetupScreen
+import com.danielanazodo.proofledger.ui.screens.ProjectDetailScreen
+import com.danielanazodo.proofledger.ui.screens.ProjectListScreen
 import com.danielanazodo.proofledger.ui.screens.ProofBackupScreen
 import com.danielanazodo.proofledger.ui.screens.SharedProofIntakeScreen
 import com.danielanazodo.proofledger.ui.screens.SignInScreen
@@ -195,6 +197,7 @@ private fun ResolvedGraph(
                 onProofBackup = { navController.navigateOnce(Route.ProofBackup.path) },
                 onSyncIssues = { navController.navigateOnce(Route.SyncIssues.path) },
                 onSwitchBusiness = { navController.navigateOnce(Route.BusinessSwitch.path) },
+                onProjects = { navController.navigateOnce(Route.ProjectList.path) },
                 onSignedOut = onResolveAgain,
                 onTabSelected = onTabSelected,
             )
@@ -266,6 +269,20 @@ private fun ResolvedGraph(
         }
         composable(Route.CategoryList.path) {
             CategoryListScreen(
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(Route.ProjectList.path) {
+            ProjectListScreen(
+                onBack = { navController.popBackStack() },
+                onProjectClick = { id -> navController.navigateOnce(Route.ProjectDetail.path(id)) },
+            )
+        }
+        composable(
+            route = Route.ProjectDetail.path,
+            arguments = listOf(navArgument("projectId") { type = NavType.StringType }),
+        ) {
+            ProjectDetailScreen(
                 onBack = { navController.popBackStack() },
             )
         }

@@ -11,11 +11,13 @@ from app.api.routes import (
     counterparties,
     health,
     profiles,
+    projects,
     reports,
     screenshots,
     sync_events,
     transaction_drafts,
     transactions,
+    units,
 )
 from app.core.config import settings
 from app.core.observability import configure_logging, init_sentry
@@ -95,6 +97,8 @@ app.include_router(health.router)
 app.include_router(profiles.router)
 app.include_router(businesses.router)
 app.include_router(categories.router)
+app.include_router(projects.router)
+app.include_router(units.router)
 app.include_router(counterparties.router)
 app.include_router(transactions.router)
 app.include_router(audit.router)

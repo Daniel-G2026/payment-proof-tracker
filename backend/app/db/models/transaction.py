@@ -23,6 +23,15 @@ class Transaction(Base):
     )
     counterparty_name: Mapped[str | None] = mapped_column(String, nullable=True)
     category: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Phase 13 (additive, nullable — no backfill). Money-in carries `unit_id`;
+    # money-out carries `project_id`. Wired into the create/edit flow in Cut 3 /
+    # Cut 5 — the columns land here in Cut 1 so the schema settles once.
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("projects.id"), nullable=True, index=True
+    )
+    unit_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("units.id"), nullable=True, index=True
+    )
     note: Mapped[str | None] = mapped_column(String, nullable=True)
     bank_name: Mapped[str | None] = mapped_column(String, nullable=True)
     reference_number: Mapped[str | None] = mapped_column(String, nullable=True)

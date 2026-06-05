@@ -15,6 +15,10 @@ import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_6_7
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_7_8
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_8_9
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_9_10
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_10_11
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_11_12
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_12_13
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_13_14
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -171,6 +175,76 @@ class MigrationSqlTest {
             assertNull(c.getString(2))
             assertNull(c.getString(3))
             assertNull(c.getString(4))
+        }
+    }
+
+    @Test
+    fun migrations1Through14_addProjectsAndUnitsAndTransactionColumns() {
+        // Seed a legacy transaction at v3 so we can assert the Phase 13 columns
+        // land as NULL on a pre-existing row (additive, no destructive default).
+        db.execSQL(
+            "INSERT INTO local_app_metadata(key, value, updatedAt) VALUES('selected', 'b1', 100)"
+        )
+        MIGRATION_1_2.migrate(db)
+        db.execSQL(
+            """
+            INSERT INTO local_business(id, ownerId, name, country, currency, businessType, plan, createdAt, updatedAt, syncStatus, lastSyncAttemptAt)
+            VALUES('b1', 'p1', 'Estate Co', 'NG', 'NGN', NULL, 'free', 1, 1, 'SYNCED', NULL)
+            """
+        )
+        MIGRATION_2_3.migrate(db)
+        db.execSQL(
+            """
+            INSERT INTO local_transaction(id, businessId, amountMinor, currency, direction, transactionDate, counterpartyName, category, note, bankName, referenceNumber, source, status, createdAt, updatedAt, deletedAt, syncStatus, lastSyncAttemptAt)
+            VALUES('t1', 'b1', 5000, 'NGN', 'money_in', '2026-01-01', 'Alice', NULL, NULL, NULL, NULL, 'manual', 'confirmed', 1, 1, NULL, 'SYNCED', NULL)
+            """
+        )
+
+        // Run the rest of the chain through the Phase 13 migration.
+        MIGRATION_3_4.migrate(db)
+        MIGRATION_4_5.migrate(db)
+        MIGRATION_5_6.migrate(db)
+        MIGRATION_6_7.migrate(db)
+        MIGRATION_7_8.migrate(db)
+        MIGRATION_8_9.migrate(db)
+        MIGRATION_9_10.migrate(db)
+        MIGRATION_10_11.migrate(db)
+        MIGRATION_11_12.migrate(db)
+        MIGRATION_12_13.migrate(db)
+        MIGRATION_13_14.migrate(db)
+
+        // New columns exist and are NULL for the legacy transaction.
+        db.query("SELECT projectId, unitId FROM local_transaction WHERE id = 't1'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertNull(c.getString(0))
+            assertNull(c.getString(1))
+        }
+
+        // New tables are queryable and accept inserts (FK to a project for the unit).
+        db.execSQL(
+            """
+            INSERT INTO local_project(id, businessId, name, note, createdAt, updatedAt, deletedAt, syncStatus, lastSyncAttemptAt)
+            VALUES('pr1', 'b1', 'Sunrise Estate', NULL, 1, 1, NULL, 'SYNCED', NULL)
+            """
+        )
+        db.execSQL(
+            """
+            INSERT INTO local_unit(id, businessId, projectId, label, buyerCounterpartyId, totalPriceMinor, currency, status, createdAt, updatedAt, deletedAt, syncStatus, lastSyncAttemptAt)
+            VALUES('u1', 'b1', 'pr1', 'Plot 12', NULL, 200000000, 'NGN', 'available', 1, 1, NULL, 'SYNCED', NULL)
+            """
+        )
+        assertRowCount("local_project", 1)
+        assertRowCount("local_unit", 1)
+
+        // The Room-convention indexes the migration created are present.
+        assertIndexExists("index_local_project_businessId")
+        assertIndexExists("index_local_unit_projectId")
+        assertIndexExists("index_local_unit_buyerCounterpartyId")
+    }
+
+    private fun assertIndexExists(name: String) {
+        db.query("SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?", arrayOf(name)).use { c ->
+            assertTrue("Expected index $name", c.moveToFirst())
         }
     }
 
