@@ -37,21 +37,32 @@ This is an Android-native, offline-first payment proof tracker for small busines
 - If UI state becomes complex, add dedicated UI state/models instead of bending database entities around presentation needs.
 
 ## Current Phase
-Phase 11: Reports and Exports — **first cut shipped, second cut remaining.**
+Phase 12: Polish, Analytics, and Reliability.
 
-The first cut is Android-only and fully offline: a "Reports & export" entry on
-the Home dashboard opens a dedicated Summary screen with a Month/Week period
-picker (whole periods only — ◀ ▶ stepper, next disabled past today, plus a
-tap-to-jump dropdown; defaults to current month), totals (money in/out/net,
-top people, top categories computed locally from Room), and an **Export CSV**
-action that writes the file to cacheDir/exports and shares it via FileProvider.
-`export_created` logs on-device via `SyncEventLogger`. No backend changes —
-the §9.7 backend `/summary` + `/export.csv` endpoints are only needed by a
-future web dashboard and ship with the PDF cut. Verified with
-`:app:testDebugUnitTest` + `:app:assembleDebug`. See "Phase 11 implementation
-notes" in `docs/master-plan.md`. Second cut (deferred): backend
-summary/CSV/PDF endpoints (`reportlab`, online-only PDF) + the Android PDF
-export action + export-event audit rows.
+Add an explicit Phase 12 UI/navigation polish pass before treating the app as
+pilot-ready: the Home screen's small text-link row should stop carrying
+important destinations. "Manage categories" belongs on or near the Records tab
+as a real record-organization action (for example, a prominent secondary action
+near filters or an overflow/action button in the Records header). "Reports &
+export" also needs more weight than a small Home link. Decide during Phase 12
+whether it becomes a top-level Reports tab (preferred if the bottom nav remains
+comfortable at five items: Home, Records, Reports, People, Settings) or a
+prominent dashboard card/action with a secondary Records entry point.
+
+Phase 11 (Reports and Exports) is complete. The Android app has a
+"Reports & export" entry on the Home dashboard that opens a dedicated Summary
+screen with a Month/Week period picker (whole periods only; previous/next
+stepper, next disabled past today, plus a tap-to-jump dropdown; defaults to
+current month), totals (money in/out/net, top people, top categories computed
+locally from Room), offline CSV export to `cacheDir/exports`, and online PDF
+export through the backend `/businesses/{business_id}/export.pdf` endpoint.
+PDF generation is backend-rendered via `app/services/report_pdf.py`; Android
+shares both CSV and PDF through the same FileProvider flow. Export actions log
+`export_created` on-device via `SyncEventLogger`, and PDF export writes a
+backend audit event. Verified on 2026-06-04 with
+`:app:testDebugUnitTest`, `:app:assembleDebug`, and
+`uv run pytest tests/test_phase11.py`. See "Phase 11 implementation notes" in
+`docs/master-plan.md`.
 
 Phase 10 (Offline Sync Hardening) is complete: improved sync queue with
 dependency-ordered drain, retry with backoff, clear sync-status UI + a

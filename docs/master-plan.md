@@ -2332,27 +2332,27 @@ Give users trust and portability through summaries and exports.
 * User can generate monthly/weekly summaries.
 * User can export records for review/accountant/disputes.
 
-## Phase 11 implementation notes (first cut — summary + offline CSV)
+## Phase 11 implementation notes
 
-**Status: first cut shipped (Android-only, fully offline). PDF + backend
-reporting endpoints deferred to a second cut.**
+**Status: complete.** Android summary, offline CSV export, online backend PDF
+export, Android PDF sharing, backend audit rows, and Phase 11 tests have
+shipped.
 
 Decisions locked in during planning:
 
-* **PDF: backend-only (online), deferred.** PDF must be server-side
-  (`reportlab`) to keep the dependency off the APK, so it ships with the
-  second cut alongside the backend endpoints. CSV covers the
-  accountant/dispute deliverable offline in the meantime.
-* **First cut = summary screen + offline CSV.** Both are computed/generated
-  on-device from Room, so the whole Reports page works with no connectivity.
-* **No backend changes in the first cut.** The §9.7 backend `/summary` and
-  `/export.csv` endpoints are only needed by a future web dashboard; the
-  Android deliverable is satisfied locally. They land with the PDF cut.
-* **Export tracking is on-device.** `export_created` is logged via the
-  existing on-device `SyncEventLogger` (entity_type `export`), consistent
+* **PDF: backend-only (online).** PDF is rendered server-side through
+  `GET /businesses/{business_id}/export.pdf` and shared by Android via the
+  same FileProvider flow as CSV. CSV remains available offline.
+* **Summary screen + offline CSV.** Both are computed/generated on-device from
+  Room, so summaries and CSV export work with no connectivity.
+* **No backend `/summary` or `/export.csv` for Android.** The §9.7 backend
+  `/summary` and `/export.csv` endpoints are only needed by a future web
+  dashboard; Android satisfies those deliverables locally.
+* **Export tracking is split by surface.** Android logs `export_created` via
+  the existing on-device `SyncEventLogger` (entity_type `export`), consistent
   with the Phase 10 decision to keep sync/event logging on-device until the
-  Phase 12 server-side `sync_events` work. The §15 `export_created` analytics
-  event is satisfied without the deferred analytics ingestion.
+  Phase 12 server-side `sync_events` work. Backend PDF export also writes an
+  `audit_events` row with the export format, date range, and row count.
 * **Periods are whole weeks or whole months only** — no free-form custom
   start/end ranges. The user picks a unit (Month/Week) and can navigate to
   *any* one of them: a ◀ ▶ stepper for adjacent periods (next is disabled
@@ -2364,14 +2364,16 @@ Decisions locked in during planning:
 * **Navigation:** a "Reports & export" entry on the Home dashboard opens a
   dedicated full screen (not a popup) where the user picks the period, sees
   totals (money in/out/net, top people, top categories), and taps Export CSV
-  → Android share sheet.
+  or Export PDF -> Android share sheet. PDF failures show "Connect to the
+  internet to generate a PDF"; CSV stays offline-first.
 
 Key files (Android):
 
 * `ui/format/ReportPeriod.kt` — whole week/month period model + stepping +
   `periodsCovering` jump-list + `relativeLabel`.
 * `data/repository/ReportRepository.kt` — pure `summarize` + `buildCsv`;
-  `exportCsv` runs file IO on `Dispatchers.IO`.
+  `exportCsv` runs file IO on `Dispatchers.IO`; `exportPdf` streams backend
+  bytes and writes them through the export writer.
 * `data/export/ExportFileWriter.kt` — interface + `AndroidExportFileWriter`
   (cacheDir/exports + FileProvider URI), mirroring `ProofFileStore`.
 * `ui/viewmodel/SummaryViewModel.kt`, `ui/screens/SummaryScreen.kt`.
@@ -2380,16 +2382,16 @@ Key files (Android):
   `di/ProofModule.kt` writer binding.
 * Tests: `ReportRepositoryTest`, `ReportPeriodTest`.
 
-Verification: `:app:testDebugUnitTest` + `:app:assembleDebug` both pass.
+Key files (backend):
 
-Second cut (remaining Phase 11 scope):
+* `api/routes/reports.py` — `GET /businesses/{business_id}/export.pdf`, member
+  authorization, date validation, proof counts, and export audit row.
+* `services/report_pdf.py` — HTML/PDF rendering and report insight helpers.
+* Wiring: `app/main.py` router registration.
+* Tests: `tests/test_phase11.py`.
 
-* Backend `reports.py`: `GET /summary`, `GET /export.csv`, `GET /export.pdf`
-  (`reportlab` via `app/services/report_pdf.py`), export-event audit rows,
-  router registration, `test_phase11.py`.
-* Android PDF export action (online-only; disabled offline with a "connect to
-  generate a PDF" message), calling the backend `export.pdf` streaming
-  endpoint and sharing via the same FileProvider flow.
+Verification on 2026-06-04: `:app:testDebugUnitTest`, `:app:assembleDebug`,
+and `uv run pytest tests/test_phase11.py` pass.
 
 ---
 
@@ -2407,6 +2409,17 @@ Improve product quality, trust, and validation measurement.
 * Improve empty states.
 * Improve error states.
 * Add onboarding tips.
+* Improve primary navigation/information architecture so important workflow
+  destinations are not hidden as small Home text links:
+  * Move/promote **Manage categories** into the Records area as a real
+    record-organization action (for example, a prominent secondary action near
+    filters or a Records header action/overflow item). It should feel tied to
+    organizing records, not like a minor dashboard link.
+  * Promote **Reports & export**. Decide in this phase whether it should become
+    a top-level Reports tab (preferred if five bottom-nav items remain usable:
+    Home, Records, Reports, People, Settings) or a prominent Home dashboard
+    card/action with a secondary Records entry point. In either case, remove
+    the current tiny-link treatment.
 * Optimize cold start and transaction list performance.
 * Add image compression.
 * Continue low-end-device responsiveness testing. A small audit has already

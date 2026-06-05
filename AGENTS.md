@@ -30,10 +30,12 @@ This is an Android-native, offline-first payment proof tracker for small busines
 - If UI state becomes complex, add dedicated UI state/models instead of bending database entities around presentation needs.
 
 ## Current Phase
-Phase 10: Offline Sync Hardening.
+Phase 12: Polish, Analytics, and Reliability.
 
 Focus for this phase:
-- Sync local pending work across every business, not only the selected business.
-- Preserve dependency order: businesses, then people, then records, then proof backup.
-- Keep failed local records retryable with clear user-facing errors.
-- Harden proof lifecycle, retry behavior, and audit/telemetry before adding new product features.
+- Improve real-user reliability, observability, loading/error/empty states, and onboarding polish.
+- Promote important navigation actions during UI polish: manage categories should live on/near the Records tab as a real record-organization action, not a small Home text link; reports/export should be more prominent than a small Home text link.
+- Add analytics/Sentry carefully without weakening the offline-first local-save promise.
+- Add user-visible edit history backed by the Phase 10 audit log.
+- Harden backend validation, structured logging, rate limiting, and server-side sync event ingestion.
+- Keep Phase 12 focused on polish, analytics, and reliability; do not add future product features early.

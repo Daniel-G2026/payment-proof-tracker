@@ -27,8 +27,10 @@ Small Nigerian construction-adjacent businesses, suppliers, subcontractors, and 
 - Phases 1-6 are implemented: foundation, auth/business setup, manual records, counterparties, screenshot proof attachment, and Android share-sheet intake.
 - Phase 8 and 8.1 are implemented: server-side AI extraction creates editable drafts, and new proofs eagerly upload on attach so drafts can pre-fill during record creation.
 - Phase 9 is implemented: duplicate detection is warning-only, checks local data first, falls back safely if the backend is unavailable, and compares proof hashes, references, and amount/date/counterparty signals.
-- Recent polish: amount entry now uses comma-separated numbers, and a small responsiveness audit moved proof file work off the UI thread.
-- Current phase: Phase 10 offline sync hardening. The first slice makes background sync drain every locally synced business, preserves dependency order, and cleans up stale Phase 1-only status docs.
+- Phase 10 is implemented: background sync drains every locally synced business in dependency order, failed work stays retryable with clear user-facing errors, proof backup/restore is hardened, and audit events record financial create/edit/delete changes.
+- Phase 11 is implemented: Reports & export provides local weekly/monthly summaries, offline CSV export, and online PDF export from the backend.
+- Recent polish: amount entry uses comma-separated numbers, proof file work moved off the UI thread, fresh-device proof restore is available, and report exports are covered by Android/backend tests.
+- Current phase: Phase 12 polish, analytics, and reliability.
 
 ## Fresh-Machine Setup
 

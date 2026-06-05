@@ -36,6 +36,7 @@ import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
 import com.danielanazodo.proofledger.ui.components.DetailLine
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
+import com.danielanazodo.proofledger.ui.components.ProofLedgerConfirmDialog
 import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
 import com.danielanazodo.proofledger.ui.components.ProofStatusDot
 import com.danielanazodo.proofledger.ui.components.QuietButton
@@ -60,7 +61,8 @@ fun TransactionDetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val back = rememberDebouncedClick(onClick = onBack)
-    val delete = rememberDebouncedClick(onClick = viewModel::delete)
+    var confirmDeleteOpen by remember { mutableStateOf(false) }
+    val delete = rememberDebouncedClick(onClick = { confirmDeleteOpen = true })
     val backUpProof = rememberDebouncedClick(onClick = viewModel::backUpProofNow)
     LaunchedEffect(state.deleted) { if (state.deleted) onBack() }
 
@@ -84,6 +86,20 @@ fun TransactionDetailScreen(
             }
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
+    }
+
+    if (confirmDeleteOpen && state.transaction != null) {
+        ProofLedgerConfirmDialog(
+            title = "Delete record?",
+            message = "This removes the record from your active list and deletes its attached proof from this phone and backup storage.",
+            confirmText = "Delete",
+            dismissText = "Keep",
+            onConfirm = {
+                confirmDeleteOpen = false
+                viewModel.delete()
+            },
+            onDismiss = { confirmDeleteOpen = false },
+        )
     }
 }
 

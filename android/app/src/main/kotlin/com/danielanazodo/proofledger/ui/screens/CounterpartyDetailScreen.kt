@@ -15,6 +15,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -24,6 +27,7 @@ import com.danielanazodo.proofledger.ui.components.DetailLine
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
 import com.danielanazodo.proofledger.ui.components.MetricLine
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
+import com.danielanazodo.proofledger.ui.components.ProofLedgerConfirmDialog
 import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
 import com.danielanazodo.proofledger.ui.components.QuietButton
 import com.danielanazodo.proofledger.ui.components.RecordListRow
@@ -51,7 +55,8 @@ fun CounterpartyDetailScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val back = rememberDebouncedClick(onClick = onBack)
     val transactionClick = rememberDebouncedClick(onClick = onTransactionClick)
-    val delete = rememberDebouncedClick(onClick = viewModel::delete)
+    var confirmDeleteOpen by remember { mutableStateOf(false) }
+    val delete = rememberDebouncedClick(onClick = { confirmDeleteOpen = true })
     LaunchedEffect(state.deleted) { if (state.deleted) onBack() }
 
     ProofLedgerScreen(title = "Person", onBack = back) { modifier ->
@@ -90,6 +95,21 @@ fun CounterpartyDetailScreen(
                 }
             }
         }
+    }
+
+    val counterparty = state.counterparty
+    if (confirmDeleteOpen && counterparty != null) {
+        ProofLedgerConfirmDialog(
+            title = "Delete person?",
+            message = "This removes ${counterparty.name} from your people list. Saved records stay saved and still show the name they were created with.",
+            confirmText = "Delete",
+            dismissText = "Keep",
+            onConfirm = {
+                confirmDeleteOpen = false
+                viewModel.delete()
+            },
+            onDismiss = { confirmDeleteOpen = false },
+        )
     }
 }
 

@@ -33,5 +33,7 @@ The backend has moved beyond Phase 1. It now supports:
 - screenshot proof upload, signed content access, and orphan proof linking
 - server-side extraction drafts for uploaded proofs
 - duplicate-candidate checks for warning-only duplicate prevention
+- dependency-aware offline sync support, conflict checks, and audit events
+- proof restore endpoints and online PDF report export
 
-Current active phase: Phase 10 offline sync hardening.
+Current active phase: Phase 12 polish, analytics, and reliability.

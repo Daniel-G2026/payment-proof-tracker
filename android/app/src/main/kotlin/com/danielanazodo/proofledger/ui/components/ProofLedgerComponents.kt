@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.text.KeyboardOptions
 import com.danielanazodo.proofledger.ui.navigation.MainTab
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
@@ -427,6 +428,57 @@ fun QuietButton(
             Spacer(Modifier.width(8.dp))
         }
         Text(text, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+@Composable
+fun ProofLedgerConfirmDialog(
+    title: String,
+    message: String,
+    confirmText: String,
+    dismissText: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(SurfaceCard)
+                .border(1.dp, ProofBorder, RoundedCornerShape(20.dp))
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    title,
+                    color = NeutralInk,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    message,
+                    color = NeutralMuted,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                QuietButton(
+                    text = dismissText,
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                )
+                PrimaryActionButton(
+                    text = confirmText,
+                    onClick = onConfirm,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
     }
 }
 

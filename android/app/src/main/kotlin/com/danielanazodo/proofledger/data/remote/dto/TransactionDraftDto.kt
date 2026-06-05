@@ -48,4 +48,5 @@ object DraftErrorCode {
     const val PARSE = "parse_error"
     const val TIMEOUT = "timeout"
     const val UNREADABLE = "unreadable"
+    const val NETWORK = "network_error"
 }

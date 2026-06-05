@@ -752,7 +752,7 @@ class TransactionFormViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         ocrRunning = false,
-                        serverDraftError = "Draft unavailable — type the fields yourself.",
+                        serverDraftError = OFFLINE_DRAFT_MESSAGE,
                         pendingScreenshotId = null,
                     )
                 }
@@ -779,6 +779,7 @@ class TransactionFormViewModel @Inject constructor(
                         val message = when (pollState.errorCode) {
                             DraftErrorCode.UNREADABLE -> "Couldn't read this one — type the fields yourself."
                             DraftErrorCode.TIMEOUT -> "Draft is taking longer than expected — try again later."
+                            DraftErrorCode.NETWORK -> OFFLINE_DRAFT_MESSAGE
                             else -> "Couldn't draft from your screenshot."
                         }
                         _state.update {
@@ -851,6 +852,7 @@ class TransactionFormViewModel @Inject constructor(
                         val message = when (state.errorCode) {
                             DraftErrorCode.UNREADABLE -> "Couldn't read this one — type the fields yourself."
                             DraftErrorCode.TIMEOUT -> "Draft is taking longer than expected — try again later."
+                            DraftErrorCode.NETWORK -> OFFLINE_DRAFT_MESSAGE
                             else -> "Couldn't draft from your screenshot."
                         }
                         _state.update {
@@ -974,6 +976,8 @@ private const val OCR_DRAFTING_ENABLED = false
 // are gated on this so we can disable in production within one config change
 // if the vision model misbehaves on real receipts.
 private const val SERVER_EXTRACTION_ENABLED = true
+private const val OFFLINE_DRAFT_MESSAGE =
+    "Can't draft from your screenshot right now. You may be offline, but you can still type the fields yourself."
 
 // Mirrors the backend draft status strings — kept here so the ViewModel
 // doesn't need to import the DTO module for two comparisons.
