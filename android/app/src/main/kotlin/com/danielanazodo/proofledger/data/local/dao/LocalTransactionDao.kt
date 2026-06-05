@@ -63,11 +63,11 @@ interface LocalTransactionDao {
           AND (:direction IS NULL OR direction = :direction)
           AND (
             :search IS NULL OR :search = '' OR
-            counterpartyName LIKE '%' || :search || '%' OR
-            category LIKE '%' || :search || '%' OR
-            note LIKE '%' || :search || '%' OR
-            bankName LIKE '%' || :search || '%' OR
-            referenceNumber LIKE '%' || :search || '%'
+            counterpartyName LIKE '%' || :search || '%' ESCAPE '\' OR
+            category LIKE '%' || :search || '%' ESCAPE '\' OR
+            note LIKE '%' || :search || '%' ESCAPE '\' OR
+            bankName LIKE '%' || :search || '%' ESCAPE '\' OR
+            referenceNumber LIKE '%' || :search || '%' ESCAPE '\'
           )
         ORDER BY transactionDate DESC, createdAt DESC, id DESC
         """

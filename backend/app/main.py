@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
     businesses,
@@ -26,8 +27,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     in dev when the user hasn't booted the docker-compose stack) we log and
     fall through. Uploads still work; they just skip extraction enqueueing.
     """
+    # Create the Redis pool when extraction needs it OR when the upload
+    # rate-limiter is configured (Phase 12) — both reuse the same pool.
     pool = None
-    if settings.extraction_enabled:
+    needs_pool = settings.extraction_enabled or (
+        settings.upload_rate_per_minute > 0 or settings.upload_rate_per_hour > 0
+    )
+    if needs_pool:
         try:
             from arq import create_pool
 
@@ -54,6 +60,28 @@ app = FastAPI(
     version="0.3.0",
     lifespan=lifespan,
 )
+
+def parse_cors_origins(raw: str) -> list[str]:
+    """Split the comma-separated origins config, dropping blanks."""
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
+
+def configure_cors(target: FastAPI, raw_origins: str) -> None:
+    """Phase 12 — CORS. Default-empty origins means no cross-origin access (the
+    mobile app sends no Origin header, so it's unaffected). The future web
+    dashboard's origin is added via the cors_allowed_origins env. Never "*"."""
+    origins = parse_cors_origins(raw_origins)
+    if origins:
+        target.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
+
+configure_cors(app, settings.cors_allowed_origins)
 
 app.include_router(health.router)
 app.include_router(profiles.router)

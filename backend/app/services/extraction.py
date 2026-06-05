@@ -19,6 +19,7 @@ from arq.connections import ArqRedis
 
 from app.core.config import settings
 from app.db.models.transaction_draft import DRAFT_STATUS_QUEUED, DRAFT_STATUS_RATE_LIMITED
+from app.services.rate_limit import RateLimit, check_rate_limit
 
 log = logging.getLogger(__name__)
 
@@ -62,30 +63,17 @@ async def try_enqueue_extraction(
 async def _consume_rate_token(pool: ArqRedis, user_id: uuid.UUID) -> bool:
     """Return True if the user is under both per-minute and per-hour caps.
 
-    Increments both counters even on rejection so a hammering client doesn't
-    get a free pass at the top of the next window.
+    Thin wrapper over the shared token-bucket limiter; the worker has its own
+    backpressure (max_jobs=4) so a fail-open here can't run away too far.
     """
-    minute_key = f"extract:rl:m:{user_id}"
-    hour_key = f"extract:rl:h:{user_id}"
-    try:
-        # arq's underlying redis client exposes the async commands directly.
-        pipe = pool.pipeline()
-        pipe.incr(minute_key)
-        pipe.expire(minute_key, 60)
-        pipe.incr(hour_key)
-        pipe.expire(hour_key, 3600)
-        minute_count, _, hour_count, _ = await pipe.execute()
-    except Exception:
-        # Redis hiccup: fail open. The worker has its own backpressure
-        # (max_jobs=4) so we can't run away too far.
-        log.exception("Rate-limit Redis call failed; allowing request")
-        return True
-
-    if minute_count > settings.extraction_rate_per_minute:
-        return False
-    if hour_count > settings.extraction_rate_per_hour:
-        return False
-    return True
+    return await check_rate_limit(
+        pool,
+        key=f"extract:{user_id}",
+        limit=RateLimit(
+            per_minute=settings.extraction_rate_per_minute,
+            per_hour=settings.extraction_rate_per_hour,
+        ),
+    )
 
 
 def build_arq_redis_settings() -> Any:

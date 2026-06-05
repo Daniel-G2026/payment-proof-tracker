@@ -2,6 +2,7 @@ package com.danielanazodo.proofledger.data.repository
 
 import com.danielanazodo.proofledger.data.local.SyncStatus
 import com.danielanazodo.proofledger.data.local.dao.LocalCounterpartyDao
+import com.danielanazodo.proofledger.data.local.escapeLikeTerm
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
 import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyCreateDto
@@ -35,7 +36,13 @@ class CounterpartyRepository @Inject constructor(
         search: String?,
         type: String?,
     ): Flow<List<LocalCounterpartyEntity>> =
-        localDao.observeFiltered(businessId, search?.trim()?.lowercase(), type)
+        // Escape after normalize so a literal % / _ isn't a wildcard (DAO LIKE
+        // clauses declare ESCAPE '\').
+        localDao.observeFiltered(
+            businessId,
+            search?.trim()?.lowercase()?.let { escapeLikeTerm(it) },
+            type,
+        )
 
     fun observeById(counterpartyId: String): Flow<LocalCounterpartyEntity?> =
         localDao.observeById(counterpartyId)
