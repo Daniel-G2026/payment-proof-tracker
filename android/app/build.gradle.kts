@@ -47,6 +47,16 @@ android {
             "SUPABASE_ANON_KEY",
             "\"${localProp("SUPABASE_ANON_KEY", "")}\"",
         )
+
+        // Phase 12 observability: empty by default so debug / CI builds need no
+        // keys and both SDKs stay no-op. Real values come from local.properties.
+        buildConfigField("String", "SENTRY_DSN", "\"${localProp("SENTRY_DSN", "")}\"")
+        buildConfigField("String", "POSTHOG_API_KEY", "\"${localProp("POSTHOG_API_KEY", "")}\"")
+        buildConfigField(
+            "String",
+            "POSTHOG_HOST",
+            "\"${localProp("POSTHOG_HOST", "https://us.i.posthog.com")}\"",
+        )
     }
 
     signingConfigs {
@@ -158,6 +168,10 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.okio)
     implementation(libs.mlkit.text.recognition)
+
+    // Phase 12 observability (no-op without keys)
+    implementation(libs.sentry.android)
+    implementation(libs.posthog.android)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)

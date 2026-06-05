@@ -16,6 +16,12 @@ from app.api.routes import (
     transactions,
 )
 from app.core.config import settings
+from app.core.observability import configure_logging, init_sentry
+
+# Configure logging + Sentry as early as possible (before the app handles any
+# request). Both are no-ops without configuration.
+configure_logging()
+init_sentry()
 
 
 @asynccontextmanager

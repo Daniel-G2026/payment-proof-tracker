@@ -1,5 +1,6 @@
 package com.danielanazodo.proofledger.data.repository
 
+import com.danielanazodo.proofledger.data.analytics.NoOpAnalytics
 import com.danielanazodo.proofledger.data.local.SyncStatus
 import com.danielanazodo.proofledger.data.local.dao.LocalAppMetadataDao
 import com.danielanazodo.proofledger.data.local.dao.LocalBusinessDao
@@ -51,6 +52,7 @@ class BusinessRepositoryTest {
             businessDao = businessDao,
             metadataDao = FakeMetadataDao(),
             syncEventLogger = SyncEventLogger(events),
+            analytics = NoOpAnalytics(),
         )
 
         repository.syncPending()
@@ -76,6 +78,7 @@ class BusinessRepositoryTest {
             businessDao = businessDao,
             metadataDao = FakeMetadataDao(),
             syncEventLogger = SyncEventLogger(events),
+            analytics = NoOpAnalytics(),
         )
 
         repository.syncPending()
