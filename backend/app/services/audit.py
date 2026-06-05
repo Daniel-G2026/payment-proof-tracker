@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -51,6 +51,10 @@ def add_audit_event(
         error_message=error_message,
         old_values=_json_safe_dict(old_values),
         new_values=_json_safe_dict(new_values),
+        # Set explicitly (microsecond precision) instead of the DB's
+        # server_default so edit-history ordering is deterministic even on
+        # SQLite, whose CURRENT_TIMESTAMP only has second resolution.
+        created_at=datetime.now(UTC),
     )
     db.add(event)
     return event

@@ -40,4 +40,8 @@ sealed class Route(val path: String) {
     data object TransactionDetail : Route("transactions/{transactionId}") {
         fun path(transactionId: String): String = "transactions/$transactionId"
     }
+    data object EntityHistory : Route("history/{businessId}/{entityType}/{entityId}") {
+        fun path(businessId: String, entityType: String, entityId: String): String =
+            "history/$businessId/$entityType/$entityId"
+    }
 }

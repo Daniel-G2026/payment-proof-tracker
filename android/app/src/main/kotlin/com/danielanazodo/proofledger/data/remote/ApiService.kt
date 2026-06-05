@@ -1,5 +1,6 @@
 package com.danielanazodo.proofledger.data.remote
 
+import com.danielanazodo.proofledger.data.remote.dto.AuditEventDto
 import com.danielanazodo.proofledger.data.remote.dto.BusinessCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.BusinessDto
 import com.danielanazodo.proofledger.data.remote.dto.CategoryCreateDto
@@ -118,6 +119,13 @@ interface ApiService {
         @Path("businessId") businessId: String,
         @Path("categoryId") categoryId: String,
     )
+
+    @GET("businesses/{businessId}/audit-events")
+    suspend fun listAuditEvents(
+        @Path("businessId") businessId: String,
+        @Query("entity_type") entityType: String,
+        @Query("entity_id") entityId: String,
+    ): List<AuditEventDto>
 
     @GET("businesses/{businessId}/transactions")
     suspend fun listTransactions(

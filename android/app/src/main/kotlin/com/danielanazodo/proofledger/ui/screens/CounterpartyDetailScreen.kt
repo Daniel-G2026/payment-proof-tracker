@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,6 +51,7 @@ fun CounterpartyDetailScreen(
     onBack: () -> Unit,
     onEdit: (String) -> Unit,
     onTransactionClick: (String) -> Unit,
+    onViewHistory: (businessId: String, counterpartyId: String) -> Unit,
     viewModel: CounterpartyDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -74,6 +76,7 @@ fun CounterpartyDetailScreen(
                         state = state,
                         onEdit = { onEdit(counterparty.id) },
                         onDelete = delete,
+                        onViewHistory = { onViewHistory(counterparty.businessId, counterparty.id) },
                     )
                 }
                 state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -119,8 +122,10 @@ private fun PersonHeader(
     state: CounterpartyDetailUiState,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onViewHistory: () -> Unit,
 ) {
     val edit = rememberDebouncedClick(onClick = onEdit)
+    val history = rememberDebouncedClick(onClick = onViewHistory)
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         GroupedPanel {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -136,6 +141,7 @@ private fun PersonHeader(
             PrimaryActionButton("Edit person", onClick = edit, modifier = Modifier.weight(1f), icon = Icons.Filled.Edit)
             QuietButton("Delete", onClick = onDelete, modifier = Modifier.weight(1f), contentColor = MoneyOutRed, icon = Icons.Filled.Delete)
         }
+        QuietButton("View edit history", onClick = history, icon = Icons.Filled.History)
     }
 }
 

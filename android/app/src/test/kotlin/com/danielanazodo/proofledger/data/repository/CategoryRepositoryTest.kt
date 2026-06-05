@@ -287,6 +287,11 @@ class CategoryRepositoryTest {
         private val updateCategoryFailure: Throwable? = null,
         private val deleteCategory404: Boolean = false,
     ) : ApiService {
+        override suspend fun listAuditEvents(
+            businessId: String,
+            entityType: String,
+            entityId: String,
+        ): List<com.danielanazodo.proofledger.data.remote.dto.AuditEventDto> = emptyList()
         var createCategoryCalls = 0
         var deleteCategoryCalls = 0
 

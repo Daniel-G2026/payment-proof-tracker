@@ -235,6 +235,11 @@ class ReportRepositoryTest {
     private class StubApiService(
         private val exportPdfBody: ResponseBody? = null,
     ) : ApiService {
+        override suspend fun listAuditEvents(
+            businessId: String,
+            entityType: String,
+            entityId: String,
+        ): List<com.danielanazodo.proofledger.data.remote.dto.AuditEventDto> = emptyList()
         var exportPdfBusinessId: String? = null
         var exportPdfStart: String? = null
         var exportPdfEnd: String? = null

@@ -527,6 +527,11 @@ class ProofRepositoryTest {
         private val signedUrl: String = "https://signed.example/proof",
         private val downloadBytes: ByteArray = ByteArray(0),
     ) : ApiService {
+        override suspend fun listAuditEvents(
+            businessId: String,
+            entityType: String,
+            entityId: String,
+        ): List<com.danielanazodo.proofledger.data.remote.dto.AuditEventDto> = emptyList()
         val deletedScreenshotIds = mutableListOf<String>()
 
         override suspend fun deleteScreenshot(screenshotId: String) {

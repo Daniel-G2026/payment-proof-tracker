@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
+    audit,
     businesses,
     categories,
     counterparties,
@@ -95,6 +96,7 @@ app.include_router(businesses.router)
 app.include_router(categories.router)
 app.include_router(counterparties.router)
 app.include_router(transactions.router)
+app.include_router(audit.router)
 app.include_router(reports.router)
 app.include_router(screenshots.router)
 app.include_router(transaction_drafts.router)

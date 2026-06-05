@@ -35,6 +35,7 @@ import com.danielanazodo.proofledger.ui.screens.SignInScreen
 import com.danielanazodo.proofledger.ui.screens.SettingsScreen
 import com.danielanazodo.proofledger.ui.screens.SummaryScreen
 import com.danielanazodo.proofledger.ui.screens.SyncIssuesScreen
+import com.danielanazodo.proofledger.ui.screens.EditHistoryScreen
 import com.danielanazodo.proofledger.ui.screens.TransactionDetailScreen
 import com.danielanazodo.proofledger.ui.screens.TransactionFormScreen
 import com.danielanazodo.proofledger.ui.screens.TransactionListScreen
@@ -259,6 +260,9 @@ private fun ResolvedGraph(
                 onBack = { navController.popBackStack() },
                 onEdit = { id -> navController.navigateOnce(Route.EditCounterparty.path(id)) },
                 onTransactionClick = { id -> navController.navigateOnce(Route.TransactionDetail.path(id)) },
+                onViewHistory = { businessId, id ->
+                    navController.navigateOnce(Route.EntityHistory.path(businessId, "counterparty", id))
+                },
             )
         }
         composable(Route.CategoryList.path) {
@@ -308,7 +312,20 @@ private fun ResolvedGraph(
             TransactionDetailScreen(
                 onBack = { navController.popBackStack() },
                 onEdit = { id -> navController.navigateOnce(Route.EditTransaction.path(id)) },
+                onViewHistory = { businessId, id ->
+                    navController.navigateOnce(Route.EntityHistory.path(businessId, "transaction", id))
+                },
             )
+        }
+        composable(
+            route = Route.EntityHistory.path,
+            arguments = listOf(
+                navArgument("businessId") { type = NavType.StringType },
+                navArgument("entityType") { type = NavType.StringType },
+                navArgument("entityId") { type = NavType.StringType },
+            ),
+        ) {
+            EditHistoryScreen(onBack = { navController.popBackStack() })
         }
     }
 

@@ -173,6 +173,11 @@ class BusinessRepositoryTest {
     private class FakeApiService(
         private val createBusinessFailure: Throwable? = null,
     ) : ApiService {
+        override suspend fun listAuditEvents(
+            businessId: String,
+            entityType: String,
+            entityId: String,
+        ): List<com.danielanazodo.proofledger.data.remote.dto.AuditEventDto> = emptyList()
         override suspend fun createBusiness(body: BusinessCreateDto): BusinessDto {
             createBusinessFailure?.let { throw it }
             return BusinessDto(

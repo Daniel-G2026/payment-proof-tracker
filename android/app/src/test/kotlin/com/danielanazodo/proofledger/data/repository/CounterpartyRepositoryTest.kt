@@ -231,6 +231,11 @@ class CounterpartyRepositoryTest {
         private val createCounterpartyFailure: Throwable? = null,
         private val updateCounterpartyFailure: Throwable? = null,
     ) : ApiService {
+        override suspend fun listAuditEvents(
+            businessId: String,
+            entityType: String,
+            entityId: String,
+        ): List<com.danielanazodo.proofledger.data.remote.dto.AuditEventDto> = emptyList()
         var deleteCounterpartyCalls = 0
 
         override suspend fun deleteCounterparty(businessId: String, counterpartyId: String) {
