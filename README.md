@@ -10,7 +10,7 @@ Upload or share payment screenshots, review the AI-drafted details, and keep a c
 
 ## Initial Target Market
 
-Small Nigerian construction-adjacent businesses, suppliers, subcontractors, and family-run businesses that currently track payments through WhatsApp screenshots, notebooks, spreadsheets, and memory.
+Small businesses that **receive digital proof of payment** (transfer screenshots, signed offer letters) and **run work as discrete projects** — money in and money out per project. The beachhead is **installment-based construction / house-sale businesses** that sell on offer-letter payment plans and need to know, without flipping through documents, who is due this month and who is behind. The customer is defined by digital-proof frequency and project structure, not by income or formality; pure-cash businesses with no digital proof are out of scope for v1.
 
 ## Tech Direction
 
@@ -30,7 +30,9 @@ Small Nigerian construction-adjacent businesses, suppliers, subcontractors, and 
 - Phase 10 is implemented: background sync drains every locally synced business in dependency order, failed work stays retryable with clear user-facing errors, proof backup/restore is hardened, and audit events record financial create/edit/delete changes.
 - Phase 11 is implemented: Reports & export provides local weekly/monthly summaries, offline CSV export, and online PDF export from the backend.
 - Recent polish: amount entry uses comma-separated numbers, proof file work moved off the UI thread, fresh-device proof restore is available, and report exports are covered by Android/backend tests.
-- Current phase: Phase 12 polish, analytics, and reliability.
+- Phase 12 (polish, analytics, reliability) is in review: security/validation hardening (upload rate-limiting, currency allowlist, search escaping, CORS), Sentry + PostHog observability, a user-visible edit history, navigation/IA polish (a top-level Reports tab; Manage categories moved into Records), and server-side sync-event reporting.
+- Next direction: **Phase 13** reframes the money-in side around **projects (houses)** — offer-letter installment schedules, computed arrears balances, and money-out per project. See `docs/master-plan.md`.
+- Current phase: wrapping up Phase 12; Phase 13 (project-based tracking) is planned next.
 
 ## Fresh-Machine Setup
 
