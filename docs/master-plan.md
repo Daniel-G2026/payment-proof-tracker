@@ -2583,7 +2583,9 @@ ships as its own branch/PR (additive schema + hardening + tests).
 
 * **Cut 0 — Contracts.** Write the Phase 13 docs first: worked allocation
   examples, dashboard counting rules, and the renegotiation / earmark / late
-  semantics above. No code.
+  semantics above. No code. **Done** — the normative engineering contract (the
+  number-exact worked examples Cuts 2–4 assert against) lives in
+  `docs/phase-13-allocation-contract.md`.
 * **Cut 1 — Projects + Units.** Objects only, with sync ordering and minimal
   CRUD UI. (Visible: create/see projects & units. Infra: schema + sync.)
 * **Cut 2 — Manual schedule + pure allocation engine.** Versioned schedules +
