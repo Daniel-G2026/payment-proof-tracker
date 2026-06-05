@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -25,6 +26,7 @@ import com.danielanazodo.proofledger.ui.components.IconCircleButton
 import com.danielanazodo.proofledger.ui.components.PageHeader
 import com.danielanazodo.proofledger.ui.components.ProofLedgerFilterChip
 import com.danielanazodo.proofledger.ui.components.ProofLedgerMainScaffold
+import com.danielanazodo.proofledger.ui.components.OnboardingTipCard
 import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
 import com.danielanazodo.proofledger.ui.components.RecordListRow
 import com.danielanazodo.proofledger.ui.components.SectionLabel
@@ -38,6 +40,7 @@ fun TransactionListScreen(
     onBack: () -> Unit,
     onAdd: () -> Unit,
     onTransactionClick: (String) -> Unit,
+    onManageCategories: () -> Unit,
     onTabSelected: (MainTab) -> Unit,
     viewModel: TransactionListViewModel = hiltViewModel(),
 ) {
@@ -51,11 +54,18 @@ fun TransactionListScreen(
             PageHeader(
                 title = "Records",
                 action = {
-                    IconCircleButton(
-                        icon = Icons.Filled.Add,
-                        contentDescription = "Add record",
-                        onClick = onAdd,
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        IconCircleButton(
+                            icon = Icons.Filled.Sell,
+                            contentDescription = "Manage categories",
+                            onClick = onManageCategories,
+                        )
+                        IconCircleButton(
+                            icon = Icons.Filled.Add,
+                            contentDescription = "Add record",
+                            onClick = onAdd,
+                        )
+                    }
                 },
             )
         },
@@ -64,6 +74,14 @@ fun TransactionListScreen(
             modifier = modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            if (state.showCategoriesTip) {
+                item {
+                    OnboardingTipCard(
+                        text = "Tip: organize your records with categories — tap the tag icon above to manage them.",
+                        onDismiss = viewModel::dismissCategoriesTip,
+                    )
+                }
+            }
             item {
                 ProofLedgerTextField(
                     value = state.search,

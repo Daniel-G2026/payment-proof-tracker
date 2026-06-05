@@ -126,6 +126,7 @@ private fun ResolvedGraph(
         val route = when (tab) {
             MainTab.Home -> Route.Dashboard.path
             MainTab.Records -> Route.TransactionList.path
+            MainTab.Reports -> Route.Summary.path
             MainTab.People -> Route.CounterpartyList.path
             MainTab.Settings -> Route.Settings.path
         }
@@ -173,16 +174,14 @@ private fun ResolvedGraph(
                 onAddMoneyOut = { navController.navigateOnce(Route.AddTransaction.path("money_out")) },
                 onViewTransactions = { navController.navigateOnce(Route.TransactionList.path) },
                 onViewCounterparties = { navController.navigateOnce(Route.CounterpartyList.path) },
-                onManageCategories = { navController.navigateOnce(Route.CategoryList.path) },
                 onViewProofBackup = { navController.navigateOnce(Route.ProofBackup.path) },
-                onViewReports = { navController.navigateOnce(Route.Summary.path) },
                 onViewSyncIssues = { navController.navigateOnce(Route.SyncIssues.path) },
                 onTransactionClick = { id -> navController.navigateOnce(Route.TransactionDetail.path(id)) },
                 onTabSelected = onTabSelected,
             )
         }
         composable(Route.Summary.path) {
-            SummaryScreen(onBack = { navController.popBackStack() })
+            SummaryScreen(onTabSelected = onTabSelected)
         }
         composable(Route.SyncIssues.path) {
             SyncIssuesScreen(
@@ -275,6 +274,7 @@ private fun ResolvedGraph(
                 onBack = { navController.popBackStack() },
                 onAdd = { navController.navigateOnce(Route.AddTransaction.path("money_in")) },
                 onTransactionClick = { id -> navController.navigateOnce(Route.TransactionDetail.path(id)) },
+                onManageCategories = { navController.navigateOnce(Route.CategoryList.path) },
                 onTabSelected = onTabSelected,
             )
         }

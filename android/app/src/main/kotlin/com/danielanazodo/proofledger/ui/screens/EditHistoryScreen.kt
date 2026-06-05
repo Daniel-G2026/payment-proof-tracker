@@ -21,7 +21,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danielanazodo.proofledger.ui.components.EmptyState
+import com.danielanazodo.proofledger.ui.components.ErrorState
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
+import com.danielanazodo.proofledger.ui.components.LoadingState
 import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
 import com.danielanazodo.proofledger.ui.components.SectionLabel
 import com.danielanazodo.proofledger.ui.components.VerticalSpacer
@@ -41,17 +44,18 @@ fun EditHistoryScreen(
 
     ProofLedgerScreen(title = "Edit history", onBack = onBack) { contentModifier ->
         when {
-            state.loading -> CenterMessage(contentModifier) {
-                CircularProgressIndicator()
-            }
+            state.loading -> LoadingState(contentModifier)
 
-            state.error != null -> CenterMessage(contentModifier) {
-                Text(state.error!!, color = NeutralMuted)
-            }
+            state.error != null -> ErrorState(
+                message = state.error!!,
+                modifier = contentModifier,
+                onRetry = viewModel::load,
+            )
 
-            state.entries.isEmpty() -> CenterMessage(contentModifier) {
-                Text("No changes recorded yet.", color = NeutralMuted)
-            }
+            state.entries.isEmpty() -> EmptyState(
+                message = "No changes recorded yet.",
+                modifier = contentModifier,
+            )
 
             else -> LazyColumn(
                 modifier = contentModifier.fillMaxSize(),
@@ -96,12 +100,5 @@ private fun ChangeRow(change: FieldChange) {
             else -> "${change.oldValue ?: "—"}  →  ${change.newValue ?: "—"}"
         }
         Text(text, color = NeutralInk, fontSize = 14.sp)
-    }
-}
-
-@Composable
-private fun CenterMessage(modifier: Modifier, content: @Composable () -> Unit) {
-    Box(modifier = modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        content()
     }
 }

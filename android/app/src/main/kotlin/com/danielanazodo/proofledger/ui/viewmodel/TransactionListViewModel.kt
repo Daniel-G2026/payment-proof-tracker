@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
 import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
+import com.danielanazodo.proofledger.data.repository.OnboardingRepository
+import com.danielanazodo.proofledger.data.repository.OnboardingTip
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -21,6 +23,7 @@ data class TransactionListUiState(
     val search: String = "",
     val direction: String? = null,
     val missingProofOnly: Boolean = false,
+    val showCategoriesTip: Boolean = false,
 )
 
 @HiltViewModel
@@ -28,6 +31,7 @@ class TransactionListViewModel @Inject constructor(
     private val businessRepository: BusinessRepository,
     private val transactionRepository: TransactionRepository,
     private val proofRepository: ProofRepository,
+    private val onboardingRepository: OnboardingRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(TransactionListUiState())
     val state: StateFlow<TransactionListUiState> = _state.asStateFlow()
@@ -39,6 +43,15 @@ class TransactionListViewModel @Inject constructor(
             businessId = businessRepository.getSelectedBusinessId()
             observe()
         }
+        viewModelScope.launch {
+            val dismissed = onboardingRepository.isDismissed(OnboardingTip.ManageCategories)
+            _state.update { it.copy(showCategoriesTip = !dismissed) }
+        }
+    }
+
+    fun dismissCategoriesTip() {
+        _state.update { it.copy(showCategoriesTip = false) }
+        viewModelScope.launch { onboardingRepository.dismiss(OnboardingTip.ManageCategories) }
     }
 
     fun onSearchChange(value: String) {

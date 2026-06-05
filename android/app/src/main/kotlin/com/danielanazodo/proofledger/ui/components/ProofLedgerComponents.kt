@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.People
@@ -286,6 +287,7 @@ fun ProofLedgerBottomNav(
 private fun MainTab.icon(): ImageVector = when (this) {
     MainTab.Home -> Icons.Filled.Home
     MainTab.Records -> Icons.Filled.CreditCard
+    MainTab.Reports -> Icons.Filled.Assessment
     MainTab.People -> Icons.Filled.People
     MainTab.Settings -> Icons.Filled.Settings
 }
