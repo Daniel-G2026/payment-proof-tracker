@@ -1,5 +1,7 @@
 package com.danielanazodo.proofledger.data.repository
 
+import com.danielanazodo.proofledger.data.analytics.Analytics
+import com.danielanazodo.proofledger.data.analytics.AnalyticsEvents
 import com.danielanazodo.proofledger.data.local.SyncStatus
 import com.danielanazodo.proofledger.data.local.dao.LocalCounterpartyDao
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
@@ -35,6 +37,7 @@ class TransactionRepository @Inject constructor(
     private val screenshotDao: LocalScreenshotDao,
     private val proofRepository: ProofRepository,
     private val syncEventLogger: SyncEventLogger,
+    private val analytics: Analytics,
 ) {
     fun observeTransactions(businessId: String): Flow<List<LocalTransactionEntity>> =
         localDao.observeByBusiness(businessId)
@@ -362,6 +365,10 @@ class TransactionRepository @Inject constructor(
             lastSyncAttemptAt = now,
         )
         localDao.upsert(local)
+        analytics.track(
+            AnalyticsEvents.TRANSACTION_SAVED,
+            mapOf("direction" to direction, "has_proof" to (screenshotId != null)),
+        )
         return runCatching { api.createTransaction(businessId, local.toCreateDto(screenshotId)) }
             .fold(
                 onSuccess = { remote ->

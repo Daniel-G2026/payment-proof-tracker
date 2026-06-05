@@ -1,5 +1,7 @@
 package com.danielanazodo.proofledger.data.repository
 
+import com.danielanazodo.proofledger.data.analytics.Analytics
+import com.danielanazodo.proofledger.data.analytics.AnalyticsEvents
 import com.danielanazodo.proofledger.data.local.SyncStatus
 import com.danielanazodo.proofledger.data.local.dao.LocalAppMetadataDao
 import com.danielanazodo.proofledger.data.local.dao.LocalBusinessDao
@@ -21,6 +23,7 @@ class BusinessRepository @Inject constructor(
     private val businessDao: LocalBusinessDao,
     private val metadataDao: LocalAppMetadataDao,
     private val syncEventLogger: SyncEventLogger,
+    private val analytics: Analytics,
 ) {
 
     suspend fun getLocalBusinesses(): List<LocalBusinessEntity> = businessDao.getAll()
@@ -61,6 +64,7 @@ class BusinessRepository @Inject constructor(
             lastSyncAttemptAt = now,
         )
         businessDao.upsert(local)
+        analytics.track(AnalyticsEvents.BUSINESS_CREATED)
 
         return runCatching {
             api.createBusiness(

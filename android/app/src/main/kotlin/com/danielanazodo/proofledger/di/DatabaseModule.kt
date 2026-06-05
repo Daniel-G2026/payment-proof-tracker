@@ -22,6 +22,7 @@ import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_8_9
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_9_10
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_10_11
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_11_12
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_12_13
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -49,6 +50,7 @@ object DatabaseModule {
                 MIGRATION_9_10,
                 MIGRATION_10_11,
                 MIGRATION_11_12,
+                MIGRATION_12_13,
             )
             .build()
 

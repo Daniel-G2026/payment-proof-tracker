@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
+    audit,
     businesses,
     categories,
     counterparties,
@@ -12,10 +13,17 @@ from app.api.routes import (
     profiles,
     reports,
     screenshots,
+    sync_events,
     transaction_drafts,
     transactions,
 )
 from app.core.config import settings
+from app.core.observability import configure_logging, init_sentry
+
+# Configure logging + Sentry as early as possible (before the app handles any
+# request). Both are no-ops without configuration.
+configure_logging()
+init_sentry()
 
 
 @asynccontextmanager
@@ -89,6 +97,8 @@ app.include_router(businesses.router)
 app.include_router(categories.router)
 app.include_router(counterparties.router)
 app.include_router(transactions.router)
+app.include_router(audit.router)
+app.include_router(sync_events.router)
 app.include_router(reports.router)
 app.include_router(screenshots.router)
 app.include_router(transaction_drafts.router)

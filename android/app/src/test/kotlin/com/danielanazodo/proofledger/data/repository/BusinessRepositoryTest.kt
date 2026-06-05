@@ -1,5 +1,6 @@
 package com.danielanazodo.proofledger.data.repository
 
+import com.danielanazodo.proofledger.data.analytics.NoOpAnalytics
 import com.danielanazodo.proofledger.data.local.SyncStatus
 import com.danielanazodo.proofledger.data.local.dao.LocalAppMetadataDao
 import com.danielanazodo.proofledger.data.local.dao.LocalBusinessDao
@@ -51,6 +52,7 @@ class BusinessRepositoryTest {
             businessDao = businessDao,
             metadataDao = FakeMetadataDao(),
             syncEventLogger = SyncEventLogger(events),
+            analytics = NoOpAnalytics(),
         )
 
         repository.syncPending()
@@ -76,6 +78,7 @@ class BusinessRepositoryTest {
             businessDao = businessDao,
             metadataDao = FakeMetadataDao(),
             syncEventLogger = SyncEventLogger(events),
+            analytics = NoOpAnalytics(),
         )
 
         repository.syncPending()
@@ -159,6 +162,13 @@ class BusinessRepositoryTest {
         ): Flow<List<LocalSyncEventEntity>> =
             flowOf(rows.filter { it.businessId == businessId }.take(limit))
 
+        override suspend fun unreported(limit: Int): List<LocalSyncEventEntity> =
+            rows.filter { it.reportedAt == null }.take(limit)
+
+        override suspend fun markReported(ids: List<String>, now: Long) {
+            rows.replaceAll { if (it.id in ids) it.copy(reportedAt = now) else it }
+        }
+
         override fun observeFailures(): Flow<List<LocalSyncEventEntity>> =
             flowOf(rows.filter { it.status == "failure" })
 
@@ -170,6 +180,16 @@ class BusinessRepositoryTest {
     private class FakeApiService(
         private val createBusinessFailure: Throwable? = null,
     ) : ApiService {
+        override suspend fun listAuditEvents(
+            businessId: String,
+            entityType: String,
+            entityId: String,
+        ): List<com.danielanazodo.proofledger.data.remote.dto.AuditEventDto> = emptyList()
+        override suspend fun reportSyncEvents(
+            businessId: String,
+            events: List<com.danielanazodo.proofledger.data.remote.dto.SyncEventReportDto>,
+        ): com.danielanazodo.proofledger.data.remote.dto.SyncEventIngestResultDto =
+            com.danielanazodo.proofledger.data.remote.dto.SyncEventIngestResultDto(events.size, 0)
         override suspend fun createBusiness(body: BusinessCreateDto): BusinessDto {
             createBusinessFailure?.let { throw it }
             return BusinessDto(

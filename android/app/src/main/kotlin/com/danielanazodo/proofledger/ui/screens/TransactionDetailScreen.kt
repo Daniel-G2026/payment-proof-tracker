@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -57,6 +58,7 @@ import java.io.File
 fun TransactionDetailScreen(
     onBack: () -> Unit,
     onEdit: (String) -> Unit,
+    onViewHistory: (businessId: String, transactionId: String) -> Unit,
     viewModel: TransactionDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -80,6 +82,7 @@ fun TransactionDetailScreen(
                     proof = state.proof,
                     onEdit = { onEdit(transaction.id) },
                     onDelete = delete,
+                    onViewHistory = { onViewHistory(transaction.businessId, transaction.id) },
                     onImportantChange = viewModel::setProofImportant,
                     onBackUpProof = backUpProof,
                 )
@@ -109,11 +112,13 @@ private fun TransactionDetailContent(
     proof: LocalScreenshotEntity?,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onViewHistory: () -> Unit,
     onImportantChange: (Boolean) -> Unit,
     onBackUpProof: () -> Unit,
 ) {
     val edit = rememberDebouncedClick(onClick = onEdit)
     val delete = rememberDebouncedClick(onClick = onDelete)
+    val history = rememberDebouncedClick(onClick = onViewHistory)
     var fullProofOpen by remember { mutableStateOf(false) }
 
     GroupedPanel {
@@ -157,6 +162,7 @@ private fun TransactionDetailContent(
     }
 
     PrimaryActionButton("Edit record", onClick = edit, icon = Icons.Filled.Edit)
+    QuietButton("View edit history", onClick = history, icon = Icons.Filled.History)
     QuietButton("Delete record", onClick = delete, contentColor = MoneyOutRed, icon = Icons.Filled.Delete)
 
     if (fullProofOpen && proof != null && proof.localOriginalPath.isNotBlank()) {

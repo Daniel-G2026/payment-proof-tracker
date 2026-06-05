@@ -170,6 +170,16 @@ class ServerDraftPollerTest {
     private class ScriptedApiService(
         private val script: List<FakeResponse>,
     ) : ApiService {
+        override suspend fun listAuditEvents(
+            businessId: String,
+            entityType: String,
+            entityId: String,
+        ): List<com.danielanazodo.proofledger.data.remote.dto.AuditEventDto> = emptyList()
+        override suspend fun reportSyncEvents(
+            businessId: String,
+            events: List<com.danielanazodo.proofledger.data.remote.dto.SyncEventReportDto>,
+        ): com.danielanazodo.proofledger.data.remote.dto.SyncEventIngestResultDto =
+            com.danielanazodo.proofledger.data.remote.dto.SyncEventIngestResultDto(events.size, 0)
         private var index = 0
         override suspend fun getScreenshotDraft(screenshotId: String): TransactionDraftDto {
             val response = script.getOrNull(index) ?: script.last()

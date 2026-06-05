@@ -16,6 +16,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.ProofLedger">
 
+        <!-- Phase 12: disable Sentry auto-init; we init manually behind a DSN
+             guard in PaymentProofApp so builds without a DSN stay no-op. -->
+        <meta-data android:name="io.sentry.auto-init" android:value="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

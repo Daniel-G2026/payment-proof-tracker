@@ -27,6 +27,8 @@ androidxTestExtJunit = "1.2.1"
 androidxTestRunner = "1.6.2"
 junit = "4.13.2"
 mockito = "5.14.2"
+sentry = "7.18.0"
+posthog = "3.11.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -53,6 +55,8 @@ room-testing = { group = "androidx.room", name = "room-testing", version.ref = "
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
+sentry-android = { group = "io.sentry", name = "sentry-android", version.ref = "sentry" }
+posthog-android = { group = "com.posthog", name = "posthog-android", version.ref = "posthog" }
 androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTest" }
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
