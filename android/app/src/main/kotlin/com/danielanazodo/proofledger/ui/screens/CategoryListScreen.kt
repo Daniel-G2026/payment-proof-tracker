@@ -11,13 +11,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.data.local.entity.LocalCategoryEntity
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
+import com.danielanazodo.proofledger.ui.components.ProofLedgerConfirmDialog
 import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
 import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
 import com.danielanazodo.proofledger.ui.components.SectionLabel
@@ -59,7 +58,7 @@ fun CategoryListScreen(
         ) {
             Text(
                 "These label your money in and out. Add the ones your business uses; " +
-                    "remove any you don't — including the ones we started you with.",
+                    "remove any you don't, including the ones we started you with.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = NeutralMuted,
             )
@@ -96,24 +95,16 @@ fun CategoryListScreen(
     }
 
     pendingDelete?.let { category ->
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text("Remove category?") },
-            text = {
-                Text(
-                    "Remove \"${category.name}\" from your categories? Records you already " +
-                        "saved with it keep their label — this only stops it being offered next time.",
-                )
+        ProofLedgerConfirmDialog(
+            title = "Remove category?",
+            message = "Remove \"${category.name}\" from your categories? Records you already saved with it keep their label. This only stops it being offered next time.",
+            confirmText = "Remove",
+            dismissText = "Keep",
+            onConfirm = {
+                viewModel.onDeleteCategory(category.id)
+                pendingDelete = null
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.onDeleteCategory(category.id)
-                    pendingDelete = null
-                }) { Text("Remove") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
-            },
+            onDismiss = { pendingDelete = null },
         )
     }
 }

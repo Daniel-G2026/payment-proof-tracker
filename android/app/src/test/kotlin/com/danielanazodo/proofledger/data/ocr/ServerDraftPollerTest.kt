@@ -115,6 +115,18 @@ class ServerDraftPollerTest {
     }
 
     @Test
+    fun `network error fails immediately instead of waiting for timeout`() {
+        val poller = ServerDraftPoller(ScriptedApiService(listOf(FakeResponse.NetworkError)))
+
+        val emitted = runBlocking { poller.poll(testScreenshotId, pollIntervalMs, 8).toList() }
+
+        assertEquals(2, emitted.size)
+        assertTrue(emitted.first() is DraftState.Processing)
+        val failed = emitted.last() as DraftState.Failed
+        assertEquals(DraftErrorCode.NETWORK, failed.errorCode)
+    }
+
+    @Test
     fun `rate_limited status keeps polling without erroring`() {
         // Rate-limited at upload-time still produces a draft row (no) — but if
         // the server briefly reports rate_limited we shouldn't bail; just wait.
@@ -163,6 +175,7 @@ class ServerDraftPollerTest {
             val response = script.getOrNull(index) ?: script.last()
             index++
             return when (response) {
+                is FakeResponse.NetworkError -> error("network down")
                 is FakeResponse.NotFound -> throw HttpException(
                     Response.error<Any>(404, "".toResponseBody(null))
                 )
@@ -262,6 +275,7 @@ class ServerDraftPollerTest {
     }
 
     private sealed interface FakeResponse {
+        data object NetworkError : FakeResponse
         data object NotFound : FakeResponse
         data class Status(
             val status: String,

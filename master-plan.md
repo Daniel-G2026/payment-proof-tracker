@@ -2224,6 +2224,14 @@ Improve product quality, trust, and validation measurement.
 * Improve empty states.
 * Improve error states.
 * Add onboarding tips.
+* Improve primary navigation/information architecture so important workflow
+  destinations are not hidden as small Home text links:
+  * Move/promote **Manage categories** into the Records area as a real
+    record-organization action, not a minor dashboard link.
+  * Promote **Reports & export**. Decide in this phase whether it should become
+    a top-level Reports tab (preferred if five bottom-nav items remain usable)
+    or a prominent Home dashboard card/action with a secondary Records entry
+    point. In either case, remove the current tiny-link treatment.
 * Optimize cold start and transaction list performance.
 * Add image compression.
 * Add user-visible edit history UI for transactions, backed by the audit
@@ -2239,6 +2247,12 @@ Improve product quality, trust, and validation measurement.
 * Add structured logging.
 * Add Sentry backend.
 * Add analytics event ingestion if needed.
+* Add the server-side `sync_events` table + ingestion (spec §7.10), deferred
+  here from Phase 10. Devices already log sync attempts locally
+  (`SyncEventLogger`); this adds a way for them to report those attempts up
+  so failed syncs can be inspected centrally across users. Devices must queue
+  reports and flush them when connectivity returns, since the most common
+  failure being reported is "no connectivity."
 * Add rate limiting. The Phase 5 5 MB upload cap blocks single-request abuse,
   but an authenticated user can still loop POSTs and fill object storage.
   Per-user-per-route limits (e.g. ≤ N proof uploads per minute) close that.
