@@ -63,8 +63,8 @@ interface LocalCounterpartyDao {
           AND (:type IS NULL OR type = :type)
           AND (
             :search IS NULL OR :search = '' OR
-            name LIKE '%' || :search || '%' OR
-            normalizedName LIKE '%' || :search || '%'
+            name LIKE '%' || :search || '%' ESCAPE '\' OR
+            normalizedName LIKE '%' || :search || '%' ESCAPE '\'
           )
         ORDER BY normalizedName ASC, createdAt ASC, id ASC
         """

@@ -19,6 +19,7 @@ from app.schemas.transaction import (
     TransactionUpdate,
 )
 from app.services.audit import add_audit_event
+from app.services.search import escape_like
 
 router = APIRouter(
     prefix="/businesses/{business_id}/transactions",
@@ -351,14 +352,14 @@ def list_transactions(
     if end_date is not None:
         stmt = stmt.where(Transaction.transaction_date <= end_date)
     if search:
-        like = f"%{search.strip()}%"
+        like = f"%{escape_like(search.strip())}%"
         stmt = stmt.where(
             or_(
-                Transaction.counterparty_name.ilike(like),
-                Transaction.category.ilike(like),
-                Transaction.note.ilike(like),
-                Transaction.bank_name.ilike(like),
-                Transaction.reference_number.ilike(like),
+                Transaction.counterparty_name.ilike(like, escape="\\"),
+                Transaction.category.ilike(like, escape="\\"),
+                Transaction.note.ilike(like, escape="\\"),
+                Transaction.bank_name.ilike(like, escape="\\"),
+                Transaction.reference_number.ilike(like, escape="\\"),
             )
         )
     stmt = stmt.order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc())

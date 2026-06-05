@@ -93,7 +93,7 @@ interface LocalScreenshotDao {
           AND (:importantOnly = 0 OR isImportant = 1)
           AND (:direction IS NULL OR transactionDirection = :direction)
           AND (:counterpartyId IS NULL OR counterpartyId = :counterpartyId)
-          AND (:counterpartySearch IS NULL OR counterpartyName LIKE '%' || :counterpartySearch || '%')
+          AND (:counterpartySearch IS NULL OR counterpartyName LIKE '%' || :counterpartySearch || '%' ESCAPE '\')
           AND (:startDate IS NULL OR transactionDate >= :startDate)
           AND (:endDate IS NULL OR transactionDate <= :endDate)
           AND (:minAmountMinor IS NULL OR transactionAmountMinor >= :minAmountMinor)

@@ -12,6 +12,7 @@ from app.api.deps import CurrentUser, get_db
 from app.db.models import Business, BusinessMember, Category
 from app.db.models.category import normalize_category_name
 from app.schemas.category import CategoryCreate, CategoryOut, CategoryUpdate
+from app.services.search import escape_like
 
 router = APIRouter(
     prefix="/businesses/{business_id}/categories",
@@ -106,12 +107,12 @@ def list_categories(
     )
     if search:
         cleaned = search.strip()
-        like = f"%{cleaned}%"
-        normalized_like = f"%{normalize_category_name(cleaned)}%"
+        like = f"%{escape_like(cleaned)}%"
+        normalized_like = f"%{escape_like(normalize_category_name(cleaned))}%"
         stmt = stmt.where(
             or_(
-                Category.name.ilike(like),
-                Category.normalized_name.ilike(normalized_like),
+                Category.name.ilike(like, escape="\\"),
+                Category.normalized_name.ilike(normalized_like, escape="\\"),
             )
         )
     stmt = stmt.order_by(Category.normalized_name.asc(), Category.created_at.asc())

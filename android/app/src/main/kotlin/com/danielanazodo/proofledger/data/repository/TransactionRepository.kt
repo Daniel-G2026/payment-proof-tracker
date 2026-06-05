@@ -5,6 +5,7 @@ import com.danielanazodo.proofledger.data.local.dao.LocalCounterpartyDao
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
 import com.danielanazodo.proofledger.data.local.dao.LocalTransactionDao
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
+import com.danielanazodo.proofledger.data.local.escapeLikeTerm
 import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.dto.DuplicateCandidateDto
@@ -43,7 +44,9 @@ class TransactionRepository @Inject constructor(
         direction: String?,
         search: String?,
     ): Flow<List<LocalTransactionEntity>> =
-        localDao.observeFiltered(businessId, direction, search)
+        // Pre-escape so a literal % / _ in the term isn't treated as a wildcard
+        // (the DAO LIKE clauses declare ESCAPE '\').
+        localDao.observeFiltered(businessId, direction, search?.let { escapeLikeTerm(it) })
 
     fun observeTransaction(transactionId: String): Flow<LocalTransactionEntity?> =
         localDao.observeById(transactionId)

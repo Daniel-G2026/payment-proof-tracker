@@ -19,6 +19,7 @@ from app.schemas.counterparty import (
     CounterpartyUpdate,
 )
 from app.services.audit import add_audit_event
+from app.services.search import escape_like
 
 router = APIRouter(
     prefix="/businesses/{business_id}/counterparties",
@@ -145,12 +146,12 @@ def list_counterparties(
         stmt = stmt.where(Counterparty.type == type)
     if search:
         cleaned = search.strip()
-        like = f"%{cleaned}%"
-        normalized_like = f"%{_normalize_name(cleaned)}%"
+        like = f"%{escape_like(cleaned)}%"
+        normalized_like = f"%{escape_like(_normalize_name(cleaned))}%"
         stmt = stmt.where(
             or_(
-                Counterparty.name.ilike(like),
-                Counterparty.normalized_name.ilike(normalized_like),
+                Counterparty.name.ilike(like, escape="\\"),
+                Counterparty.normalized_name.ilike(normalized_like, escape="\\"),
             )
         )
     stmt = stmt.order_by(Counterparty.normalized_name.asc(), Counterparty.created_at.asc())

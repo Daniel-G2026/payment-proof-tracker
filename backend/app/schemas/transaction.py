@@ -5,6 +5,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.schemas.currency import validate_currency
 
 # Field-length caps: Postgres `text` will happily store megabytes per row, but
 # nothing in this product needs that. Caps bound RAM use on list endpoints
@@ -39,6 +40,11 @@ class TransactionCreate(BaseModel):
     # in the same commit. Validated for ownership / not-already-linked in
     # the route.
     screenshot_id: uuid.UUID | None = None
+
+    @field_validator("currency")
+    @classmethod
+    def _check_currency(cls, value):
+        return validate_currency(value)
 
 
 class TransactionUpdate(BaseModel):
@@ -76,6 +82,11 @@ class TransactionUpdate(BaseModel):
         if value is None:
             raise ValueError(f"{info.field_name} cannot be null")
         return value
+
+    @field_validator("currency")
+    @classmethod
+    def _check_currency(cls, value):
+        return validate_currency(value)
 
 
 class TransactionOut(BaseModel):

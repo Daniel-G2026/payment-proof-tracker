@@ -40,5 +40,22 @@ class Settings(BaseSettings):
     # is only about the full model response blob.
     extraction_raw_retention_days: int = 30
 
+    # Phase 12 — per-user rate limit on the screenshot upload route. Reuses the
+    # Redis token-bucket; fail-open when Redis is unreachable. 0 disables a
+    # given window.
+    upload_rate_per_minute: int = 20
+    upload_rate_per_hour: int = 200
+
+    # Phase 12 — CORS. Comma-separated allowed origins; empty = no cross-origin
+    # (the mobile app sends no Origin header, so default-empty is safe). The
+    # future web dashboard's origin goes here. Never "*".
+    cors_allowed_origins: str = ""
+
+    # Phase 12 — observability. Empty Sentry DSN = disabled (no-op), so debug /
+    # CI builds need no keys. traces_sample_rate is modest to bound cost.
+    sentry_dsn: str = ""
+    sentry_traces_sample_rate: float = 0.1
+    log_level: str = "INFO"
+
 
 settings = Settings()

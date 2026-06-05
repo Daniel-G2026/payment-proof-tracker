@@ -5,6 +5,7 @@ import com.danielanazodo.proofledger.data.local.ProofBackupPreference
 import com.danielanazodo.proofledger.data.local.ProofBackupStatus
 import com.danielanazodo.proofledger.data.local.dao.LocalAppMetadataDao
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
+import com.danielanazodo.proofledger.data.local.escapeLikeTerm
 import com.danielanazodo.proofledger.data.local.dao.LocalTransactionDao
 import com.danielanazodo.proofledger.data.local.entity.LocalAppMetadataEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalScreenshotEntity
@@ -751,7 +752,8 @@ class ProofRepository @Inject constructor(
             importantOnly = filter.importantOnly,
             direction = filter.direction,
             counterpartyId = filter.counterpartyId,
-            counterpartySearch = filter.counterpartySearch,
+            // Escape so a literal % / _ isn't a wildcard (DAO LIKE declares ESCAPE '\').
+            counterpartySearch = filter.counterpartySearch?.let { escapeLikeTerm(it) },
             startDate = filter.startDate,
             endDate = filter.endDate,
             minAmountMinor = filter.minAmountMinor,

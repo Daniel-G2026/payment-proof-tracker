@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.db.models import Screenshot
 from app.schemas.screenshot import ScreenshotOut, SignedScreenshotUrl
 from app.services.extraction import try_enqueue_extraction
+from app.services.rate_limit import RateLimit, check_rate_limit
 from app.services.proof_storage import (
     ProofStorage,
     sign_screenshot_url,
@@ -185,6 +186,24 @@ async def upload_screenshot(
     db: DbSession,
 ) -> ScreenshotOut:
     _require_member(db, current_user.id, business_id)
+
+    # Phase 12 — per-user upload rate limit. Gate before reading the body so an
+    # over-limit client doesn't get to stream 5 MB at us. Fail-open (Redis
+    # absent/down → allowed) is handled inside check_rate_limit.
+    arq_pool = getattr(request.app.state, "arq_pool", None)
+    if not await check_rate_limit(
+        arq_pool,
+        key=f"upload:{current_user.id}",
+        limit=RateLimit(
+            per_minute=settings.upload_rate_per_minute,
+            per_hour=settings.upload_rate_per_hour,
+        ),
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many uploads in a short time. Please wait a moment and try again.",
+        )
+
     content_type = request.headers.get("content-type", "")
     body = await _read_capped_body(request)
     fields, file_bytes, file_mime = _parse_multipart(content_type, body)
@@ -263,8 +282,8 @@ async def upload_screenshot(
 
     # Phase 8: enqueue server-side OCR/AI extraction. Best-effort; if the
     # queue is unavailable the upload still succeeds and the client just
-    # doesn't get an auto-draft for this proof.
-    arq_pool = getattr(request.app.state, "arq_pool", None)
+    # doesn't get an auto-draft for this proof. (arq_pool fetched above for the
+    # upload rate-limit gate.)
     draft_status = await try_enqueue_extraction(
         arq_pool,
         user_id=current_user.id,
