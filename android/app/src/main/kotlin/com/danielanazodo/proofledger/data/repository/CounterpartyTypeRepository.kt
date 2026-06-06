@@ -55,21 +55,22 @@ class CounterpartyTypeRepository @Inject constructor(
         localDao.observeByBusiness(businessId).map { rows -> rows.map { it.normalizedName }.distinct() }
 
     /**
-     * First-use initialization for this device. Pulls the synced types from the
-     * backend (best-effort, offline-tolerant), then — exactly once per device,
-     * guarded by a marker — seeds the built-in defaults plus any types found in
-     * the legacy on-device metadata list and on the business's existing people.
+     * First-use initialization for this device — **local-only and fast** so it
+     * never blocks the picker's first paint (offline-first). Exactly once per
+     * device, guarded by a marker, it seeds the built-in defaults plus any types
+     * found in the legacy on-device metadata list and on the business's existing
+     * people. The remote pull happens in the background via [SyncWorker]
+     * ([refreshFromRemote]); it isn't awaited here.
      *
      * The one-time legacy import (see class doc) carries over custom types that
-     * only ever lived in the pre-sync metadata list. It uses deterministic,
-     * per-business ids (same scheme as the backend seed/backfill), so a create
-     * that races the backend's own seed lands as an idempotent upsert rather
-     * than a duplicate. Known rare edge: a type the user created but never
-     * assigned to a person AND that isn't in the metadata list won't carry over.
+     * only ever lived in the pre-sync metadata list. Seeded/imported rows use
+     * deterministic, per-business ids (same scheme as the backend seed/backfill),
+     * so they dedupe against the backend's own rows when the background refresh
+     * lands — a create with the same id is an idempotent upsert, not a duplicate.
+     * Known rare edge: a type the user created but never assigned to a person AND
+     * that isn't in the metadata list won't carry over.
      */
     suspend fun seedIfNeeded(businessId: String) {
-        // Pull first so the import below dedupes against already-synced rows.
-        refreshFromRemote(businessId)
         if (metadataDao.get(seededMarkerKey(businessId)) != null) return
 
         val legacy = parseLegacy(metadataDao.get(legacyKey(businessId))?.value)

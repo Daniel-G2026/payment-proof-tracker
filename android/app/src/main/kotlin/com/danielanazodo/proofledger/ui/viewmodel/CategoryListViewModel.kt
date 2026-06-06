@@ -32,7 +32,9 @@ class CategoryListViewModel @Inject constructor(
             val id = businessRepository.getSelectedBusinessId()
             businessId = id
             if (id != null) {
-                categoryRepository.refreshFromRemote(id)
+                // Local-first: show cached categories immediately and refresh in
+                // the background, instead of blocking the list on the network.
+                launch { categoryRepository.refreshFromRemote(id) }
                 categoryRepository.observeByBusiness(id).collect { rows ->
                     _state.update { it.copy(categories = rows) }
                 }
