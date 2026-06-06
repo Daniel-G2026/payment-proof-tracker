@@ -61,13 +61,13 @@ fun TransactionListScreen(
                             icon = ProofIcons.Tag,
                             contentDescription = "Manage categories",
                             onClick = onManageCategories,
-                            borderColor = ProofLime,
+                            iconColor = ProofLime,
                         )
                         IconCircleButton(
                             icon = ProofIcons.Plus,
                             contentDescription = "Add record",
                             onClick = onAdd,
-                            borderColor = ProofLime,
+                            iconColor = ProofLime,
                         )
                     }
                 },

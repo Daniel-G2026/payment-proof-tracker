@@ -161,7 +161,7 @@ fun IconCircleButton(
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    borderColor: Color = ProofBorder,
+    iconColor: Color = NeutralInk,
 ) {
     val click = rememberDebouncedClick(onClick = onClick)
     IconButton(
@@ -173,13 +173,13 @@ fun IconCircleButton(
                 .size(34.dp)
                 .clip(CircleShape)
                 .background(SurfaceCard)
-                .border(1.dp, borderColor, CircleShape),
+                .border(1.dp, ProofBorder, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = contentDescription,
-                tint = NeutralInk,
+                tint = iconColor,
                 modifier = Modifier.size(18.dp),
             )
         }
