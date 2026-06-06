@@ -69,6 +69,20 @@ class ArrearsCalculatorTest {
         assertEquals(900_000 * naira, ada.dueThisMonthMinor)
         assertEquals(2, ada.units.size) // unit detail underneath
 
+        // Due items carry the due date + past-due flag for the countdown UI.
+        val plot12 = ada.units.first { it.unitLabel == "Plot 12" }
+        assertEquals(
+            listOf(
+                LocalDate.of(2026, 1, 31) to true, // behind
+                LocalDate.of(2026, 2, 28) to false, // due this month
+            ),
+            plot12.dueItems.map { it.dueDate to it.pastDue },
+        )
+        val plot13 = ada.units.first { it.unitLabel == "Plot 13" }
+        assertEquals(listOf(LocalDate.of(2026, 2, 20)), plot13.dueItems.map { it.dueDate })
+        // Bola is fully paid → nothing owed → no due items.
+        assertEquals(emptyList<Long>(), dash.buyers.first { it.buyerId == "bola" }.units.flatMap { it.dueItems }.map { it.shortfallMinor })
+
         val bola = dash.buyers.first { it.buyerId == "bola" }
         assertEquals(0L, bola.combinedMinor)
         assertEquals(true, bola.fulfilledThisMonth)
