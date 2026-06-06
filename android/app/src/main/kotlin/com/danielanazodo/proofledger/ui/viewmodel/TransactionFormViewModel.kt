@@ -63,6 +63,10 @@ data class TransactionFormUiState(
      *  stored on the transaction as the [category] string snapshot. */
     val categories: List<LocalCategoryEntity> = emptyList(),
     val note: String = "",
+    // Phase 13: when a money-in is linked to a house, we auto-fill the note with
+    // the house label so the record self-documents. This flips true once the
+    // user edits the note by hand, after which we never overwrite it.
+    val noteUserEdited: Boolean = false,
     val bankName: String = "",
     val referenceNumber: String = "",
     val proofUri: String? = null,
@@ -208,6 +212,9 @@ class TransactionFormViewModel @Inject constructor(
                             counterpartyName = transaction.counterpartyName.orEmpty(),
                             category = transaction.category.orEmpty(),
                             note = transaction.note.orEmpty(),
+                            // The saved note is the user's content — never let
+                            // the house auto-fill overwrite it on edit.
+                            noteUserEdited = true,
                             bankName = transaction.bankName.orEmpty(),
                             referenceNumber = transaction.referenceNumber.orEmpty(),
                             // Phase 13 Cut 3: restore the unit link + earmark.
@@ -342,6 +349,7 @@ class TransactionFormViewModel @Inject constructor(
                         if (selected == previous) it.selectedEarmarkInstallmentId else null,
                 )
             }
+            autofillNoteFromUnit()
             loadEarmarkOptions(selected)
         }
     }
@@ -350,6 +358,7 @@ class TransactionFormViewModel @Inject constructor(
         _state.update {
             it.copy(selectedUnitId = unitId, selectedEarmarkInstallmentId = null)
         }
+        autofillNoteFromUnit()
         loadEarmarkOptions(unitId)
     }
 
@@ -406,7 +415,17 @@ class TransactionFormViewModel @Inject constructor(
             }
         }
     }
-    fun onNoteChange(value: String) = _state.update { it.copy(note = value, saved = false) }
+    fun onNoteChange(value: String) =
+        _state.update { it.copy(note = value, noteUserEdited = true, saved = false) }
+
+    /** Auto-fill the note with the linked house's label, unless the user has
+     * typed their own note. Keeps the record self-documenting ("Plot 12") while
+     * never clobbering hand-entered text. Clears when the unit is deselected. */
+    private fun autofillNoteFromUnit() = _state.update { s ->
+        if (s.noteUserEdited) return@update s
+        val label = s.linkableUnits.firstOrNull { it.id == s.selectedUnitId }?.label
+        s.copy(note = label.orEmpty())
+    }
     fun onBankNameChange(value: String) = _state.update {
         it.copy(bankName = value, saved = false, ocrFilledFields = it.ocrFilledFields - FIELD_BANK)
     }
