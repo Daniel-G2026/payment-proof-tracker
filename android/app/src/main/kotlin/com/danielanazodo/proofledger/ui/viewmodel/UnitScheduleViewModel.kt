@@ -14,6 +14,7 @@ import com.danielanazodo.proofledger.data.repository.ScheduleLineInput
 import com.danielanazodo.proofledger.data.repository.ScheduleRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import com.danielanazodo.proofledger.data.repository.UnitRepository
+import com.danielanazodo.proofledger.ui.format.formatNairaInput
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -42,10 +43,16 @@ data class UnitScheduleUiState(
     val arrearsMinor: Long = 0,
     val creditMinor: Long = 0,
     val versionCount: Int = 0,
-    val draftLines: List<ScheduleLineDraft> = listOf(ScheduleLineDraft()),
+    // Seed two rows so the form reads as a list of installments, not one field.
+    val draftLines: List<ScheduleLineDraft> = listOf(ScheduleLineDraft(), ScheduleLineDraft()),
+    // View vs edit: an existing schedule shows read-only until the user taps
+    // "Revise schedule". First-time entry (no active version) is always editing.
+    val editing: Boolean = false,
     val error: String? = null,
     val saving: Boolean = false,
-)
+) {
+    val showEditor: Boolean get() = activeVersion == null || editing
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -126,6 +133,21 @@ class UnitScheduleViewModel @Inject constructor(
         }
     }
 
+    /** Enter edit mode to revise an existing schedule. Pre-fills the draft with
+     * the current installments so the user edits from the real numbers (a new
+     * version is created on save — the old one is preserved). */
+    fun onRevise() = _ui.update { s ->
+        val seed = s.activeInstallments
+            .sortedBy { it.sequence }
+            .map { ScheduleLineDraft(amount = formatNairaInput(it.amountMinor), dueDate = it.dueDate) }
+            .ifEmpty { listOf(ScheduleLineDraft(), ScheduleLineDraft()) }
+        s.copy(editing = true, draftLines = seed, error = null)
+    }
+
+    fun onCancelEdit() = _ui.update {
+        it.copy(editing = false, draftLines = listOf(ScheduleLineDraft(), ScheduleLineDraft()), error = null)
+    }
+
     fun onAddLine() = _ui.update { it.copy(draftLines = it.draftLines + ScheduleLineDraft()) }
 
     fun onRemoveLine(index: Int) = _ui.update {
@@ -134,7 +156,9 @@ class UnitScheduleViewModel @Inject constructor(
     }
 
     fun onAmountChange(index: Int, value: String) = _ui.update { s ->
-        s.copy(draftLines = s.draftLines.mapIndexed { i, l -> if (i == index) l.copy(amount = value) else l })
+        // Group digits as the user types (₦1,250,000), same as the money forms.
+        val formatted = formatNairaInput(value)
+        s.copy(draftLines = s.draftLines.mapIndexed { i, l -> if (i == index) l.copy(amount = formatted) else l })
     }
 
     fun onDueDateChange(index: Int, value: String) = _ui.update { s ->
@@ -171,7 +195,12 @@ class UnitScheduleViewModel @Inject constructor(
             businessId = id
             scheduleRepository.createScheduleVersion(id, unitId, parsed)
             _ui.update {
-                it.copy(saving = false, draftLines = listOf(ScheduleLineDraft()), error = null)
+                it.copy(
+                    saving = false,
+                    editing = false,
+                    draftLines = listOf(ScheduleLineDraft(), ScheduleLineDraft()),
+                    error = null,
+                )
             }
         }
     }

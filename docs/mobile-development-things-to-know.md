@@ -243,6 +243,118 @@ Better pattern:
 
 If the dashboard shows zeros for several seconds and then suddenly updates, the UI is probably waiting on a remote refresh before reading local data.
 
+## Forms, Pickers, and Input UX
+
+Hard-won, generalizable rules for any data-entry surface (forms, dialogs,
+selectors). These are framework-agnostic; the examples are Compose but the
+principles apply to any mobile UI toolkit. Treat each as a default to follow
+unless there's a specific reason not to.
+
+### 1. Never ship a raw framework default that breaks the visual language
+
+A toolkit's stock dialog/sheet/menu inherits the toolkit's default theme, not
+your app's. Dropping a default `AlertDialog` (or any stock component) into a
+custom-designed app produces a surface that clashes — wrong colours, wrong
+corners, wrong typography (the classic "why is there a purple card?" moment).
+
+- **Rule:** build dialogs, bottom sheets, and pickers from your own surface
+  primitives — your card colour, your radius, your text colours, your buttons —
+  not the framework's themed defaults.
+- **Smell:** a screen looks "off-brand" or suddenly colourful/greyer than the
+  rest of the app. It's almost always a stock component leaking the base theme.
+
+### 2. Selectors must be bounded and searchable — never dump the whole list
+
+A picker that renders every row works with 5 items and collapses with 500. It
+doesn't scale, and it buries the one item the user wants.
+
+- **Rule:** a selector = a **search field** + a **bounded** result list (show
+  the top N matches, not all) + an **inline "create new"** for the common case
+  where the thing isn't there yet. The user searches or creates; they never
+  scroll an unbounded wall.
+- **Smell:** `list.forEach { Row(...) }` directly over a repository's full
+  collection inside a dialog. Cap it and add a query.
+
+### 3. Disambiguate list items with a secondary label
+
+When two items can share a primary label (two people named "Ada"), a single
+line is ambiguous — the user can't tell which is which.
+
+- **Rule:** show a small **subtitle** carrying disambiguating context (type,
+  role, category, last-four, location — whatever distinguishes them).
+- **Example:** in a person picker, render the counterparty **type** under the
+  name. In a unit picker, render the project.
+
+### 4. Offer a filter for large selectable sets
+
+Search narrows by name; a **filter** narrows by category. Both together make a
+big set tractable.
+
+- **Rule:** for sets with meaningful categories (person type, status, project),
+  add quick **filter chips** (an "All" plus each category) above the results.
+- Reuse the *same* filter component the rest of the app uses, so it looks and
+  behaves identically everywhere.
+
+### 5. Make repeatable-input forms look like a list
+
+A single empty row reads as "fill in this one field." Users then submit after
+one entry and are surprised the form wanted several.
+
+- **Rule:** seed multi-item entry forms with **two rows** (each removable with
+  an ✕), so the shape says "this is a list of things." Provide an obvious
+  "Add another" affordance, but don't rely on the user discovering it to learn
+  the form is repeatable.
+- **Smell:** the form starts with exactly one input group for something that is
+  conceptually a list (line items, installments, attendees).
+
+### 6. Separate view mode from edit mode; never leave a form sitting in edit
+
+Once data is saved, showing it in the same editable form is confusing: it isn't
+clear whether you're looking at saved state or a draft, and the primary button's
+meaning can silently change (e.g. "Save" quietly becoming "Save as new
+version") based on hidden state.
+
+- **Rule:** saved data renders **read-only** with an explicit **"Edit" /
+  "Revise"** entry point. Tapping it enters edit mode; only then does the action
+  button take on its edit-mode meaning. First-time creation opens straight into
+  edit mode.
+- **Why it matters:** the user is never surprised by what a button does, and
+  "view" vs "change" is a deliberate choice, not an accident of state.
+- **Smell:** the same screen shows an always-present editable form plus a button
+  whose label depends on whether a record already exists.
+
+### 7. Format numeric input inline, as the user types
+
+Raw digit strings (`1250000`) are hard to read and easy to mis-enter. People
+read grouped numbers (`1,250,000`).
+
+- **Rule:** apply digit grouping (and currency conventions) **on every
+  keystroke**, storing the canonical value separately from the display string.
+  Use the **same** formatter across every money field in the app.
+- **Smell:** one form groups digits and another shows raw numbers — inconsistent
+  formatters are a tell that the logic wasn't centralised.
+
+### 8. Constrained inputs use pickers, not free text
+
+Dates, times, and enumerated values typed by hand invite malformed input
+(`2026-13-40`, `tomrrow`) and force the user to know the exact format.
+
+- **Rule:** use the platform **date/time picker** for dates/times and a
+  selector for enums. Free-text entry is for genuinely open fields (names,
+  notes) only.
+- **Bonus:** extract one shared "open the date picker" helper and call it from
+  every form, so date entry feels identical app-wide.
+
+### Quick self-check before shipping a form or picker
+
+- Does any dialog/sheet use a stock component that ignores the app theme?
+- Could this list grow large? If so, is it searchable + bounded + create-inline?
+- Can two rows look identical? If so, add a subtitle.
+- Is a "list-shaped" form starting with a single row?
+- After save, does the screen drop to a clean read-only view with an explicit
+  edit entry — or does it linger in edit mode?
+- Do money fields group digits, and do dates/enums use pickers?
+
 ## General Mobile Lessons
 
 - The emulator is not the phone; networking and Wi-Fi constraints can behave differently.
