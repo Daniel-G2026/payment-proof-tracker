@@ -31,6 +31,7 @@ import com.danielanazodo.proofledger.ui.components.RecordListRow
 import com.danielanazodo.proofledger.ui.components.SectionLabel
 import com.danielanazodo.proofledger.ui.navigation.MainTab
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
+import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.ProofIcons
 import com.danielanazodo.proofledger.ui.theme.ProofLime
 import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
@@ -62,12 +63,14 @@ fun TransactionListScreen(
                             contentDescription = "Manage categories",
                             onClick = onManageCategories,
                             iconColor = ProofLime,
+                            borderColor = NeutralInk,
                         )
                         IconCircleButton(
                             icon = ProofIcons.Plus,
                             contentDescription = "Add record",
                             onClick = onAdd,
                             iconColor = ProofLime,
+                            borderColor = NeutralInk,
                         )
                     }
                 },
