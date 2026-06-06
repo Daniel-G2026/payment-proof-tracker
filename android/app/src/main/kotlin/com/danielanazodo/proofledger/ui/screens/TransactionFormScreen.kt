@@ -63,11 +63,13 @@ import com.danielanazodo.proofledger.ui.components.ProofLedgerFilterChip
 import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
 import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
 import com.danielanazodo.proofledger.ui.components.QuietButton
+import com.danielanazodo.proofledger.ui.components.SectionLabel
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
 import com.danielanazodo.proofledger.ui.theme.ProofBorder
 import com.danielanazodo.proofledger.ui.theme.ProofLime
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
 import com.danielanazodo.proofledger.ui.theme.SurfaceCard
 import com.danielanazodo.proofledger.ui.theme.SurfacePanel
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
@@ -136,8 +138,11 @@ fun TransactionFormScreen(
             modifier = modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(
+                    horizontal = ProofLedgerDimens.screenHorizontal,
+                    vertical = ProofLedgerDimens.screenVertical,
+                ),
+            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
         ) {
             // Phase 8 banner stack. Three mutually-exclusive states:
             //   1. ocrRunning && !ocrDraftApplied   → "Drafting from your screenshot…"
@@ -201,6 +206,7 @@ fun TransactionFormScreen(
                     }
                 }
             }
+            SectionLabel("Record")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ProofLedgerFilterChip(
                     selected = state.direction == "money_in",
@@ -225,6 +231,7 @@ fun TransactionFormScreen(
                 text = "Date: ${displayDate(state.transactionDate)}",
                 onClick = openDatePicker,
             )
+            SectionLabel("Who and category")
             ProofLedgerTextField(
                 value = state.counterpartyQuery,
                 onValueChange = viewModel::onCounterpartyQueryChange,
@@ -375,6 +382,7 @@ fun TransactionFormScreen(
                 }
             }
 
+            SectionLabel("Payment details")
             ProofLedgerTextField(
                 value = state.bankName,
                 onValueChange = viewModel::onBankNameChange,
@@ -397,7 +405,7 @@ fun TransactionFormScreen(
                 minLines = 3,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text("Proof", style = MaterialTheme.typography.labelMedium)
+            SectionLabel("Proof")
             if (state.proofUri == null) {
                 QuietButton(
                     text = "Attach screenshot proof",
@@ -535,7 +543,7 @@ private fun FormNoticePanel(
     backgroundColor: Color = SurfacePanel,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(ProofLedgerDimens.panelRadius)
     Row(
         modifier = modifier
             .fillMaxWidth()

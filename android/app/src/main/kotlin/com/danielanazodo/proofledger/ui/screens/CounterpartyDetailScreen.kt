@@ -42,6 +42,8 @@ import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofGrayDot
 import com.danielanazodo.proofledger.ui.theme.ProofLime
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
+import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.CounterpartyDetailUiState
 import com.danielanazodo.proofledger.ui.viewmodel.CounterpartyDetailViewModel
@@ -63,8 +65,8 @@ fun CounterpartyDetailScreen(
 
     ProofLedgerScreen(title = "Person", onBack = back) { modifier ->
         LazyColumn(
-            modifier = modifier.fillMaxSize().padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = modifier.fillMaxSize().proofLedgerScreenPadding(),
+            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
         ) {
             item {
                 val counterparty = state.counterparty
@@ -126,9 +128,12 @@ private fun PersonHeader(
 ) {
     val edit = rememberDebouncedClick(onClick = onEdit)
     val history = rememberDebouncedClick(onClick = onViewHistory)
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap)) {
         GroupedPanel {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                Modifier.padding(ProofLedgerDimens.panelPadding),
+                verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.compactGap),
+            ) {
                 Text(counterparty.name, color = NeutralInk, style = MaterialTheme.typography.headlineSmall)
                 DetailLine("Type", counterpartyTypeLabel(counterparty.type))
                 DetailLine("Phone", counterparty.phone ?: "Not set")

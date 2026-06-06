@@ -21,6 +21,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.ProfileSetupViewModel
 
@@ -38,7 +39,7 @@ fun ProfileSetupScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(24.dp),
+                .padding(horizontal = ProofLedgerDimens.screenHorizontal),
             verticalArrangement = Arrangement.Top,
         ) {
             Spacer(Modifier.height(48.dp))

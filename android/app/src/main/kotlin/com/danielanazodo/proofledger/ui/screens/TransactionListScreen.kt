@@ -9,12 +9,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Sell
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -32,6 +31,10 @@ import com.danielanazodo.proofledger.ui.components.RecordListRow
 import com.danielanazodo.proofledger.ui.components.SectionLabel
 import com.danielanazodo.proofledger.ui.navigation.MainTab
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
+import com.danielanazodo.proofledger.ui.theme.NeutralInk
+import com.danielanazodo.proofledger.ui.theme.ProofIcons
+import com.danielanazodo.proofledger.ui.theme.ProofLime
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.TransactionListViewModel
 
@@ -56,14 +59,20 @@ fun TransactionListScreen(
                 action = {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         IconCircleButton(
-                            icon = Icons.Filled.Sell,
+                            icon = ProofIcons.Tag,
                             contentDescription = "Manage categories",
                             onClick = onManageCategories,
+                            iconColor = ProofLime,
+                            borderColor = NeutralInk,
+                            containerColor = NeutralInk,
                         )
                         IconCircleButton(
-                            icon = Icons.Filled.Add,
+                            icon = ProofIcons.Plus,
                             contentDescription = "Add record",
                             onClick = onAdd,
+                            iconColor = ProofLime,
+                            borderColor = NeutralInk,
+                            containerColor = NeutralInk,
                         )
                     }
                 },
@@ -71,8 +80,11 @@ fun TransactionListScreen(
         },
     ) { modifier ->
         LazyColumn(
-            modifier = modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = modifier.fillMaxSize().padding(
+                horizontal = ProofLedgerDimens.screenHorizontal,
+                vertical = ProofLedgerDimens.screenVertical,
+            ),
+            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
         ) {
             if (state.showCategoriesTip) {
                 item {
@@ -87,12 +99,15 @@ fun TransactionListScreen(
                     value = state.search,
                     onValueChange = viewModel::onSearchChange,
                     label = "Search records",
-                    leadingIcon = Icons.Filled.Search,
+                    leadingIcon = ProofIcons.Search,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     ProofLedgerFilterChip(
                         selected = state.direction == null,
                         onClick = { viewModel.onDirectionChange(null) },

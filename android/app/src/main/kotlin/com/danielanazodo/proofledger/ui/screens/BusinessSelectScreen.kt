@@ -25,6 +25,8 @@ import com.danielanazodo.proofledger.ui.components.PageHeader
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofLime
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
+import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.BusinessSelectViewModel
 
@@ -55,14 +57,14 @@ fun BusinessSelectScreen(
             )
 
             LazyColumn(
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 18.dp),
+                modifier = Modifier.proofLedgerScreenPadding(),
             ) {
                 items(state.businesses, key = { it.id }) { biz ->
                     val isCurrent = biz.id == state.currentBusinessId
                     GroupedPanel(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 6.dp)
+                            .padding(vertical = ProofLedgerDimens.compactGap / 2)
                             .clickable { selectBusiness(biz.id) },
                     ) {
                         Row(

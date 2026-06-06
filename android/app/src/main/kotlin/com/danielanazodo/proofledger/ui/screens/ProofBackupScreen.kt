@@ -34,6 +34,8 @@ import com.danielanazodo.proofledger.ui.format.formatCompactCount
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
 import com.danielanazodo.proofledger.ui.theme.ProofLime
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
+import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.ProofBackupViewModel
 import java.util.Locale
@@ -51,8 +53,8 @@ fun ProofBackupScreen(
         onBack = onBack,
     ) { modifier ->
         Column(
-            modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).proofLedgerScreenPadding(),
+            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
         ) {
             SummaryPanel {
                 MetricLine("Waiting", "${formatCompactCount(state.pendingCount)} proofs", ProofAmber)

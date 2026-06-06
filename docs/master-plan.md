@@ -2597,6 +2597,12 @@ ships as its own branch/PR (additive schema + hardening + tests).
 * **Cut 6 — Offer-letter AI extraction** (a second AI-vision document type
   reusing the orphan-screenshot → draft → confirm engine). Kept last,
   deliberately, until manual schedules and allocation are boringly reliable.
+* **Cut 7 — Figma UI alignment.** Apply the approved ProofLedger visual
+  system across the five-tab Android app and all Phase 13 surfaces without
+  changing routes, ViewModels, repositories, schemas, sync, or offline save
+  behavior. Bundle and license the reference fonts, centralize tokens and
+  app-local icons, use adaptive Naira typography, preserve native accessibility,
+  and verify the result with emulator screenshots at compact and large widths.
 
 ## 20. Later Phases / v2+
 

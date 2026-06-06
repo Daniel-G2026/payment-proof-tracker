@@ -24,6 +24,7 @@ fun ProofLedgerTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = ProofLedgerColors,
         typography = ProofLedgerTypography,
+        shapes = ProofLedgerShapes,
         content = content,
     )
 }

@@ -49,6 +49,8 @@ import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
 import com.danielanazodo.proofledger.ui.theme.ProofBorder
 import com.danielanazodo.proofledger.ui.theme.ProofLime
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
+import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.util.showAppDatePicker
 import com.danielanazodo.proofledger.ui.viewmodel.UnitScheduleViewModel
@@ -71,8 +73,8 @@ fun UnitScheduleScreen(
         onBack = onBack,
     ) { modifier ->
         Column(
-            modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).proofLedgerScreenPadding(),
+            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
         ) {
             // Current active schedule + computed fill states, if any.
             if (state.activeVersion != null) {
@@ -210,8 +212,8 @@ private fun DateField(
     val click = rememberDebouncedClick(onClick = onClick)
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(18.dp))
-            .border(1.dp, ProofBorder, RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(ProofLedgerDimens.panelRadius))
+            .border(1.dp, ProofBorder, RoundedCornerShape(ProofLedgerDimens.panelRadius))
             .clickable(onClick = click)
             .padding(horizontal = 14.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,

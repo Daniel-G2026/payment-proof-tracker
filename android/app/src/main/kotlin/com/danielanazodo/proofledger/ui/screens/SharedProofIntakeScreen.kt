@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -28,6 +29,8 @@ import com.danielanazodo.proofledger.ui.components.GroupedPanel
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.QuietButton
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
+import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 
 @Composable
@@ -46,8 +49,8 @@ fun SharedProofIntakeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .proofLedgerScreenPadding(),
+            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
         ) {
             TextButton(onClick = cancel) { Text("Cancel") }
             Text("Add shared proof", style = MaterialTheme.typography.headlineSmall)
@@ -67,6 +70,7 @@ fun SharedProofIntakeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(320.dp)
+                            .clip(MaterialTheme.shapes.medium)
                             .padding(12.dp),
                     )
                 }

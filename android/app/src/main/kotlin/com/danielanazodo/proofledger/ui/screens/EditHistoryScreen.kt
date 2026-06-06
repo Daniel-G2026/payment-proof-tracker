@@ -33,6 +33,7 @@ import com.danielanazodo.proofledger.ui.history.EditHistoryEntry
 import com.danielanazodo.proofledger.ui.history.FieldChange
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
 import com.danielanazodo.proofledger.ui.viewmodel.EditHistoryViewModel
 
 @Composable
@@ -59,8 +60,11 @@ fun EditHistoryScreen(
 
             else -> LazyColumn(
                 modifier = contentModifier.fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    horizontal = ProofLedgerDimens.screenHorizontal,
+                    vertical = ProofLedgerDimens.screenVertical,
+                ),
+                verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
             ) {
                 items(state.entries, key = { it.id }) { entry -> HistoryCard(entry) }
             }
@@ -78,7 +82,11 @@ private fun HistoryCard(entry: EditHistoryEntry) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(entry.title, color = NeutralInk, fontWeight = FontWeight.SemiBold)
-                Text(displayDate(entry.timestampIso.take(10)), color = NeutralMuted, fontSize = 12.sp)
+                Text(
+                    displayDate(entry.timestampIso.take(10)),
+                    color = NeutralMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
             if (entry.changes.isNotEmpty()) {
                 VerticalSpacer(10)
@@ -99,6 +107,6 @@ private fun ChangeRow(change: FieldChange) {
             change.oldValue == null -> change.newValue ?: "—"
             else -> "${change.oldValue ?: "—"}  →  ${change.newValue ?: "—"}"
         }
-        Text(text, color = NeutralInk, fontSize = 14.sp)
+        Text(text, color = NeutralInk, style = MaterialTheme.typography.bodyMedium)
     }
 }

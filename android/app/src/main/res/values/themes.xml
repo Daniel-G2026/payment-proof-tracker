@@ -2,6 +2,9 @@
 <resources>
     <style name="Theme.ProofLedger" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@color/proof_paper</item>
+        <item name="android:navigationBarColor">@color/proof_card</item>
         <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
     </style>
 </resources>

@@ -5,6 +5,12 @@ import org.junit.Test
 
 class TransactionFormatTest {
     @Test
+    fun `display amounts omit zero kobo and preserve real kobo`() {
+        assertEquals("₦1,000", formatNaira(100_000L))
+        assertEquals("₦1,000.75", formatNaira(100_075L))
+    }
+
+    @Test
     fun `formats typed whole amounts with comma groups`() {
         assertEquals("1,000", formatNairaInput("1000"))
         assertEquals("1,234,567", formatNairaInput("1234567"))

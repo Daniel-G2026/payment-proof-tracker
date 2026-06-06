@@ -24,6 +24,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
 import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
+import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.CounterpartyFormViewModel
 
@@ -46,8 +48,8 @@ fun CounterpartyFormScreen(
             modifier = modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .proofLedgerScreenPadding(),
+            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
         ) {
             ProofLedgerTextField(
                 value = state.name,
