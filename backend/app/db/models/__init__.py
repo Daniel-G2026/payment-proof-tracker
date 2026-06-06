@@ -7,6 +7,7 @@ from app.db.models.counterparty_type import CounterpartyType
 from app.db.models.installment import Installment
 from app.db.models.profile import Profile
 from app.db.models.project import Project
+from app.db.models.schedule_draft import ScheduleDraft
 from app.db.models.schedule_version import ScheduleVersion
 from app.db.models.screenshot import Screenshot
 from app.db.models.sync_event import SyncEvent
@@ -24,6 +25,7 @@ __all__ = [
     "Installment",
     "Profile",
     "Project",
+    "ScheduleDraft",
     "ScheduleVersion",
     "Screenshot",
     "SyncEvent",
