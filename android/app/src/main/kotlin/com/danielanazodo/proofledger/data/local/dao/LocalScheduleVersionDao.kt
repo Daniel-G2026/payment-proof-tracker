@@ -58,6 +58,16 @@ interface LocalScheduleVersionDao {
     )
     fun observeActiveForUnit(unitId: String): Flow<LocalScheduleVersionEntity?>
 
+    /** Active schedule versions across the business — a cheap change-trigger so
+     * the arrears dashboard recomputes when a schedule is added/renegotiated. */
+    @Query(
+        """
+        SELECT * FROM local_schedule_version
+        WHERE businessId = :businessId AND isActive = 1 AND deletedAt IS NULL
+        """
+    )
+    fun observeActiveForBusiness(businessId: String): Flow<List<LocalScheduleVersionEntity>>
+
     @Query("SELECT COALESCE(MAX(versionNo), 0) FROM local_schedule_version WHERE unitId = :unitId")
     suspend fun getMaxVersionNo(unitId: String): Int
 

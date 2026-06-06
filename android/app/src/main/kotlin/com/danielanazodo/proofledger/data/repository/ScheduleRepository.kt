@@ -52,6 +52,11 @@ class ScheduleRepository @Inject constructor(
     fun observeInstallments(versionId: String): Flow<List<LocalInstallmentEntity>> =
         installmentDao.observeForVersion(versionId)
 
+    /** Active schedule versions across the business — a change-trigger for the
+     * arrears dashboard (Phase 13 Cut 4). */
+    fun observeActiveSchedules(businessId: String): Flow<List<LocalScheduleVersionEntity>> =
+        versionDao.observeActiveForBusiness(businessId)
+
     /** The active version's installments as engine domain objects, ready for
      * [com.danielanazodo.proofledger.data.balance.AllocationEngine]. Empty when
      * the unit has no active schedule. */

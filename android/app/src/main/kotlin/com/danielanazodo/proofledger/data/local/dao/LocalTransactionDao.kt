@@ -103,6 +103,18 @@ interface LocalTransactionDao {
     )
     fun observeMoneyInForUnit(unitId: String): Flow<List<LocalTransactionEntity>>
 
+    @Query(
+        """
+        SELECT * FROM local_transaction
+        WHERE businessId = :businessId
+          AND direction = 'money_in'
+          AND unitId IS NOT NULL
+          AND deletedAt IS NULL
+        ORDER BY transactionDate ASC, id ASC
+        """
+    )
+    fun observeMoneyInLinkedForBusiness(businessId: String): Flow<List<LocalTransactionEntity>>
+
     @Query("SELECT * FROM local_transaction WHERE id = :id AND deletedAt IS NULL LIMIT 1")
     fun observeById(id: String): Flow<LocalTransactionEntity?>
 

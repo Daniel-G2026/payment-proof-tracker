@@ -225,6 +225,8 @@ class ScheduleRepositoryTest {
             flowOf(rows.values.filter { it.unitId == unitId && it.deletedAt == null })
         override fun observeActiveForUnit(unitId: String): Flow<LocalScheduleVersionEntity?> =
             flowOf(rows.values.firstOrNull { it.unitId == unitId && it.isActive })
+        override fun observeActiveForBusiness(businessId: String): Flow<List<LocalScheduleVersionEntity>> =
+            flowOf(rows.values.filter { it.businessId == businessId && it.isActive && it.deletedAt == null })
         override suspend fun getMaxVersionNo(unitId: String): Int =
             rows.values.filter { it.unitId == unitId }.maxOfOrNull { it.versionNo } ?: 0
         override suspend fun deactivateActiveForUnit(unitId: String) {

@@ -2,12 +2,14 @@ package com.danielanazodo.proofledger.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.danielanazodo.proofledger.data.balance.ArrearsDashboard
 import com.danielanazodo.proofledger.data.local.entity.LocalBusinessEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
 import com.danielanazodo.proofledger.data.repository.AuthRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CategoryRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
+import com.danielanazodo.proofledger.data.repository.DashboardArrearsRepository
 import com.danielanazodo.proofledger.data.repository.ProfileRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import com.danielanazodo.proofledger.data.proof.ProofRepository
@@ -45,6 +47,9 @@ data class DashboardUiState(
     /** True while a "Download now" pass is running, so the prompt can show a
      *  busy state instead of letting the user tap repeatedly. */
     val downloadingProofs: Boolean = false,
+    /** Phase 13 Cut 4: monthly arrears summary. Null until computed; the Home
+     *  hero card shows only when there are buyers due or behind. */
+    val arrears: ArrearsDashboard? = null,
 )
 
 /**
@@ -61,6 +66,7 @@ class DashboardViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val proofRepository: ProofRepository,
     private val syncIssueRepository: SyncIssueRepository,
+    private val dashboardArrearsRepository: DashboardArrearsRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DashboardUiState())
@@ -71,6 +77,11 @@ class DashboardViewModel @Inject constructor(
             val business = businessRepository.getSelectedBusiness()
             _state.update { it.copy(business = business) }
             val businessId = business?.id ?: return@launch
+            viewModelScope.launch {
+                dashboardArrearsRepository.observe(businessId).collect { arrears ->
+                    _state.update { it.copy(arrears = arrears) }
+                }
+            }
             viewModelScope.launch {
                 _state.update { it.copy(syncing = true) }
                 try {
