@@ -96,6 +96,89 @@ Keep these boundaries clear:
 
 This keeps the app ready for UI polish without forcing database, network, proof backup, or sync rewrites.
 
+## Figma-to-Compose UI Alignment
+
+The Figma prototype defines visual direction, while Android still owns native
+accessibility, keyboard behavior, system bars, scrolling, and back navigation.
+Match the design closely without turning screenshots into fixed-position
+layouts.
+
+### Translate the system, not isolated pixels
+
+- Start with shared colors, type, spacing, shapes, borders, control heights,
+  icons, and screen gutters.
+- Reuse `ProofLedgerDimens`, `ProofLedgerShapes`, `ProofIcons`, and the shared
+  components under `ui/components`.
+- Keep screen content inside the shared scaffold/header and system-inset
+  handling. Do not add per-screen status-bar padding.
+- Use 20dp horizontal content gutters, 16dp panel radii, 14dp control radii,
+  quiet one-pixel borders, and 48dp minimum touch targets unless the design
+  contract is intentionally revised.
+- A visually small icon may sit inside a transparent 48dp hit target.
+
+### Fonts and licensing
+
+- Interface copy uses bundled Inter.
+- Financial digits use bundled DM Mono.
+- The Naira sign and surrounding text stay in Inter; only numeric characters
+  switch to DM Mono through the shared `MoneyAmount` composable.
+- Keep font files in `android/app/src/main/res/font` and their license notices
+  in `android/app/src/main/assets/licenses`.
+- Do not rely on a font being installed on the developer machine or device.
+
+### Responsive density and system insets
+
+- Design and compare near the prototype width, then verify at 360dp and 430dp.
+- Prefer weighted rows, bounded widths, horizontal scrolling for filter sets,
+  and adaptive text over fixed coordinates.
+- Use the shared screen padding modifier and Scaffold insets so content clears
+  status, navigation, and gesture areas.
+- Test keyboard-visible forms. The focused field and primary action must remain
+  reachable by scrolling.
+- Test at font scales 1.0 and 1.3 with long business, category, project, unit,
+  and person names.
+
+### Adaptive financial typography
+
+- Format money centrally; do not build currency strings ad hoc in screens.
+- Whole Naira values omit `.00`; actual kobo retain two decimals.
+- Render financial summaries with `MoneyAmount` so the Naira sign and digits
+  use the correct fonts and large values can step down before clipping.
+- Test zero, negative values where supported, kobo, millions, billions, and
+  the longest values the product can realistically store.
+
+### Accessibility versus visual fidelity
+
+- Figma controls hierarchy, color, density, and composition. Android controls
+  semantic roles, focus order, back behavior, dynamic type, and minimum touch
+  areas.
+- Do not shrink hit targets or disable text scaling merely to match a static
+  frame.
+- Icon-only actions need content descriptions. Decorative icons should not be
+  announced.
+- Color cannot be the only signal for money direction, proof state, errors, or
+  sync state.
+
+### Screenshot-overlay QA
+
+1. Capture the matching Figma frame and emulator screen at approximately the
+   same 393-411dp width.
+2. Overlay them at partial opacity or compare them side by side.
+3. Check hierarchy first: header, major totals, primary action, sections, and
+   bottom navigation.
+4. Then check type baselines, gutters, panel bounds, row heights, icon size,
+   borders, and empty space.
+5. Repeat after testing 360dp, 430dp, font scale 1.3, keyboard display, proof
+   images, empty/error/loading states, and very large Naira amounts.
+
+### Avoid raw Material defaults
+
+Material components are implementation primitives, not the finished visual
+language. Apply the ProofLedger shape, colors, typography, dimensions, and
+state treatment whenever using a Material field, menu, dialog, button, chip,
+or navigation component. If a default cannot be styled faithfully, compose the
+surface from the app's shared primitives instead of accepting visual drift.
+
 ## Screenshot Proof Backup
 
 Proof images are different from normal transaction data because mobile data is expensive for many users, especially in Nigeria.
