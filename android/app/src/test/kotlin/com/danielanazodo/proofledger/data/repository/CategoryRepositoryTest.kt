@@ -392,6 +392,21 @@ class CategoryRepositoryTest {
             }
         }
 
+        override suspend fun listCounterpartyTypes(
+            businessId: String,
+            search: String?,
+        ): List<com.danielanazodo.proofledger.data.remote.dto.CounterpartyTypeDto> = emptyList()
+        override suspend fun createCounterpartyType(
+            businessId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.CounterpartyTypeCreateDto,
+        ): com.danielanazodo.proofledger.data.remote.dto.CounterpartyTypeDto = error("not used")
+        override suspend fun updateCounterpartyType(
+            businessId: String,
+            typeId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.CounterpartyTypeUpdateDto,
+        ): com.danielanazodo.proofledger.data.remote.dto.CounterpartyTypeDto = error("not used")
+        override suspend fun deleteCounterpartyType(businessId: String, typeId: String) {}
+
         override suspend fun health() = HealthResponse("ok")
         override suspend fun getMe(): ProfileDto = error("not used")
         override suspend fun updateMe(body: ProfileUpdateDto): ProfileDto = error("not used")

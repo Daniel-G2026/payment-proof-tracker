@@ -9,6 +9,7 @@ from app.api.routes import (
     businesses,
     categories,
     counterparties,
+    counterparty_types,
     health,
     profiles,
     projects,
@@ -108,6 +109,7 @@ app.include_router(projects.router)
 app.include_router(units.router)
 app.include_router(schedules.router)
 app.include_router(counterparties.router)
+app.include_router(counterparty_types.router)
 app.include_router(transactions.router)
 app.include_router(audit.router)
 app.include_router(sync_events.router)

@@ -7,6 +7,7 @@ import com.danielanazodo.proofledger.data.repository.AuthRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CategoryRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
+import com.danielanazodo.proofledger.data.repository.CounterpartyTypeRepository
 import com.danielanazodo.proofledger.data.repository.ProfileRepository
 import com.danielanazodo.proofledger.data.repository.ProjectRepository
 import com.danielanazodo.proofledger.data.repository.ScheduleRepository
@@ -42,6 +43,7 @@ class StartupViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val businessRepository: BusinessRepository,
     private val categoryRepository: CategoryRepository,
+    private val counterpartyTypeRepository: CounterpartyTypeRepository,
     private val counterpartyRepository: CounterpartyRepository,
     private val projectRepository: ProjectRepository,
     private val unitRepository: UnitRepository,
@@ -88,6 +90,7 @@ class StartupViewModel @Inject constructor(
             // showing the old user's rows.
             transactionRepository.clearLocal()
             counterpartyRepository.clearLocal()
+            counterpartyTypeRepository.clearLocal()
             categoryRepository.clearLocal()
             scheduleRepository.clearLocal()
             unitRepository.clearLocal()

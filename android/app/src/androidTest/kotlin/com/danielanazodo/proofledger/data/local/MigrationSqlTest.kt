@@ -21,6 +21,7 @@ import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_12_13
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_13_14
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_14_15
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_15_16
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_16_17
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -284,6 +285,64 @@ class MigrationSqlTest {
             assertTrue(c.moveToFirst())
             assertEquals("u1", c.getString(0))
             assertEquals("in1", c.getString(1))
+        }
+    }
+
+    @Test
+    fun migration16To17_addsCounterpartyTypeTable() {
+        // Build the chain up to v16, seeding a business + a counterparty so we
+        // can confirm the new table is independent and existing rows survive.
+        db.execSQL(
+            "INSERT INTO local_app_metadata(key, value, updatedAt) VALUES('selected', 'b1', 100)"
+        )
+        MIGRATION_1_2.migrate(db)
+        db.execSQL(
+            """
+            INSERT INTO local_business(id, ownerId, name, country, currency, businessType, plan, createdAt, updatedAt, syncStatus, lastSyncAttemptAt)
+            VALUES('b1', 'p1', 'Estate Co', 'NG', 'NGN', NULL, 'free', 1, 1, 'SYNCED', NULL)
+            """
+        )
+        MIGRATION_2_3.migrate(db)
+        MIGRATION_3_4.migrate(db)
+        db.execSQL(
+            """
+            INSERT INTO local_counterparty(id, businessId, name, normalizedName, type, phone, notes, createdAt, updatedAt, deletedAt, syncStatus, lastSyncAttemptAt)
+            VALUES('cp1', 'b1', 'Ada', 'ada', 'land_owner', NULL, NULL, 1, 1, NULL, 'SYNCED', NULL)
+            """
+        )
+        MIGRATION_4_5.migrate(db)
+        MIGRATION_5_6.migrate(db)
+        MIGRATION_6_7.migrate(db)
+        MIGRATION_7_8.migrate(db)
+        MIGRATION_8_9.migrate(db)
+        MIGRATION_9_10.migrate(db)
+        MIGRATION_10_11.migrate(db)
+        MIGRATION_11_12.migrate(db)
+        MIGRATION_12_13.migrate(db)
+        MIGRATION_13_14.migrate(db)
+        MIGRATION_14_15.migrate(db)
+        MIGRATION_15_16.migrate(db)
+
+        // -> v17 (synced person types). New table starts empty on existing
+        // installs; it fills from the backend on the next refresh.
+        MIGRATION_16_17.migrate(db)
+        assertRowCount("local_counterparty_type", 0)
+        assertIndexExists("index_local_counterparty_type_businessId")
+        assertIndexExists("index_local_counterparty_type_businessId_normalizedName")
+
+        // The table is queryable and accepts inserts; the pre-existing person
+        // (whose type is a plain string) is untouched.
+        db.execSQL(
+            """
+            INSERT INTO local_counterparty_type(id, businessId, name, normalizedName, isArchived, createdAt, updatedAt, deletedAt, syncStatus, lastSyncAttemptAt, lastSyncError, remoteUpdatedAt)
+            VALUES('ct1', 'b1', 'land_owner', 'land_owner', 0, 1, 1, NULL, 'SYNCED', NULL, NULL, NULL)
+            """
+        )
+        assertRowCount("local_counterparty_type", 1)
+        assertRowCount("local_counterparty", 1)
+        db.query("SELECT type FROM local_counterparty WHERE id = 'cp1'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("land_owner", c.getString(0))
         }
     }
 

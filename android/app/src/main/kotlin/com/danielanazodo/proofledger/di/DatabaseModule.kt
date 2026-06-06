@@ -7,6 +7,7 @@ import com.danielanazodo.proofledger.data.local.dao.LocalAppMetadataDao
 import com.danielanazodo.proofledger.data.local.dao.LocalBusinessDao
 import com.danielanazodo.proofledger.data.local.dao.LocalCategoryDao
 import com.danielanazodo.proofledger.data.local.dao.LocalCounterpartyDao
+import com.danielanazodo.proofledger.data.local.dao.LocalCounterpartyTypeDao
 import com.danielanazodo.proofledger.data.local.dao.LocalInstallmentDao
 import com.danielanazodo.proofledger.data.local.dao.LocalProfileDao
 import com.danielanazodo.proofledger.data.local.dao.LocalProjectDao
@@ -30,6 +31,7 @@ import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_12_13
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_13_14
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_14_15
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_15_16
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_16_17
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -61,6 +63,7 @@ object DatabaseModule {
                 MIGRATION_13_14,
                 MIGRATION_14_15,
                 MIGRATION_15_16,
+                MIGRATION_16_17,
             )
             .build()
 
@@ -83,6 +86,10 @@ object DatabaseModule {
     @Provides
     fun provideLocalCounterpartyDao(db: AppDatabase): LocalCounterpartyDao =
         db.localCounterpartyDao()
+
+    @Provides
+    fun provideLocalCounterpartyTypeDao(db: AppDatabase): LocalCounterpartyTypeDao =
+        db.localCounterpartyTypeDao()
 
     @Provides
     fun provideLocalProjectDao(db: AppDatabase): LocalProjectDao =

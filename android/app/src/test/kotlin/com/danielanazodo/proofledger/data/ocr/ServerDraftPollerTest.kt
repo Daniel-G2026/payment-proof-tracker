@@ -251,6 +251,20 @@ class ServerDraftPollerTest {
             businessId: String, categoryId: String, body: CategoryUpdateDto
         ): CategoryDto = error("not used")
         override suspend fun deleteCategory(businessId: String, categoryId: String) {}
+        override suspend fun listCounterpartyTypes(
+            businessId: String,
+            search: String?,
+        ): List<com.danielanazodo.proofledger.data.remote.dto.CounterpartyTypeDto> = emptyList()
+        override suspend fun createCounterpartyType(
+            businessId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.CounterpartyTypeCreateDto,
+        ): com.danielanazodo.proofledger.data.remote.dto.CounterpartyTypeDto = error("not used")
+        override suspend fun updateCounterpartyType(
+            businessId: String,
+            typeId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.CounterpartyTypeUpdateDto,
+        ): com.danielanazodo.proofledger.data.remote.dto.CounterpartyTypeDto = error("not used")
+        override suspend fun deleteCounterpartyType(businessId: String, typeId: String) {}
         override suspend fun listCounterparties(
             businessId: String, search: String?, type: String?
         ): List<CounterpartyDto> = emptyList()
