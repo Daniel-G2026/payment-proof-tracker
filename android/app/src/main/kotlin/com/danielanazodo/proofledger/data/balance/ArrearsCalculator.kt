@@ -23,11 +23,21 @@ data class UnitScheduleData(
     val payments: List<Payment>,
 )
 
+/** One unfilled installment the buyer still owes (past-due or due this month).
+ * Carries the due date so the UI can show it + a countdown. */
+data class DueItem(
+    val dueDate: LocalDate,
+    val shortfallMinor: Long,
+    /** true = its due date is before this month (arrears); false = due this month. */
+    val pastDue: Boolean,
+)
+
 data class UnitArrears(
     val unitId: String,
     val unitLabel: String,
     val behindMinor: Long,
     val dueThisMonthMinor: Long,
+    val dueItems: List<DueItem> = emptyList(),
 ) {
     val combinedMinor: Long get() = behindMinor + dueThisMonthMinor
 }
@@ -62,6 +72,7 @@ object ArrearsCalculator {
             val behind: Long,
             val dueThisMonth: Long,
             val hasDueThisMonth: Boolean,
+            val dueItems: List<DueItem>,
         )
 
         val computed = units.map { unit ->
@@ -71,17 +82,26 @@ object ArrearsCalculator {
             var behind = 0L
             var due = 0L
             var hasDue = false
+            val dueItems = mutableListOf<DueItem>()
             result.fills.forEach { fill ->
                 when {
-                    fill.dueDate.isBefore(monthStart) -> behind += fill.shortfallMinor
+                    fill.dueDate.isBefore(monthStart) -> {
+                        behind += fill.shortfallMinor
+                        if (fill.shortfallMinor > 0) {
+                            dueItems += DueItem(fill.dueDate, fill.shortfallMinor, pastDue = true)
+                        }
+                    }
                     !fill.dueDate.isAfter(monthEnd) -> {
                         due += fill.shortfallMinor
                         hasDue = true
+                        if (fill.shortfallMinor > 0) {
+                            dueItems += DueItem(fill.dueDate, fill.shortfallMinor, pastDue = false)
+                        }
                     }
                     // due after month-end: a future line, ignored this month.
                 }
             }
-            Computed(unit, behind, due, hasDue)
+            Computed(unit, behind, due, hasDue, dueItems.sortedBy { it.dueDate })
         }
 
         // The money total sums across ALL units (including any without a buyer).
@@ -94,7 +114,7 @@ object ArrearsCalculator {
             .map { (buyerId, list) ->
                 val name = list.firstNotNullOfOrNull { it.data.buyerName } ?: "Buyer"
                 val unitArrears = list.map {
-                    UnitArrears(it.data.unitId, it.data.unitLabel, it.behind, it.dueThisMonth)
+                    UnitArrears(it.data.unitId, it.data.unitLabel, it.behind, it.dueThisMonth, it.dueItems)
                 }
                 val dueThisMonth = list.any { it.hasDueThisMonth }
                 val thisMonthShortfall = list.sumOf { it.dueThisMonth }

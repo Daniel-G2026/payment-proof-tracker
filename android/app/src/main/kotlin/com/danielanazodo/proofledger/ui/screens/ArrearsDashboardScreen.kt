@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -22,13 +23,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.data.balance.BuyerArrears
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
 import com.danielanazodo.proofledger.ui.components.SectionLabel
+import com.danielanazodo.proofledger.ui.format.formatDueDate
 import com.danielanazodo.proofledger.ui.format.formatNaira
+import com.danielanazodo.proofledger.ui.format.relativeDueLabel
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
 import com.danielanazodo.proofledger.ui.theme.ProofLime
 import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
 import com.danielanazodo.proofledger.ui.viewmodel.ArrearsDashboardViewModel
+import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -39,6 +43,7 @@ fun ArrearsDashboardScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val dash = state.dashboard
+    val today = remember { LocalDate.now() }
 
     ProofLedgerScreen(title = "Who's due this month", onBack = onBack) { modifier ->
         Column(
@@ -87,7 +92,7 @@ fun ArrearsDashboardScreen(
             } else {
                 GroupedPanel {
                     relevant.forEachIndexed { index, buyer ->
-                        BuyerRow(buyer)
+                        BuyerRow(buyer, today)
                         if (index != relevant.lastIndex) HorizontalDivider()
                     }
                 }
@@ -97,7 +102,8 @@ fun ArrearsDashboardScreen(
 }
 
 @Composable
-private fun BuyerRow(buyer: BuyerArrears) {
+private fun BuyerRow(buyer: BuyerArrears, today: LocalDate) {
+    val multiUnit = buyer.units.size > 1
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -114,12 +120,15 @@ private fun BuyerRow(buyer: BuyerArrears) {
             color = if (buyer.combinedMinor > 0) ProofAmber else NeutralMuted,
             style = MaterialTheme.typography.bodySmall,
         )
-        // Unit detail underneath (the buyer-counted-once rule shows units here).
-        if (buyer.units.size > 1) {
-            buyer.units.forEach { unit ->
+        // Each thing they owe: amount + due date + a countdown. Unit label is
+        // shown only when the buyer holds more than one unit (counted-once rule).
+        buyer.units.forEach { unit ->
+            unit.dueItems.forEach { item ->
+                val prefix = if (multiUnit) "${unit.unitLabel} · " else ""
                 Text(
-                    "· ${unit.unitLabel}: ${formatNaira(unit.combinedMinor)}",
-                    color = NeutralMuted,
+                    "$prefix${formatNaira(item.shortfallMinor)} · due ${formatDueDate(item.dueDate)} · " +
+                        relativeDueLabel(item.dueDate, today),
+                    color = if (item.pastDue) ProofAmber else NeutralMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
