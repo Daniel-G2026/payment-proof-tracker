@@ -54,6 +54,17 @@ interface LocalUnitDao {
     )
     fun observeByProject(projectId: String): Flow<List<LocalUnitEntity>>
 
+    @Query(
+        """
+        SELECT * FROM local_unit
+        WHERE businessId = :businessId
+          AND buyerCounterpartyId = :counterpartyId
+          AND deletedAt IS NULL
+        ORDER BY createdAt ASC, id ASC
+        """
+    )
+    suspend fun getByBuyer(businessId: String, counterpartyId: String): List<LocalUnitEntity>
+
     @Query("DELETE FROM local_unit")
     suspend fun clear()
 }

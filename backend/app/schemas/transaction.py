@@ -32,6 +32,10 @@ class TransactionCreate(BaseModel):
     counterparty_id: uuid.UUID | None = None
     counterparty_name: str | None = Field(default=None, max_length=MAX_COUNTERPARTY_NAME_LEN)
     category: str | None = Field(default=None, max_length=MAX_CATEGORY_LEN)
+    # Phase 13 Cut 3: money-in may link to a unit + optionally earmark a payment
+    # to a specific installment. null = no link / pure waterfall.
+    unit_id: uuid.UUID | None = None
+    earmarked_installment_id: uuid.UUID | None = None
     note: str | None = Field(default=None, max_length=MAX_NOTE_LEN)
     bank_name: str | None = Field(default=None, max_length=MAX_BANK_NAME_LEN)
     reference_number: str | None = Field(default=None, max_length=MAX_REFERENCE_LEN)
@@ -63,6 +67,9 @@ class TransactionUpdate(BaseModel):
     counterparty_id: uuid.UUID | None = None
     counterparty_name: str | None = Field(default=None, max_length=MAX_COUNTERPARTY_NAME_LEN)
     category: str | None = Field(default=None, max_length=MAX_CATEGORY_LEN)
+    # Phase 13 Cut 3: clearable (null is allowed to unlink / drop an earmark).
+    unit_id: uuid.UUID | None = None
+    earmarked_installment_id: uuid.UUID | None = None
     note: str | None = Field(default=None, max_length=MAX_NOTE_LEN)
     bank_name: str | None = Field(default=None, max_length=MAX_BANK_NAME_LEN)
     reference_number: str | None = Field(default=None, max_length=MAX_REFERENCE_LEN)
@@ -101,6 +108,9 @@ class TransactionOut(BaseModel):
     counterparty_id: uuid.UUID | None
     counterparty_name: str | None
     category: str | None
+    project_id: uuid.UUID | None
+    unit_id: uuid.UUID | None
+    earmarked_installment_id: uuid.UUID | None
     note: str | None
     bank_name: str | None
     reference_number: str | None

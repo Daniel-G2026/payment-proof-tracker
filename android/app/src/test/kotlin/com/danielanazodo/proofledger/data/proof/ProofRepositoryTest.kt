@@ -447,6 +447,9 @@ class ProofRepositoryTest {
             counterpartyId: String,
         ): Flow<List<LocalTransactionEntity>> = error("not used")
 
+        override fun observeMoneyInForUnit(unitId: String): Flow<List<LocalTransactionEntity>> =
+            error("not used")
+
         override fun observeById(id: String): Flow<LocalTransactionEntity?> = error("not used")
 
         override fun observeRowsNeedingAttention(

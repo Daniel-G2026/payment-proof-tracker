@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, get_db
-from app.db.models import Business, BusinessMember, Counterparty, Screenshot, Transaction
+from app.db.models import Business, BusinessMember, Counterparty, Screenshot, Transaction, Unit
 from app.schemas.transaction import (
     DuplicateCandidateIn,
     DuplicateCandidateOut,
@@ -112,6 +112,21 @@ def _validate_counterparty_id(
         )
 
 
+def _validate_unit_id(
+    db: Session,
+    business_id: uuid.UUID,
+    unit_id: uuid.UUID | None,
+) -> None:
+    if unit_id is None:
+        return
+    unit = db.get(Unit, unit_id)
+    if unit is None or unit.business_id != business_id or unit.deleted_at is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="Unit is not valid for this business.",
+        )
+
+
 # Fields worth recording in the audit diff — the user-facing transaction
 # content, not server-managed bookkeeping (status/source/created_by/timestamps).
 _AUDIT_FIELDS = (
@@ -122,6 +137,8 @@ _AUDIT_FIELDS = (
     "counterparty_id",
     "counterparty_name",
     "category",
+    "unit_id",
+    "earmarked_installment_id",
     "note",
     "bank_name",
     "reference_number",
@@ -280,6 +297,7 @@ def create_transaction(
         return TransactionOut.model_validate(existing)
 
     _validate_counterparty_id(db, business_id, payload.counterparty_id)
+    _validate_unit_id(db, business_id, payload.unit_id)
 
     transaction = Transaction(
         id=payload.id,
@@ -291,6 +309,8 @@ def create_transaction(
         counterparty_id=payload.counterparty_id,
         counterparty_name=payload.counterparty_name,
         category=payload.category,
+        unit_id=payload.unit_id,
+        earmarked_installment_id=payload.earmarked_installment_id,
         note=payload.note,
         bank_name=payload.bank_name,
         reference_number=payload.reference_number,
@@ -396,6 +416,8 @@ def update_transaction(
         )
     if "counterparty_id" in data:
         _validate_counterparty_id(db, business_id, data["counterparty_id"])
+    if "unit_id" in data:
+        _validate_unit_id(db, business_id, data["unit_id"])
     # screenshot_id is not a column on Transaction — it's a linking instruction.
     # Pop it out before the setattr loop, handle separately, atomic with commit.
     incoming_screenshot_id = data.pop("screenshot_id", None)

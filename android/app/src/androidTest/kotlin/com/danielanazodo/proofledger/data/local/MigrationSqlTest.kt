@@ -20,6 +20,7 @@ import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_11_12
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_12_13
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_13_14
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_14_15
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_15_16
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -264,6 +265,26 @@ class MigrationSqlTest {
         assertRowCount("local_transaction", 1)
         assertIndexExists("index_local_schedule_version_unitId")
         assertIndexExists("index_local_installment_scheduleVersionId")
+
+        // -> v16 (Cut 3: earmarkedInstallmentId on transactions)
+        MIGRATION_15_16.migrate(db)
+        // New column exists and is NULL for the legacy transaction.
+        db.query("SELECT earmarkedInstallmentId FROM local_transaction WHERE id = 't1'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertNull(c.getString(0))
+        }
+        // A money-in row can now carry a unit + earmark link.
+        db.execSQL(
+            """
+            INSERT INTO local_transaction(id, businessId, amountMinor, currency, direction, transactionDate, counterpartyName, category, note, bankName, referenceNumber, source, status, createdAt, updatedAt, deletedAt, syncStatus, lastSyncAttemptAt, projectId, unitId, earmarkedInstallmentId)
+            VALUES('t2', 'b1', 30000000, 'NGN', 'money_in', '2026-01-20', NULL, NULL, NULL, NULL, NULL, 'manual', 'confirmed', 1, 1, NULL, 'SYNCED', NULL, NULL, 'u1', 'in1')
+            """
+        )
+        db.query("SELECT unitId, earmarkedInstallmentId FROM local_transaction WHERE id = 't2'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("u1", c.getString(0))
+            assertEquals("in1", c.getString(1))
+        }
     }
 
     private fun assertIndexExists(name: String) {

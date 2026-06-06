@@ -5,14 +5,18 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import java.util.UUID
+import com.danielanazodo.proofledger.data.balance.Installment
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
 import com.danielanazodo.proofledger.data.local.entity.LocalCategoryEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalScreenshotEntity
+import com.danielanazodo.proofledger.data.local.entity.LocalUnitEntity
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CategoryRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
+import com.danielanazodo.proofledger.data.repository.ScheduleRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
+import com.danielanazodo.proofledger.data.repository.UnitRepository
 import com.danielanazodo.proofledger.data.ocr.DraftState
 import com.danielanazodo.proofledger.data.ocr.OcrDraft
 import com.danielanazodo.proofledger.data.ocr.OcrDraftParser
@@ -102,6 +106,13 @@ data class TransactionFormUiState(
     val duplicateCandidates: List<DuplicateCandidate> = emptyList(),
     val duplicateCheckRunning: Boolean = false,
     val duplicateOverride: Boolean = false,
+    // Phase 13 Cut 3: money-in → unit linking. Units the selected counterparty
+    // buys (auto-suggested local-first); the chosen unit; and the active
+    // schedule's installments offered for an optional earmark.
+    val linkableUnits: List<LocalUnitEntity> = emptyList(),
+    val selectedUnitId: String? = null,
+    val earmarkOptions: List<Installment> = emptyList(),
+    val selectedEarmarkInstallmentId: String? = null,
     val loading: Boolean = false,
     val error: String? = null,
     val saved: Boolean = false,
@@ -113,6 +124,8 @@ class TransactionFormViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val counterpartyRepository: CounterpartyRepository,
     private val categoryRepository: CategoryRepository,
+    private val unitRepository: UnitRepository,
+    private val scheduleRepository: ScheduleRepository,
     private val proofRepository: ProofRepository,
     private val sharedProofIntakeRepository: SharedProofIntakeRepository,
     private val ocrService: OcrService,
@@ -197,6 +210,9 @@ class TransactionFormViewModel @Inject constructor(
                             note = transaction.note.orEmpty(),
                             bankName = transaction.bankName.orEmpty(),
                             referenceNumber = transaction.referenceNumber.orEmpty(),
+                            // Phase 13 Cut 3: restore the unit link + earmark.
+                            selectedUnitId = transaction.unitId,
+                            selectedEarmarkInstallmentId = transaction.earmarkedInstallmentId,
                             // Surface the existing proof in the UI without
                             // marking dirty, so leaving it untouched on save
                             // doesn't re-attach a duplicate.
@@ -206,6 +222,11 @@ class TransactionFormViewModel @Inject constructor(
                             existingProofId = existingProof?.id,
                             proofDirty = false,
                         )
+                    }
+                    // Restore the link pickers' option lists for edit mode.
+                    if (transaction.direction == "money_in") {
+                        transaction.counterpartyId?.let { loadLinkableUnits(it) }
+                        loadEarmarkOptions(transaction.unitId)
                     }
                     // Phase 8: if this proof already lives on the server and
                     // the extraction draft hasn't yet been merged into the
@@ -261,6 +282,11 @@ class TransactionFormViewModel @Inject constructor(
                 saved = false,
                 duplicateCandidates = emptyList(),
                 duplicateOverride = false,
+                // No confirmed buyer → no unit link.
+                linkableUnits = emptyList(),
+                selectedUnitId = null,
+                earmarkOptions = emptyList(),
+                selectedEarmarkInstallmentId = null,
             )
         }
         observeSuggestions(value)
@@ -280,6 +306,65 @@ class TransactionFormViewModel @Inject constructor(
                 duplicateCandidates = emptyList(),
                 duplicateOverride = false,
             )
+        }
+        loadLinkableUnits(counterparty.id)
+    }
+
+    /** Local-first buyer→unit suggestion (Phase 13 Cut 3). Only money-in links
+     * to a unit. Exactly one unit auto-selects; several → the form shows a
+     * picker. Clears any earmark when the unit set changes. */
+    private fun loadLinkableUnits(counterpartyId: String?) {
+        if (_state.value.direction != "money_in" || counterpartyId == null) {
+            _state.update {
+                it.copy(
+                    linkableUnits = emptyList(),
+                    selectedUnitId = null,
+                    earmarkOptions = emptyList(),
+                    selectedEarmarkInstallmentId = null,
+                )
+            }
+            return
+        }
+        viewModelScope.launch {
+            val bid = businessId ?: businessRepository.getSelectedBusinessId() ?: return@launch
+            businessId = bid
+            val units = unitRepository.unitsForBuyer(bid, counterpartyId)
+            // Preserve an already-selected unit (edit mode); else auto-select a
+            // lone unit. Only clear the earmark if the selection actually moved.
+            val previous = _state.value.selectedUnitId
+            val keep = units.firstOrNull { it.id == previous }?.id
+            val selected = keep ?: units.singleOrNull()?.id
+            _state.update {
+                it.copy(
+                    linkableUnits = units,
+                    selectedUnitId = selected,
+                    selectedEarmarkInstallmentId =
+                        if (selected == previous) it.selectedEarmarkInstallmentId else null,
+                )
+            }
+            loadEarmarkOptions(selected)
+        }
+    }
+
+    fun onSelectUnit(unitId: String?) {
+        _state.update {
+            it.copy(selectedUnitId = unitId, selectedEarmarkInstallmentId = null)
+        }
+        loadEarmarkOptions(unitId)
+    }
+
+    fun onSelectEarmark(installmentId: String?) {
+        _state.update { it.copy(selectedEarmarkInstallmentId = installmentId) }
+    }
+
+    private fun loadEarmarkOptions(unitId: String?) {
+        if (unitId == null) {
+            _state.update { it.copy(earmarkOptions = emptyList()) }
+            return
+        }
+        viewModelScope.launch {
+            val options = scheduleRepository.activeInstallments(unitId)
+            _state.update { it.copy(earmarkOptions = options) }
         }
     }
 
@@ -536,6 +621,9 @@ class TransactionFormViewModel @Inject constructor(
                 // pendingScreenshotId from a Phase 8 server-draft poll, which
                 // is NOT an orphan — the screenshot is already linked.
                 val orphanIdForLink = if (current.proofDirty) current.pendingScreenshotId else null
+                // Phase 13 Cut 3: only money-in carries a unit link / earmark.
+                val linkedUnitId = if (current.direction == "money_in") current.selectedUnitId else null
+                val earmarkId = if (linkedUnitId != null) current.selectedEarmarkInstallmentId else null
                 val savedTransaction = if (transactionId == null) {
                     transactionRepository.createTransaction(
                         businessId = selectedBusinessId,
@@ -548,6 +636,8 @@ class TransactionFormViewModel @Inject constructor(
                         note = current.note.clean(),
                         bankName = current.bankName.clean(),
                         referenceNumber = current.referenceNumber.clean(),
+                        unitId = linkedUnitId,
+                        earmarkedInstallmentId = earmarkId,
                         screenshotId = orphanIdForLink,
                     )
                 } else {
@@ -562,6 +652,8 @@ class TransactionFormViewModel @Inject constructor(
                         note = current.note.clean(),
                         bankName = current.bankName.clean(),
                         referenceNumber = current.referenceNumber.clean(),
+                        unitId = linkedUnitId,
+                        earmarkedInstallmentId = earmarkId,
                         screenshotId = orphanIdForLink,
                     )
                 }

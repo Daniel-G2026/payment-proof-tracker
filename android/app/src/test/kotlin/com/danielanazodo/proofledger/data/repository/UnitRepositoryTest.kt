@@ -132,6 +132,20 @@ class UnitRepositoryTest {
         assertEquals(0, api.deleteCalls)
     }
 
+    @Test
+    fun `unitsForBuyer returns only this buyer's units (Cut 3 money-in linking)`() = runBlocking {
+        val dao = FakeUnitDao()
+        dao.upsert(unit(id = "u1", syncStatus = SyncStatus.SYNCED, buyer = "buyer-1"))
+        dao.upsert(unit(id = "u2", syncStatus = SyncStatus.SYNCED, buyer = "buyer-1"))
+        dao.upsert(unit(id = "u3", syncStatus = SyncStatus.SYNCED, buyer = "buyer-2"))
+        dao.upsert(unit(id = "u4", syncStatus = SyncStatus.SYNCED, buyer = null))
+        val repo = UnitRepository(FakeApi().service, dao, SyncEventLogger(FakeSyncEvents()))
+
+        val forBuyer1 = repo.unitsForBuyer(businessId, "buyer-1")
+
+        assertEquals(listOf("u1", "u2"), forBuyer1.map { it.id })
+    }
+
     private fun unit(
         id: String = "unit-1",
         syncStatus: SyncStatus,
@@ -261,6 +275,12 @@ class UnitRepositoryTest {
             flowOf(rows.values.filter { it.businessId == businessId && it.deletedAt == null })
         override fun observeByProject(projectId: String): Flow<List<LocalUnitEntity>> =
             flowOf(rows.values.filter { it.projectId == projectId && it.deletedAt == null })
+        override suspend fun getByBuyer(businessId: String, counterpartyId: String) =
+            rows.values.filter {
+                it.businessId == businessId &&
+                    it.buyerCounterpartyId == counterpartyId &&
+                    it.deletedAt == null
+            }
         override suspend fun clear() { rows.clear() }
     }
 }

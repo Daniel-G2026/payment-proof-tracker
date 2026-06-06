@@ -32,6 +32,16 @@ class Transaction(Base):
     unit_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("units.id"), nullable=True, index=True
     )
+    # Phase 13 Cut 3: the only stored allocation intent. null = pure waterfall.
+    # `use_alter` because this FK closes a table cycle (transactions →
+    # installments → schedule_versions → screenshots → transactions); it lets
+    # metadata create_all/drop_all (the test harness) sort the tables. Prod DDL
+    # is driven by Alembic, not metadata, so this only affects tests.
+    earmarked_installment_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("installments.id", use_alter=True, name="fk_transactions_earmarked_installment"),
+        nullable=True,
+    )
     note: Mapped[str | None] = mapped_column(String, nullable=True)
     bank_name: Mapped[str | None] = mapped_column(String, nullable=True)
     reference_number: Mapped[str | None] = mapped_column(String, nullable=True)

@@ -42,6 +42,11 @@ class UnitRepository @Inject constructor(
     suspend fun getById(unitId: String): LocalUnitEntity? =
         localDao.getById(unitId)
 
+    /** Units this counterparty buys (Phase 13 Cut 3 money-in linking). A buyer
+     * may hold several units → the form shows a picker. */
+    suspend fun unitsForBuyer(businessId: String, counterpartyId: String): List<LocalUnitEntity> =
+        localDao.getByBuyer(businessId, counterpartyId)
+
     suspend fun refreshFromRemote(businessId: String) {
         val remote = runCatching { api.listUnits(businessId) }.getOrNull() ?: return
         localDao.upsertAll(remote.map { it.toEntity(SyncStatus.SYNCED) })

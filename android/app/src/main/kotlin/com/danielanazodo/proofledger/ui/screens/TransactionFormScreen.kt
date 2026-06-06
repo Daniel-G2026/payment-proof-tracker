@@ -296,6 +296,58 @@ fun TransactionFormScreen(
                     label = { Text("Add \"${state.category.trim()}\"") },
                 )
             }
+
+            // Phase 13 Cut 3: link money-in to a house (the buyer's unit) and
+            // optionally earmark it to a specific installment.
+            if (state.direction == "money_in" && state.linkableUnits.isNotEmpty()) {
+                Text(
+                    "Link to a house (optional)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = NeutralMuted,
+                )
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    ProofLedgerFilterChip(
+                        selected = state.selectedUnitId == null,
+                        onClick = { viewModel.onSelectUnit(null) },
+                        label = "No house",
+                    )
+                    state.linkableUnits.forEach { unit ->
+                        ProofLedgerFilterChip(
+                            selected = state.selectedUnitId == unit.id,
+                            onClick = { viewModel.onSelectUnit(unit.id) },
+                            label = unit.label,
+                        )
+                    }
+                }
+                if (state.selectedUnitId != null && state.earmarkOptions.isNotEmpty()) {
+                    Text(
+                        "Earmark to an installment (optional)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = NeutralMuted,
+                    )
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        ProofLedgerFilterChip(
+                            selected = state.selectedEarmarkInstallmentId == null,
+                            onClick = { viewModel.onSelectEarmark(null) },
+                            label = "Auto",
+                        )
+                        state.earmarkOptions.forEach { line ->
+                            ProofLedgerFilterChip(
+                                selected = state.selectedEarmarkInstallmentId == line.id,
+                                onClick = { viewModel.onSelectEarmark(line.id) },
+                                label = "#${line.sequence} · ${formatNaira(line.amountMinor)}",
+                            )
+                        }
+                    }
+                }
+            }
+
             ProofLedgerTextField(
                 value = state.bankName,
                 onValueChange = viewModel::onBankNameChange,

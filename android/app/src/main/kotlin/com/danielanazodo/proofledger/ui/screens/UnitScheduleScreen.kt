@@ -31,12 +31,16 @@ import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
 import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
 import com.danielanazodo.proofledger.ui.components.SectionLabel
+import com.danielanazodo.proofledger.data.balance.InstallmentFill
+import com.danielanazodo.proofledger.data.balance.InstallmentState
 import com.danielanazodo.proofledger.ui.format.formatNaira
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
+import com.danielanazodo.proofledger.ui.theme.ProofLime
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.UnitScheduleViewModel
+import androidx.compose.ui.graphics.Color
 
 @Composable
 fun UnitScheduleScreen(
@@ -55,30 +59,51 @@ fun UnitScheduleScreen(
             modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Current active schedule, if any.
+            // Current active schedule + computed fill states, if any.
             if (state.activeVersion != null) {
                 SectionLabel("Current schedule (v${state.activeVersion!!.versionNo})")
                 GroupedPanel {
-                    state.activeInstallments.forEachIndexed { index, line ->
+                    state.fills.forEachIndexed { index, fill ->
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(16.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text("#${line.sequence}  ${line.dueDate}", color = NeutralMuted)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("#${fill.sequence}  ${fill.dueDate}", color = NeutralInk)
+                                Text(
+                                    stateLabel(fill),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = stateColor(fill.state),
+                                )
+                            }
                             Text(
-                                formatNaira(line.amountMinor),
+                                formatNaira(fill.scheduledMinor),
                                 color = NeutralInk,
                                 fontWeight = FontWeight.Medium,
                             )
                         }
-                        if (index != state.activeInstallments.lastIndex) HorizontalDivider()
+                        if (index != state.fills.lastIndex) HorizontalDivider()
                     }
                 }
-                val total = state.activeInstallments.sumOf { it.amountMinor }
+                val total = state.fills.sumOf { it.scheduledMinor }
                 Text(
                     "Total ${formatNaira(total)} · ${state.versionCount} version(s) on record",
                     style = MaterialTheme.typography.bodySmall,
                     color = NeutralMuted,
+                )
+                Text(
+                    buildString {
+                        append("Behind today: ")
+                        append(formatNaira(state.arrearsMinor))
+                        if (state.creditMinor > 0) {
+                            append("  ·  Credit: ")
+                            append(formatNaira(state.creditMinor))
+                        }
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = if (state.arrearsMinor > 0) ProofAmber else NeutralInk,
                 )
             } else {
                 Text(
@@ -128,4 +153,20 @@ fun UnitScheduleScreen(
             )
         }
     }
+}
+
+private fun stateLabel(fill: InstallmentFill): String = when (fill.state) {
+    InstallmentState.UNPAID -> "Unpaid"
+    InstallmentState.PARTIAL -> "Part-paid · ${formatNaira(fill.filledMinor)} of ${formatNaira(fill.scheduledMinor)}"
+    InstallmentState.FILLED -> "Paid"
+    InstallmentState.FILLED_LATE -> "Paid (late)"
+    InstallmentState.FILLED_AHEAD -> "Paid ahead"
+}
+
+private fun stateColor(state: InstallmentState): Color = when (state) {
+    InstallmentState.UNPAID -> NeutralMuted
+    InstallmentState.PARTIAL -> ProofAmber
+    InstallmentState.FILLED -> ProofLime
+    InstallmentState.FILLED_LATE -> ProofAmber
+    InstallmentState.FILLED_AHEAD -> ProofLime
 }
