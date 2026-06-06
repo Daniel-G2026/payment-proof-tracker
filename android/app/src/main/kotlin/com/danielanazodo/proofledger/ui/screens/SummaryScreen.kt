@@ -44,6 +44,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.data.repository.NamedTotal
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
 import com.danielanazodo.proofledger.ui.components.MetricLine
+import com.danielanazodo.proofledger.ui.components.MoneyAmount
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.PageHeader
 import com.danielanazodo.proofledger.ui.components.ProofLedgerFilterChip
@@ -260,11 +261,13 @@ private fun NamedTotalPanel(items: List<NamedTotal>) {
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(12.dp))
-                Text(
-                    formatNaira(item.totalMinor),
+                MoneyAmount(
+                    text = formatNaira(item.totalMinor),
                     color = NeutralInk,
-                    style = MaterialTheme.typography.bodyMedium,
+                    preferredSize = MaterialTheme.typography.bodyMedium.fontSize,
+                    minimumSize = MaterialTheme.typography.bodySmall.fontSize,
                     fontWeight = FontWeight.Medium,
+                    modifier = Modifier.width(144.dp),
                 )
             }
             if (index != items.lastIndex) {

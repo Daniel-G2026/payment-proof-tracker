@@ -401,13 +401,16 @@ fun MetricLine(label: String, value: String, dot: Color = ProofGrayDot) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.width(92.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             StatusDot(color = dot)
             Text(label.uppercase(), color = NeutralMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
         }
-        Spacer(Modifier.width(16.dp))
+        Spacer(Modifier.width(12.dp))
         MoneyAmount(
             text = value,
             color = NeutralInk,

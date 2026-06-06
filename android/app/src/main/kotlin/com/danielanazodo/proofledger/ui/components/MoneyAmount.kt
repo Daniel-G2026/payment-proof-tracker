@@ -1,6 +1,7 @@
 package com.danielanazodo.proofledger.ui.components
 
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -51,6 +52,7 @@ fun MoneyAmount(
         }
         Text(
             text = amount,
+            modifier = Modifier.fillMaxWidth(),
             color = color,
             fontSize = resolvedSize,
             lineHeight = (resolvedSize.value * 1.12f).sp,
