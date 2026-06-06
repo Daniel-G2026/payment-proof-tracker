@@ -187,6 +187,10 @@ class VisionClient(Protocol):
 
     async def extract(self, image_bytes: bytes, mime_type: str) -> VisionExtraction: ...
 
+    async def extract_offer_letter(
+        self, image_bytes: bytes, mime_type: str
+    ) -> OfferLetterExtraction: ...
+
 
 class AnthropicVisionClient:
     """Real client. Calls Anthropic with prompt caching and forced tool use."""
@@ -254,6 +258,47 @@ class AnthropicVisionClient:
                 getattr(usage, "output_tokens", None),
             )
         return normalize(tool_input, model_version=self._model)
+
+    async def extract_offer_letter(
+        self, image_bytes: bytes, mime_type: str
+    ) -> OfferLetterExtraction:
+        image_b64 = base64.standard_b64encode(image_bytes).decode("ascii")
+        response = await self._client.messages.create(
+            model=self._model,
+            max_tokens=2048,  # installment arrays are larger than payment fields
+            system=[
+                {
+                    "type": "text",
+                    "text": OFFER_LETTER_SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
+            tools=[OFFER_LETTER_TOOL_SCHEMA],
+            tool_choice={"type": "tool", "name": OFFER_LETTER_TOOL_NAME},
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": mime_type,
+                                "data": image_b64,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": "Extract the installment schedule from this offer letter.",
+                        },
+                    ],
+                }
+            ],
+        )
+        tool_input = _find_offer_letter_tool_input(response)
+        if tool_input is None:
+            raise VisionParseError("Model did not call the record_offer_letter tool")
+        return normalize_offer_letter(tool_input, model_version=self._model)
 
 
 def _find_tool_input(response: Any) -> dict[str, Any] | None:
@@ -361,3 +406,243 @@ def _clean_date(value: Any) -> date | None:
         return date.fromisoformat(text[:10])
     except ValueError:
         return None
+
+
+# =========================================================================
+# Offer-letter extraction (Phase 13 Cut 6)
+# =========================================================================
+
+# Bounds mirror app/schemas/schedule.py so a draft can never produce a schedule
+# the create endpoint would reject.
+MAX_INSTALLMENT_AMOUNT_MINOR = 10**15
+MAX_INSTALLMENTS = 600
+
+OFFER_LETTER_TOOL_NAME = "record_offer_letter"
+
+OFFER_LETTER_TOOL_SCHEMA: dict[str, Any] = {
+    "name": OFFER_LETTER_TOOL_NAME,
+    "description": (
+        "Record the installment payment plan you extracted from the offer "
+        "letter / allocation letter image. Use null for any field you cannot "
+        "determine. Set `unreadable` to true if the image is not an offer "
+        "letter with a payment plan at all."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "buyer_name": {
+                "type": ["string", "null"],
+                "description": "Name of the buyer / allottee the letter is addressed to.",
+            },
+            "total_minor": {
+                "type": ["integer", "null"],
+                "description": (
+                    "Total price / consideration in the smallest currency unit "
+                    "(kobo for NGN). ₦12,000,000 → 1200000000. No currency symbol."
+                ),
+            },
+            "currency_code": {
+                "type": ["string", "null"],
+                "description": "ISO 4217 currency code if visible (e.g. 'NGN').",
+            },
+            "installments": {
+                "type": ["array", "null"],
+                "description": (
+                    "The payment schedule, one entry per scheduled installment, "
+                    "in the order stated. Include the deposit/initial payment as "
+                    "sequence 0. Only include rows that have a concrete due date."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "sequence": {
+                            "type": "integer",
+                            "description": "0-based order as listed (deposit = 0).",
+                        },
+                        "amount_minor": {
+                            "type": "integer",
+                            "description": "Installment amount in minor units (no symbol).",
+                        },
+                        "due_date": {
+                            "type": "string",
+                            "description": "ISO-8601 date YYYY-MM-DD this installment is due.",
+                        },
+                    },
+                    "required": ["amount_minor", "due_date"],
+                },
+            },
+            "confidence": {
+                "type": "object",
+                "description": (
+                    "Self-reported confidence 0.0-1.0. `installments` is ONE "
+                    "score for the whole array. 1.0 = directly visible, 0.7 = "
+                    "inferred, <0.5 = guess."
+                ),
+                "properties": {
+                    "buyer_name": {"type": "number"},
+                    "total_minor": {"type": "number"},
+                    "currency_code": {"type": "number"},
+                    "installments": {"type": "number"},
+                },
+            },
+            "unreadable": {
+                "type": "boolean",
+                "description": (
+                    "True if the image is NOT an offer letter with a payment "
+                    "plan (random photo, unrelated document, illegible, etc.)."
+                ),
+            },
+        },
+        "required": ["confidence", "unreadable"],
+    },
+}
+
+# Padded past 1024 tokens so it qualifies for Anthropic prompt caching.
+OFFER_LETTER_SYSTEM_PROMPT = """You are an extraction engine for property offer letters / allocation letters from small real-estate and construction businesses, primarily in Nigeria and other African markets.
+
+Your job: given one image of an offer letter, allocation letter, or payment-plan schedule for a house/plot, extract the installment payment plan. Return your answer via the `record_offer_letter` tool — never as free text.
+
+# Field rules
+
+**buyer_name** — the buyer / allottee / purchaser the letter is addressed to. Usually after "Dear", "Name of Allottee", "Purchaser", or similar. Return null if not clearly stated. Do NOT return the developer/company name.
+
+**total_minor** — the total price / total consideration / purchase price, in the smallest unit of the currency (kobo for NGN: multiply naira by 100). ₦12,000,000 → 1200000000. If the letter shows large sums without commas (e.g. "₦12000000"), treat as whole naira and still multiply by 100. Return null if no explicit total is stated. Do NOT sum the installments yourself to invent a total.
+
+**currency_code** — ISO 4217 (NGN, USD, GBP, GHS, KES…). Infer from the symbol (₦ = NGN, $ = USD, £ = GBP) or explicit text. Null if unclear.
+
+**installments** — the scheduled payments, in order. Each row has `sequence` (0-based; the deposit/initial/commitment payment is sequence 0), `amount_minor` (minor units), and `due_date` (ISO-8601 YYYY-MM-DD). Rules:
+- Include the deposit/initial deposit/commitment fee as sequence 0 if it has a stated date.
+- ONLY include a row if it has a concrete, absolute due date. If a row is described only relatively ("on allocation", "monthly thereafter") with no resolvable date, omit that row rather than guessing a date.
+- If the plan is "₦X monthly for N months starting <date>", enumerate the N concrete dated rows.
+- Amounts are per-installment, not cumulative.
+- If you cannot read the schedule rows with reasonable confidence, return `installments: null` rather than a partial guess — the user will type them.
+
+# Confidence
+
+Self-report confidence per field, 0.0–1.0. `installments` is a SINGLE score for the whole array (how sure you are the rows + dates are right). Set 0.0 for any field returned as null. The downstream system drops any field below 0.5 and drops the whole installments array if its score is below 0.5 — so be honest; a wrong pre-filled schedule is worse than a blank one the user fills in.
+
+# Unreadable
+
+Set `unreadable: true` and null every field if the image is NOT an offer letter with a payment plan: a random photo, a payment receipt (that's a different document), an illegible scan, unrelated text. Do not invent a plan to be helpful.
+
+# Examples
+
+Input: Offer letter "Dear Ada Obi", "Total Price: ₦12,000,000", "Payment Plan: Initial Deposit ₦2,000,000 on 01/07/2026; then ₦1,000,000 monthly for 10 months (01/08/2026 to 01/05/2027)".
+Output: buyer_name="Ada Obi", total_minor=1200000000, currency_code="NGN", installments=[{sequence:0, amount_minor:200000000, due_date:"2026-07-01"}, {sequence:1, amount_minor:100000000, due_date:"2026-08-01"}, … {sequence:10, amount_minor:100000000, due_date:"2027-05-01"}], confidence={all 0.9+}, unreadable=false.
+
+Input: Letter with a clear plan but the buyer's name is smudged/illegible.
+Output: buyer_name=null, installments=[…rows…], confidence={buyer_name:0.2, installments:0.9, …}, unreadable=false.
+
+Input: A photo of a car.
+Output: all fields null, installments=null, confidence={all 0.0}, unreadable=true.
+
+Input: A bank transfer receipt (not an offer letter).
+Output: all fields null, unreadable=true (a receipt is not an offer letter).
+
+Always call the `record_offer_letter` tool. Never respond with free text.
+"""
+
+
+@dataclass
+class OfferLetterExtraction:
+    """Cleaned offer-letter extraction, post-confidence filter.
+
+    Scalar fields below CONFIDENCE_FLOOR are set to None; `installments` is set
+    to None unless its array-level confidence clears the floor AND at least one
+    well-formed row survives cleaning. `unreadable=True` is terminal.
+    """
+
+    buyer_name: str | None = None
+    total_minor: int | None = None
+    currency_code: str | None = None
+    installments: list[dict[str, Any]] | None = None
+    confidence: dict[str, float] = field(default_factory=dict)
+    unreadable: bool = False
+    raw_json: dict[str, Any] = field(default_factory=dict)
+    model_version: str = ""
+
+
+def _find_offer_letter_tool_input(response: Any) -> dict[str, Any] | None:
+    for block in response.content:
+        if (
+            getattr(block, "type", None) == "tool_use"
+            and getattr(block, "name", "") == OFFER_LETTER_TOOL_NAME
+        ):
+            return block.input  # type: ignore[no-any-return]
+    return None
+
+
+def _clean_installments(value: Any) -> list[dict[str, Any]] | None:
+    """Drop malformed rows, then re-sequence 0..n-1 by (due_date, sequence).
+
+    Returns None if nothing well-formed survives or the count exceeds the cap.
+    Malformed = amount not a positive int ≤ 10^15, or due_date not a valid ISO
+    date. See offer-letter contract §5.2.
+    """
+    if not isinstance(value, list):
+        return None
+    cleaned: list[tuple[int, int, date]] = []
+    for raw in value:
+        if not isinstance(raw, dict):
+            continue
+        amount = _clean_int(raw.get("amount_minor"))
+        due = _clean_date(raw.get("due_date"))
+        if amount is None or amount <= 0 or amount > MAX_INSTALLMENT_AMOUNT_MINOR or due is None:
+            continue
+        try:
+            seq = int(raw.get("sequence", 0))
+        except (TypeError, ValueError):
+            seq = 0
+        cleaned.append((seq, amount, due))
+    if not cleaned or len(cleaned) > MAX_INSTALLMENTS:
+        return None
+    cleaned.sort(key=lambda row: (row[2], row[0]))
+    return [
+        {"sequence": index, "amount_minor": amount, "due_date": due.isoformat()}
+        for index, (_seq, amount, due) in enumerate(cleaned)
+    ]
+
+
+def normalize_offer_letter(
+    tool_input: dict[str, Any], *, model_version: str = ""
+) -> OfferLetterExtraction:
+    """Turn raw offer-letter tool input into an OfferLetterExtraction.
+
+    Drops scalar fields below CONFIDENCE_FLOOR; drops the installments array if
+    its array-level confidence is below the floor or no well-formed row
+    survives. Preserves the full raw input for debugging/retention.
+    """
+    confidence_raw = tool_input.get("confidence") or {}
+    if not isinstance(confidence_raw, dict):
+        confidence_raw = {}
+    confidence: dict[str, float] = {}
+    for key, value in confidence_raw.items():
+        try:
+            confidence[str(key)] = float(value)
+        except (TypeError, ValueError):
+            continue
+
+    result = OfferLetterExtraction(
+        buyer_name=_clean_str(tool_input.get("buyer_name"), maxlen=255),
+        total_minor=_clean_int(tool_input.get("total_minor")),
+        currency_code=_clean_str(tool_input.get("currency_code"), upper=True, maxlen=8),
+        installments=_clean_installments(tool_input.get("installments")),
+        confidence=confidence,
+        unreadable=bool(tool_input.get("unreadable", False)),
+        raw_json=tool_input,
+        model_version=model_version,
+    )
+
+    if result.unreadable:
+        result.buyer_name = None
+        result.total_minor = None
+        result.currency_code = None
+        result.installments = None
+        return result
+
+    for field_name in ("buyer_name", "total_minor", "currency_code"):
+        if confidence.get(field_name, 0.0) < CONFIDENCE_FLOOR:
+            setattr(result, field_name, None)
+    if confidence.get("installments", 0.0) < CONFIDENCE_FLOOR:
+        result.installments = None
+    return result

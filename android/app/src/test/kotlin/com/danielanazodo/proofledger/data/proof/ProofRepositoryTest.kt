@@ -735,6 +735,18 @@ class ProofRepositoryTest {
 
         override suspend fun getScreenshotSignedUrl(screenshotId: String): SignedScreenshotUrlDto =
             SignedScreenshotUrlDto(url = signedUrl, expiresAt = "2026-05-29T00:00:00Z")
+        override suspend fun uploadOfferLetterScreenshot(
+            businessId: String,
+            id: RequestBody,
+            originalFileSize: RequestBody,
+            width: RequestBody,
+            height: RequestBody,
+            documentType: RequestBody,
+            file: MultipartBody.Part,
+        ): ScreenshotDto = error("not used")
+        override suspend fun getScheduleDraft(
+            screenshotId: String,
+        ): com.danielanazodo.proofledger.data.remote.dto.ScheduleDraftDto = error("not used")
         override suspend fun getScreenshotDraft(screenshotId: String): TransactionDraftDto =
             error("not used")
         override suspend fun confirmDraft(

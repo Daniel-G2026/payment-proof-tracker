@@ -70,6 +70,7 @@ class ScheduleRepository @Inject constructor(
         unitId: String,
         lines: List<ScheduleLineInput>,
         source: String = "manual",
+        offerLetterScreenshotId: String? = null,
     ): LocalScheduleVersionEntity {
         val now = System.currentTimeMillis()
         val versionId = UUID.randomUUID().toString()
@@ -83,7 +84,7 @@ class ScheduleRepository @Inject constructor(
             versionNo = nextVersion,
             source = source,
             isActive = true,
-            offerLetterScreenshotId = null,
+            offerLetterScreenshotId = offerLetterScreenshotId,
             createdAt = now,
             updatedAt = now,
             deletedAt = null,

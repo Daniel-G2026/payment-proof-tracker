@@ -6,6 +6,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
+# Document kinds an uploaded image can represent. The extraction worker
+# dispatches on this. payment_proof is the historical default (Phase 8);
+# offer_letter is the Phase 13 Cut 6 installment-schedule source.
+DOCUMENT_TYPE_PAYMENT_PROOF = "payment_proof"
+DOCUMENT_TYPE_OFFER_LETTER = "offer_letter"
+ALLOWED_DOCUMENT_TYPES = (DOCUMENT_TYPE_PAYMENT_PROOF, DOCUMENT_TYPE_OFFER_LETTER)
+
 
 class Screenshot(Base):
     __tablename__ = "screenshots"
@@ -34,6 +41,12 @@ class Screenshot(Base):
     storage_key: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     storage_status: Mapped[str] = mapped_column(String, nullable=False, default="stored")
     image_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # Phase 13 Cut 6: which kind of document this image is, so the extraction
+    # worker knows which AI tool/prompt to run. Defaults to payment_proof, so
+    # every pre-existing row and every existing caller is unaffected.
+    document_type: Mapped[str] = mapped_column(
+        String, nullable=False, server_default=DOCUMENT_TYPE_PAYMENT_PROOF
+    )
     # Optional raw OCR text from the client (Phase 7 on-device pass). Stored as
     # a hint we may feed to the vision model alongside the image; not required.
     ocr_text: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -50,6 +63,12 @@ class Screenshot(Base):
 
     draft: Mapped["TransactionDraft | None"] = relationship(
         "TransactionDraft",
+        back_populates="screenshot",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    schedule_draft: Mapped["ScheduleDraft | None"] = relationship(
+        "ScheduleDraft",
         back_populates="screenshot",
         uselist=False,
         cascade="all, delete-orphan",

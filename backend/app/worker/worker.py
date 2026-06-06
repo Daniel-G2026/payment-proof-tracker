@@ -22,7 +22,16 @@ from sqlalchemy import text, update
 
 from app.core.config import settings
 from app.db import session as db_session
-from app.db.models import Screenshot, TransactionDraft
+from app.db.models import ScheduleDraft, Screenshot, TransactionDraft
+from app.db.models.schedule_draft import (
+    SCHEDULE_DRAFT_ERROR_PARSE,
+    SCHEDULE_DRAFT_ERROR_UNREADABLE,
+    SCHEDULE_DRAFT_ERROR_VISION,
+    SCHEDULE_DRAFT_STATUS_FAILED,
+    SCHEDULE_DRAFT_STATUS_PROCESSING,
+    SCHEDULE_DRAFT_STATUS_READY,
+)
+from app.db.models.screenshot import DOCUMENT_TYPE_OFFER_LETTER
 from app.db.models.transaction_draft import (
     DRAFT_ERROR_PARSE,
     DRAFT_ERROR_UNREADABLE,
@@ -35,6 +44,7 @@ from app.services.extraction import EXTRACT_TASK_NAME, build_arq_redis_settings
 from app.services.proof_storage import ProofStorage
 from app.worker.vision import (
     AnthropicVisionClient,
+    OfferLetterExtraction,
     VisionClient,
     VisionExtraction,
     VisionParseError,
@@ -90,6 +100,14 @@ async def extract_screenshot(ctx: dict[str, Any], screenshot_id_str: str) -> dic
     storage (Redis-backed); the durable result is the draft row in Postgres.
     """
     screenshot_id = uuid.UUID(screenshot_id_str)
+
+    # Phase 13 Cut 6: offer-letter screenshots run a different AI tool and write
+    # schedule_drafts. Dispatch on document_type, then leave the payment-proof
+    # path below byte-for-byte unchanged.
+    document_type = await asyncio.to_thread(_load_document_type, screenshot_id)
+    if document_type == DOCUMENT_TYPE_OFFER_LETTER:
+        return await _extract_offer_letter(ctx, screenshot_id)
+
     vision: VisionClient | None = ctx.get("vision")
     if vision is None:
         log.error(
@@ -172,7 +190,90 @@ async def _maybe_retry(ctx: dict[str, Any]) -> None:
     raise Retry(defer=RETRY_BASE_SECONDS * (2 ** (job_try - 1)))
 
 
+# --- offer-letter extraction (Phase 13 Cut 6) ----------------------------
+
+
+async def _extract_offer_letter(ctx: dict[str, Any], screenshot_id: uuid.UUID) -> dict[str, Any]:
+    """Run offer-letter extraction for one screenshot, writing schedule_drafts.
+
+    Mirrors the payment-proof path: idempotent upsert into the draft row,
+    confidence-filtered fields, unreadable is terminal, transient errors retry.
+    """
+    vision: VisionClient | None = ctx.get("vision")
+    if vision is None:
+        log.error(
+            "_extract_offer_letter: vision client unavailable (likely missing "
+            "ANTHROPIC_API_KEY); marking %s as failed.",
+            screenshot_id,
+        )
+        screenshot = await asyncio.to_thread(_load_screenshot, screenshot_id)
+        if screenshot is not None:
+            await asyncio.to_thread(_mark_processing_schedule, screenshot)
+            await asyncio.to_thread(
+                _record_schedule_failure,
+                screenshot,
+                error_code=SCHEDULE_DRAFT_ERROR_VISION,
+                error_message="Extraction is not configured on this server.",
+                terminal=True,
+            )
+        return {"status": SCHEDULE_DRAFT_STATUS_FAILED, "reason": "vision_unconfigured"}
+
+    screenshot = await asyncio.to_thread(_load_screenshot, screenshot_id)
+    if screenshot is None:
+        log.warning("_extract_offer_letter: %s not found, skipping", screenshot_id)
+        return {"skipped": "not_found"}
+
+    await asyncio.to_thread(_mark_processing_schedule, screenshot)
+    image_bytes = await asyncio.to_thread(_read_image_bytes, screenshot.storage_key)
+
+    try:
+        extraction = await vision.extract_offer_letter(image_bytes, screenshot.mime_type)
+    except VisionParseError as exc:
+        await asyncio.to_thread(
+            _record_schedule_failure,
+            screenshot,
+            error_code=SCHEDULE_DRAFT_ERROR_PARSE,
+            error_message=str(exc),
+        )
+        await _maybe_retry(ctx)
+        raise
+    except Exception as exc:  # noqa: BLE001 — broad catch around the vendor SDK
+        await asyncio.to_thread(
+            _record_schedule_failure,
+            screenshot,
+            error_code=SCHEDULE_DRAFT_ERROR_VISION,
+            error_message=_short(str(exc)),
+        )
+        await _maybe_retry(ctx)
+        raise
+
+    if extraction.unreadable:
+        await asyncio.to_thread(
+            _record_schedule_failure,
+            screenshot,
+            error_code=SCHEDULE_DRAFT_ERROR_UNREADABLE,
+            error_message="Model reported image was not an offer letter.",
+            terminal=True,
+            extraction=extraction,
+        )
+        return {"status": SCHEDULE_DRAFT_STATUS_FAILED, "reason": SCHEDULE_DRAFT_ERROR_UNREADABLE}
+
+    await asyncio.to_thread(_record_schedule_success, screenshot, extraction)
+    return {"status": SCHEDULE_DRAFT_STATUS_READY}
+
+
 # --- DB helpers (sync; called via asyncio.to_thread) ---------------------
+
+
+def _load_document_type(screenshot_id: uuid.UUID) -> str | None:
+    """Read the screenshot's document_type so extract_screenshot can dispatch.
+    Returns None if the screenshot is missing/soft-deleted (the caller then
+    falls through to the payment-proof path, which handles not-found)."""
+    with _session() as db:
+        row = db.get(Screenshot, screenshot_id)
+        if row is None or row.deleted_at is not None:
+            return None
+        return row.document_type
 
 
 def _load_screenshot(screenshot_id: uuid.UUID) -> Screenshot | None:
@@ -278,6 +379,85 @@ def _record_failure(
         db.commit()
 
 
+def _mark_processing_schedule(screenshot: Screenshot) -> None:
+    """Upsert a schedule_draft row in status=processing (mirror of
+    _mark_processing for the offer-letter path)."""
+    with _session() as db:
+        draft = (
+            db.query(ScheduleDraft)
+            .filter(ScheduleDraft.screenshot_id == screenshot.id)
+            .one_or_none()
+        )
+        if draft is None:
+            draft = ScheduleDraft(
+                id=uuid.uuid4(),
+                screenshot_id=screenshot.id,
+                business_id=screenshot.business_id,
+                status=SCHEDULE_DRAFT_STATUS_PROCESSING,
+                attempts=1,
+            )
+            db.add(draft)
+        else:
+            draft.status = SCHEDULE_DRAFT_STATUS_PROCESSING
+            draft.attempts = (draft.attempts or 0) + 1
+            draft.error_code = None
+            draft.error_message = None
+        db.commit()
+
+
+def _record_schedule_success(screenshot: Screenshot, extraction: OfferLetterExtraction) -> None:
+    with _session() as db:
+        draft = (
+            db.query(ScheduleDraft)
+            .filter(ScheduleDraft.screenshot_id == screenshot.id)
+            .one()
+        )
+        draft.status = SCHEDULE_DRAFT_STATUS_READY
+        draft.buyer_name = extraction.buyer_name
+        draft.total_minor = extraction.total_minor
+        draft.currency_code = extraction.currency_code
+        draft.installments = extraction.installments or None
+        draft.confidence = extraction.confidence or None
+        draft.raw_json = extraction.raw_json or None
+        draft.model_version = extraction.model_version or None
+        draft.error_code = None
+        draft.error_message = None
+        db.commit()
+
+
+def _record_schedule_failure(
+    screenshot: Screenshot,
+    *,
+    error_code: str,
+    error_message: str,
+    terminal: bool = False,
+    extraction: OfferLetterExtraction | None = None,
+) -> None:
+    with _session() as db:
+        draft = (
+            db.query(ScheduleDraft)
+            .filter(ScheduleDraft.screenshot_id == screenshot.id)
+            .one_or_none()
+        )
+        if draft is None:
+            draft = ScheduleDraft(
+                id=uuid.uuid4(),
+                screenshot_id=screenshot.id,
+                business_id=screenshot.business_id,
+                status=SCHEDULE_DRAFT_STATUS_FAILED,
+                attempts=1,
+            )
+            db.add(draft)
+        draft.error_code = error_code
+        draft.error_message = _short(error_message)
+        if terminal:
+            draft.status = SCHEDULE_DRAFT_STATUS_FAILED
+        if extraction is not None:
+            draft.raw_json = extraction.raw_json or None
+            draft.model_version = extraction.model_version or None
+        db.commit()
+
+
 def _read_image_bytes(storage_key: str) -> bytes:
     return ProofStorage().read_bytes(storage_key)
 
@@ -302,7 +482,7 @@ async def purge_raw_json(ctx: dict[str, Any]) -> dict[str, int]:
 
 def _purge_raw_json_sync(cutoff: datetime) -> dict[str, int]:
     with _session() as db:
-        result = db.execute(
+        txn_result = db.execute(
             update(TransactionDraft)
             .where(
                 TransactionDraft.raw_json.is_not(None),
@@ -310,9 +490,17 @@ def _purge_raw_json_sync(cutoff: datetime) -> dict[str, int]:
             )
             .values(raw_json=None)
         )
+        schedule_result = db.execute(
+            update(ScheduleDraft)
+            .where(
+                ScheduleDraft.raw_json.is_not(None),
+                ScheduleDraft.created_at < cutoff,
+            )
+            .values(raw_json=None)
+        )
         db.commit()
         # SQLAlchemy 2.x rowcount on UPDATE is reliable for Postgres.
-        purged = result.rowcount or 0
+        purged = (txn_result.rowcount or 0) + (schedule_result.rowcount or 0)
         log.info("purge_raw_json purged %d rows older than %s", purged, cutoff.isoformat())
         return {"purged": purged}
 

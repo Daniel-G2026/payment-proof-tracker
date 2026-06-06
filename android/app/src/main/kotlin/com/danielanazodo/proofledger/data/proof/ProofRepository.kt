@@ -519,6 +519,56 @@ class ProofRepository @Inject constructor(
     }
 
     /**
+     * Phase 13 Cut 6 — upload an offer-letter image as an orphan screenshot
+     * tagged `document_type=offer_letter`, so the backend runs offer-letter
+     * extraction. Identical preparation to [uploadOrphan]; only the route +
+     * document_type differ. The returned screenshot id is what the schedule
+     * draft is polled by, and is linked onto the schedule version on confirm.
+     */
+    suspend fun uploadOfferLetter(
+        uri: Uri,
+        businessId: String,
+        proofId: String,
+    ): OrphanUploadResult {
+        val prepared = withContext(Dispatchers.IO) {
+            fileStore.prepare(uri, proofId)
+        }
+        val file = File(prepared.uploadPath ?: prepared.originalPath)
+        val uploadMimeType = if (prepared.uploadPath != null) {
+            "image/jpeg"
+        } else {
+            prepared.mimeType.ifBlank { "image/jpeg" }
+        }
+        val part = MultipartBody.Part.createFormData(
+            name = "file",
+            filename = file.name,
+            body = file.asRequestBody(uploadMimeType.toMediaTypeOrNull()),
+        )
+        val dto = try {
+            api.uploadOfferLetterScreenshot(
+                businessId = businessId,
+                id = proofId.toRequestBody(TEXT_MEDIA_TYPE),
+                originalFileSize = prepared.originalSizeBytes.toString().toRequestBody(TEXT_MEDIA_TYPE),
+                width = (prepared.width ?: "").toString().toRequestBody(TEXT_MEDIA_TYPE),
+                height = (prepared.height ?: "").toString().toRequestBody(TEXT_MEDIA_TYPE),
+                documentType = "offer_letter".toRequestBody(TEXT_MEDIA_TYPE),
+                file = part,
+            )
+        } catch (t: Throwable) {
+            withContext(Dispatchers.IO) {
+                fileStore.deleteForId(proofId)
+            }
+            throw t
+        }
+        return OrphanUploadResult(
+            screenshot = dto,
+            localOriginalPath = prepared.originalPath,
+            localUploadPath = prepared.uploadPath,
+            imageSha256 = prepared.imageSha256,
+        )
+    }
+
+    /**
      * Phase 8.1 — best-effort delete of an orphan screenshot from the server.
      * Used when the user replaces or removes the proof mid-form. Swallows
      * failures: a leaked orphan will be cleaned up by the 7-day cron, so

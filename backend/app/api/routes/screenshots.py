@@ -19,6 +19,7 @@ from app.api.deps import CurrentUser, get_db
 from app.api.routes.transactions import _get_transaction, _require_member
 from app.core.config import settings
 from app.db.models import Screenshot
+from app.db.models.screenshot import ALLOWED_DOCUMENT_TYPES, DOCUMENT_TYPE_PAYMENT_PROOF
 from app.schemas.screenshot import ScreenshotOut, SignedScreenshotUrl
 from app.services.extraction import try_enqueue_extraction
 from app.services.rate_limit import RateLimit, check_rate_limit
@@ -230,6 +231,12 @@ async def upload_screenshot(
     # Empty/blank → keep null on the column.
     ocr_text_raw = fields.get("ocr_text", "").strip() if fields.get("ocr_text") else ""
     ocr_text = ocr_text_raw or None
+    # Phase 13 Cut 6: which kind of document this is (defaults to payment_proof
+    # so every existing caller is unaffected). Drives the extraction worker's
+    # tool/prompt dispatch.
+    document_type = (fields.get("document_type") or DOCUMENT_TYPE_PAYMENT_PROOF).strip()
+    if document_type not in ALLOWED_DOCUMENT_TYPES:
+        raise HTTPException(status_code=422, detail="Unsupported document_type.")
     existing = db.get(Screenshot, screenshot_id)
     if existing is not None:
         if existing.business_id != business_id or existing.deleted_at is not None:
@@ -258,6 +265,7 @@ async def upload_screenshot(
         storage_status="stored",
         image_sha256=sha256(file_bytes).hexdigest(),
         ocr_text=ocr_text,
+        document_type=document_type,
     )
     db.add(screenshot)
     try:

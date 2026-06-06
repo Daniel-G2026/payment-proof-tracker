@@ -22,6 +22,7 @@ import com.danielanazodo.proofledger.data.remote.dto.ProfileUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.ProjectCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.ProjectDto
 import com.danielanazodo.proofledger.data.remote.dto.ProjectUpdateDto
+import com.danielanazodo.proofledger.data.remote.dto.ScheduleDraftDto
 import com.danielanazodo.proofledger.data.remote.dto.ScheduleVersionCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.ScheduleVersionDto
 import com.danielanazodo.proofledger.data.remote.dto.ScreenshotDto
@@ -369,6 +370,33 @@ interface ApiService {
     suspend fun getScreenshotDraft(
         @Path("screenshotId") screenshotId: String,
     ): TransactionDraftDto
+
+    /**
+     * Phase 13 Cut 6 — orphan upload tagged as an offer letter, so the worker
+     * runs the offer-letter extraction (writing a schedule_draft). Same route
+     * as uploadOrphanScreenshot plus the document_type part.
+     */
+    @Multipart
+    @POST("businesses/{businessId}/screenshots")
+    suspend fun uploadOfferLetterScreenshot(
+        @Path("businessId") businessId: String,
+        @Part("id") id: RequestBody,
+        @Part("original_file_size") originalFileSize: RequestBody,
+        @Part("width") width: RequestBody,
+        @Part("height") height: RequestBody,
+        @Part("document_type") documentType: RequestBody,
+        @Part file: MultipartBody.Part,
+    ): ScreenshotDto
+
+    /**
+     * Phase 13 Cut 6 — poll the offer-letter extraction result. 404 (Retrofit
+     * throws HttpException) until the worker creates the row, so callers treat
+     * 404 as "keep polling."
+     */
+    @GET("screenshots/{screenshotId}/schedule-draft")
+    suspend fun getScheduleDraft(
+        @Path("screenshotId") screenshotId: String,
+    ): ScheduleDraftDto
 
     /**
      * Phase 8 — telemetry. Tells the server which final transaction the

@@ -1,5 +1,6 @@
 package com.danielanazodo.proofledger.ui.viewmodel
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -9,11 +10,17 @@ import com.danielanazodo.proofledger.data.balance.InstallmentFill
 import com.danielanazodo.proofledger.data.balance.Payment
 import com.danielanazodo.proofledger.data.local.entity.LocalInstallmentEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalScheduleVersionEntity
+import com.danielanazodo.proofledger.data.ocr.ScheduleDraftPoller
+import com.danielanazodo.proofledger.data.ocr.ScheduleDraftState
+import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
+import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.ScheduleLineInput
 import com.danielanazodo.proofledger.data.repository.ScheduleRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import com.danielanazodo.proofledger.data.repository.UnitRepository
+import java.util.UUID
+import com.danielanazodo.proofledger.ui.format.formatNaira
 import com.danielanazodo.proofledger.ui.format.formatNairaInput
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
@@ -50,6 +57,16 @@ data class UnitScheduleUiState(
     val editing: Boolean = false,
     val error: String? = null,
     val saving: Boolean = false,
+    // Phase 13 Cut 6 — offer-letter scan: "Reading offer letter…" banner while
+    // the AI draft is in flight, an advisory message on failure/partial read,
+    // and the screenshot id carried onto the schedule version on save.
+    val offerLetterScanning: Boolean = false,
+    val offerLetterError: String? = null,
+    val pendingOfferLetterScreenshotId: String? = null,
+    // The buyer name the offer letter was extracted for (shown for the user to
+    // confirm it's the right unit). mismatch = differs from this unit's buyer.
+    val offerLetterBuyerName: String? = null,
+    val offerLetterBuyerMismatch: Boolean = false,
 ) {
     val showEditor: Boolean get() = activeVersion == null || editing
 }
@@ -62,11 +79,17 @@ class UnitScheduleViewModel @Inject constructor(
     private val unitRepository: UnitRepository,
     private val scheduleRepository: ScheduleRepository,
     private val transactionRepository: TransactionRepository,
+    private val proofRepository: ProofRepository,
+    private val counterpartyRepository: CounterpartyRepository,
+    private val scheduleDraftPoller: ScheduleDraftPoller,
 ) : ViewModel() {
     private val unitId: String = checkNotNull(savedStateHandle["unitId"])
 
     private val _ui = MutableStateFlow(UnitScheduleUiState())
     private var businessId: String? = null
+    // The unit's buyer name, resolved once, to sanity-check the offer letter
+    // names the same person (advisory — see contract §1).
+    private var unitBuyerName: String? = null
 
     private val activeInstallments: StateFlow<List<LocalInstallmentEntity>> =
         scheduleRepository.observeActiveVersion(unitId)
@@ -81,7 +104,9 @@ class UnitScheduleViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             businessId = businessRepository.getSelectedBusinessId()
-            _ui.update { it.copy(unitLabel = unitRepository.getById(unitId)?.label ?: "Unit") }
+            val unit = unitRepository.getById(unitId)
+            _ui.update { it.copy(unitLabel = unit?.label ?: "Unit") }
+            unitBuyerName = unit?.buyerCounterpartyId?.let { counterpartyRepository.getById(it)?.name }
             businessId?.let { scheduleRepository.refreshForUnit(it, unitId) }
         }
         viewModelScope.launch {
@@ -145,7 +170,82 @@ class UnitScheduleViewModel @Inject constructor(
     }
 
     fun onCancelEdit() = _ui.update {
-        it.copy(editing = false, draftLines = listOf(ScheduleLineDraft(), ScheduleLineDraft()), error = null)
+        it.copy(
+            editing = false,
+            draftLines = listOf(ScheduleLineDraft(), ScheduleLineDraft()),
+            error = null,
+            offerLetterError = null,
+            pendingOfferLetterScreenshotId = null,
+            offerLetterBuyerName = null,
+            offerLetterBuyerMismatch = false,
+        )
+    }
+
+    fun onDismissOfferLetterError() = _ui.update { it.copy(offerLetterError = null) }
+
+    /**
+     * Scan an offer letter: upload the image, poll the AI draft, and on a ready
+     * draft pre-fill the editor with the extracted installments. The editor
+     * opens either way so the user can review/edit before confirming; a failed
+     * or partial read just shows a message and leaves the rows for manual entry.
+     * The screenshot is linked onto the schedule version on save.
+     */
+    fun onScanOfferLetter(uri: String) {
+        _ui.update { it.copy(offerLetterScanning = true, offerLetterError = null) }
+        viewModelScope.launch {
+            val id = businessId ?: businessRepository.getSelectedBusinessId()
+            if (id == null) {
+                _ui.update { it.copy(offerLetterScanning = false, offerLetterError = "No business selected.") }
+                return@launch
+            }
+            businessId = id
+            val upload = runCatching {
+                proofRepository.uploadOfferLetter(Uri.parse(uri), id, UUID.randomUUID().toString())
+            }.getOrNull()
+            if (upload == null) {
+                _ui.update {
+                    it.copy(
+                        offerLetterScanning = false,
+                        offerLetterError = OFFLINE_MESSAGE,
+                    )
+                }
+                return@launch
+            }
+            val screenshotId = upload.screenshot.id
+            scheduleDraftPoller.poll(screenshotId).collect { st ->
+                when (st) {
+                    ScheduleDraftState.Processing -> { /* banner already shown */ }
+                    is ScheduleDraftState.Ready -> {
+                        val rows = st.draft.installments?.sortedBy { it.sequence }
+                        val lines = rows
+                            ?.map { ScheduleLineDraft(amount = formatNairaInput(it.amountMinor), dueDate = it.dueDate) }
+                            ?.takeIf { it.isNotEmpty() }
+                        val buyer = st.draft.buyerName?.trim()?.ifBlank { null }
+                        _ui.update { s ->
+                            s.copy(
+                                offerLetterScanning = false,
+                                editing = true,
+                                pendingOfferLetterScreenshotId = screenshotId,
+                                draftLines = lines ?: s.draftLines,
+                                offerLetterError = reviewNote(st.draft.totalMinor, rows, lines != null),
+                                offerLetterBuyerName = buyer,
+                                offerLetterBuyerMismatch = buyerMismatch(buyer, unitBuyerName),
+                            )
+                        }
+                    }
+                    is ScheduleDraftState.Failed -> {
+                        _ui.update {
+                            it.copy(
+                                offerLetterScanning = false,
+                                editing = true,
+                                pendingOfferLetterScreenshotId = screenshotId,
+                                offerLetterError = FAILED_MESSAGE,
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun onAddLine() = _ui.update { it.copy(draftLines = it.draftLines + ScheduleLineDraft()) }
@@ -193,13 +293,24 @@ class UnitScheduleViewModel @Inject constructor(
                 return@launch
             }
             businessId = id
-            scheduleRepository.createScheduleVersion(id, unitId, parsed)
+            val screenshotId = _ui.value.pendingOfferLetterScreenshotId
+            scheduleRepository.createScheduleVersion(
+                businessId = id,
+                unitId = unitId,
+                lines = parsed,
+                source = if (screenshotId != null) "offer_letter" else "manual",
+                offerLetterScreenshotId = screenshotId,
+            )
             _ui.update {
                 it.copy(
                     saving = false,
                     editing = false,
                     draftLines = listOf(ScheduleLineDraft(), ScheduleLineDraft()),
                     error = null,
+                    offerLetterError = null,
+                    pendingOfferLetterScreenshotId = null,
+                    offerLetterBuyerName = null,
+                    offerLetterBuyerMismatch = false,
                 )
             }
         }
@@ -215,4 +326,48 @@ class UnitScheduleViewModel @Inject constructor(
     private fun parseDate(raw: String): LocalDate? = runCatching {
         LocalDate.parse(raw.trim(), DateTimeFormatter.ISO_LOCAL_DATE)
     }.getOrNull()
+
+    /**
+     * Advisory message shown after an AI draft lands (contract §5.4). Priority:
+     * rows unreadable → manual-entry prompt; otherwise, if the extracted total
+     * doesn't equal the sum of the rows, a "doesn't add up" warning (never
+     * auto-corrected). Null when everything reconciles.
+     */
+    private fun reviewNote(
+        totalMinor: Long?,
+        rows: List<com.danielanazodo.proofledger.data.remote.dto.ScheduleDraftInstallmentDto>?,
+        rowsUsable: Boolean,
+    ): String? {
+        if (!rowsUsable) return ROWS_UNREADABLE_MESSAGE
+        val sum = rows?.sumOf { it.amountMinor } ?: return null
+        if (totalMinor != null && totalMinor != sum) {
+            return "Heads up: the letter's total (${formatNaira(totalMinor)}) doesn't match the " +
+                "installments (${formatNaira(sum)}). Check the amounts before saving."
+        }
+        return null
+    }
+
+    /**
+     * Advisory buyer check (contract §1): true when the offer letter clearly
+     * names a different person than this unit's buyer. Lenient — a missing name
+     * on either side, or one name containing the other (e.g. "Ada Obi" vs
+     * "Mrs Ada Obi"), is NOT a mismatch, to avoid false alarms.
+     */
+    private fun buyerMismatch(extracted: String?, unitBuyer: String?): Boolean {
+        val a = normalizeName(extracted) ?: return false
+        val b = normalizeName(unitBuyer) ?: return false
+        return a != b && !a.contains(b) && !b.contains(a)
+    }
+
+    private fun normalizeName(value: String?): String? =
+        value?.lowercase()?.replace(Regex("[^a-z0-9]+"), " ")?.trim()?.ifBlank { null }
+
+    private companion object {
+        const val OFFLINE_MESSAGE =
+            "Couldn't upload the offer letter. Check your connection, or enter the schedule yourself."
+        const val FAILED_MESSAGE =
+            "Couldn't read the offer letter — enter the schedule yourself."
+        const val ROWS_UNREADABLE_MESSAGE =
+            "Couldn't read the installment rows — enter them yourself. Other details were filled where possible."
+    }
 }

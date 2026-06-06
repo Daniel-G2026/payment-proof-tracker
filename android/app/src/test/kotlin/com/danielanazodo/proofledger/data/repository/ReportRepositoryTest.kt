@@ -407,6 +407,18 @@ class ReportRepositoryTest {
             error("not used")
         override suspend fun downloadProofBytes(url: String): ResponseBody = error("not used")
         override suspend fun getScreenshotSignedUrl(screenshotId: String) = error("not used")
+        override suspend fun uploadOfferLetterScreenshot(
+            businessId: String,
+            id: okhttp3.RequestBody,
+            originalFileSize: okhttp3.RequestBody,
+            width: okhttp3.RequestBody,
+            height: okhttp3.RequestBody,
+            documentType: okhttp3.RequestBody,
+            file: okhttp3.MultipartBody.Part,
+        ) = error("not used")
+        override suspend fun getScheduleDraft(
+            screenshotId: String,
+        ): com.danielanazodo.proofledger.data.remote.dto.ScheduleDraftDto = error("not used")
         override suspend fun getScreenshotDraft(screenshotId: String) = error("not used")
         override suspend fun confirmDraft(
             draftId: String,

@@ -14,6 +14,7 @@ from app.api.routes import (
     profiles,
     projects,
     reports,
+    schedule_drafts,
     schedules,
     screenshots,
     sync_events,
@@ -116,6 +117,7 @@ app.include_router(sync_events.router)
 app.include_router(reports.router)
 app.include_router(screenshots.router)
 app.include_router(transaction_drafts.router)
+app.include_router(schedule_drafts.router)
 
 
 @app.get("/")

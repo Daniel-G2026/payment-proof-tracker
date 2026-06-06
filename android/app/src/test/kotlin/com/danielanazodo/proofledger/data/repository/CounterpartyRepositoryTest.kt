@@ -437,6 +437,18 @@ class CounterpartyRepositoryTest {
         override suspend fun downloadProofBytes(url: String): ResponseBody = error("not used")
         override suspend fun getScreenshotSignedUrl(screenshotId: String): SignedScreenshotUrlDto =
             error("not used")
+        override suspend fun uploadOfferLetterScreenshot(
+            businessId: String,
+            id: RequestBody,
+            originalFileSize: RequestBody,
+            width: RequestBody,
+            height: RequestBody,
+            documentType: RequestBody,
+            file: MultipartBody.Part,
+        ): ScreenshotDto = error("not used")
+        override suspend fun getScheduleDraft(
+            screenshotId: String,
+        ): com.danielanazodo.proofledger.data.remote.dto.ScheduleDraftDto = error("not used")
         override suspend fun getScreenshotDraft(screenshotId: String): TransactionDraftDto =
             error("not used")
         override suspend fun confirmDraft(
