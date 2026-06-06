@@ -1,6 +1,7 @@
 package com.danielanazodo.proofledger.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,6 +52,7 @@ import com.danielanazodo.proofledger.ui.format.formatNaira
 import com.danielanazodo.proofledger.ui.navigation.MainTab
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
+import com.danielanazodo.proofledger.ui.theme.NeutralPaper
 import com.danielanazodo.proofledger.ui.theme.ProofGrayDot
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
 import com.danielanazodo.proofledger.ui.theme.ProofLime
@@ -83,6 +84,17 @@ fun EmptyDashboardScreen(
     val downloadProofsNow = rememberDebouncedClick(onClick = viewModel::downloadProofsNow)
     val waitForWifiProofDownload =
         rememberDebouncedClick(onClick = viewModel::waitForWifiProofDownload)
+    val moneyIn = when (range) {
+        DashboardRange.Daily -> state.todayMoneyInMinor
+        DashboardRange.Weekly -> state.weekMoneyInMinor
+        DashboardRange.Monthly -> state.monthMoneyInMinor
+    }
+    val moneyOut = when (range) {
+        DashboardRange.Daily -> state.todayMoneyOutMinor
+        DashboardRange.Weekly -> state.weekMoneyOutMinor
+        DashboardRange.Monthly -> state.monthMoneyOutMinor
+    }
+    val arrears = state.arrears
 
     LaunchedEffect(state.signedOut) { if (state.signedOut) onSignedOut() }
 
@@ -139,122 +151,121 @@ fun EmptyDashboardScreen(
         },
     ) { modifier ->
         LazyColumn(
-            modifier = modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.sectionGap),
+            modifier = modifier
+                .fillMaxSize()
+                .background(NeutralPaper),
         ) {
-            val arrears = state.arrears
             item {
-                val moneyIn = when (range) {
-                    DashboardRange.Daily -> state.todayMoneyInMinor
-                    DashboardRange.Weekly -> state.weekMoneyInMinor
-                    DashboardRange.Monthly -> state.monthMoneyInMinor
-                }
-                val moneyOut = when (range) {
-                    DashboardRange.Daily -> state.todayMoneyOutMinor
-                    DashboardRange.Weekly -> state.weekMoneyOutMinor
-                    DashboardRange.Monthly -> state.monthMoneyOutMinor
-                }
-                SummaryPanel {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(range.headerLabel, color = NeutralMuted, style = MaterialTheme.typography.bodySmall)
-                        Text(
-                            range.toggleLabel,
-                            color = NeutralInk,
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { range = range.next() }
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(SurfaceCard)
+                        .padding(
+                            start = ProofLedgerDimens.screenHorizontal,
+                            end = ProofLedgerDimens.screenHorizontal,
+                            top = ProofLedgerDimens.screenVertical,
+                            bottom = ProofLedgerDimens.sectionGap,
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.sectionGap),
+                ) {
+                    SummaryPanel {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(range.headerLabel, color = NeutralMuted, style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                range.toggleLabel,
+                                color = NeutralInk,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { range = range.next() }
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                            )
+                        }
+                        MetricLine("In", formatNaira(moneyIn), ProofLime)
+                        MetricLine("Out", formatNaira(moneyOut), ProofGrayDot)
+                        MetricLine("Net", formatNaira(moneyIn - moneyOut), ProofGrayDot)
+                        Spacer(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(SurfaceCard.copy(alpha = 0.85f))
+                        )
+                        ProofSummaryFooter(
+                            recordCount = state.recordCount,
+                            recordsWithProofCount = state.recordsWithProofCount,
+                            missingProofCount = state.missingProofCount,
                         )
                     }
-                    MetricLine("In", formatNaira(moneyIn), ProofLime)
-                    MetricLine("Out", formatNaira(moneyOut), ProofGrayDot)
-                    MetricLine("Net", formatNaira(moneyIn - moneyOut), ProofGrayDot)
-                    Spacer(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(SurfaceCard.copy(alpha = 0.85f))
-                    )
-                    ProofSummaryFooter(
-                        recordCount = state.recordCount,
-                        recordsWithProofCount = state.recordsWithProofCount,
-                        missingProofCount = state.missingProofCount,
-                    )
-                }
-            }
 
-            if (arrears != null && (arrears.peopleDueThisMonth > 0 || arrears.combinedOutstandingMinor > 0)) {
-                item { ArrearsHeroCard(arrears = arrears, onClick = onViewArrears) }
-            }
+                    if (arrears != null && (arrears.peopleDueThisMonth > 0 || arrears.combinedOutstandingMinor > 0)) {
+                        ArrearsHeroCard(arrears = arrears, onClick = onViewArrears)
+                    }
 
-            if (state.syncIssueCount > 0) {
-                item {
-                    GroupedPanel {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Sync issue", color = NeutralInk, style = MaterialTheme.typography.titleMedium)
+                    if (state.syncIssueCount > 0) {
+                        GroupedPanel {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("Sync issue", color = NeutralInk, style = MaterialTheme.typography.titleMedium)
+                                    Text(
+                                        "${formatCompactCount(state.syncIssueCount)} item${if (state.syncIssueCount == 1) "" else "s"} need attention.",
+                                        color = NeutralMuted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                TextButton(onClick = viewSyncIssues) {
+                                    Text("Review", color = NeutralInk, fontWeight = FontWeight.Medium)
+                                }
+                            }
+                        }
+                    }
+
+                    if (state.pendingProofDownloadCount > 0) {
+                        GroupedPanel {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
                                 Text(
-                                    "${formatCompactCount(state.syncIssueCount)} item${if (state.syncIssueCount == 1) "" else "s"} need attention.",
+                                    "Proof not on this phone",
+                                    color = NeutralInk,
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                                Text(
+                                    "${formatCompactCount(state.pendingProofDownloadCount)} proof" +
+                                        "${if (state.pendingProofDownloadCount == 1) "" else "s"} " +
+                                        "backed up to your account ${if (state.pendingProofDownloadCount == 1) "is" else "are"} " +
+                                        "not on this phone yet.",
                                     color = NeutralMuted,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
-                            }
-                            TextButton(onClick = viewSyncIssues) {
-                                Text("Review", color = NeutralInk, fontWeight = FontWeight.Medium)
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (state.pendingProofDownloadCount > 0) {
-                item {
-                    GroupedPanel {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Text(
-                                "Proof not on this phone",
-                                color = NeutralInk,
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                            Text(
-                                "${formatCompactCount(state.pendingProofDownloadCount)} proof" +
-                                    "${if (state.pendingProofDownloadCount == 1) "" else "s"} " +
-                                    "backed up to your account ${if (state.pendingProofDownloadCount == 1) "is" else "are"} " +
-                                    "not on this phone yet.",
-                                color = NeutralMuted,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                TextButton(
-                                    onClick = downloadProofsNow,
-                                    enabled = !state.downloadingProofs,
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
-                                    Text(
-                                        if (state.downloadingProofs) "Downloading…" else "Download now",
-                                        color = NeutralInk,
-                                        fontWeight = FontWeight.Medium,
-                                    )
-                                }
-                                TextButton(
-                                    onClick = waitForWifiProofDownload,
-                                    enabled = !state.downloadingProofs,
-                                ) {
-                                    Text("Wait for Wi-Fi", color = NeutralMuted)
+                                    TextButton(
+                                        onClick = downloadProofsNow,
+                                        enabled = !state.downloadingProofs,
+                                    ) {
+                                        Text(
+                                            if (state.downloadingProofs) "Downloading…" else "Download now",
+                                            color = NeutralInk,
+                                            fontWeight = FontWeight.Medium,
+                                        )
+                                    }
+                                    TextButton(
+                                        onClick = waitForWifiProofDownload,
+                                        enabled = !state.downloadingProofs,
+                                    ) {
+                                        Text("Wait for Wi-Fi", color = NeutralMuted)
+                                    }
                                 }
                             }
                         }
@@ -262,47 +273,56 @@ fun EmptyDashboardScreen(
                 }
             }
 
-            item { SectionLabel("Recent records") }
-            if (state.recentTransactions.isEmpty()) {
-                item {
-                    GroupedPanel {
-                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("No records yet.", color = NeutralInk, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "Add money in or money out, then attach proof when you have it.",
-                                color = NeutralMuted,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    }
-                }
-            } else {
-                item {
-                    GroupedPanel {
-                        state.recentTransactions.forEachIndexed { index, transaction ->
-                            RecordListRow(
-                                transaction = transaction,
-                                onClick = transactionClick,
-                                showDivider = index != state.recentTransactions.lastIndex,
-                            )
-                        }
-                    }
-                }
-            }
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Start,
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(NeutralPaper)
+                        .padding(
+                            horizontal = ProofLedgerDimens.screenHorizontal,
+                            vertical = ProofLedgerDimens.screenVertical,
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.sectionGap),
                 ) {
-                    TextButton(onClick = viewRecords) {
-                        Text("View all records", color = NeutralMuted, fontWeight = FontWeight.Medium)
+                    SectionLabel("Recent records")
+                    if (state.recentTransactions.isEmpty()) {
+                        GroupedPanel {
+                            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("No records yet.", color = NeutralInk, style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    "Add money in or money out, then attach proof when you have it.",
+                                    color = NeutralMuted,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                    } else {
+                        GroupedPanel {
+                            state.recentTransactions.forEachIndexed { index, transaction ->
+                                RecordListRow(
+                                    transaction = transaction,
+                                    onClick = transactionClick,
+                                    showDivider = index != state.recentTransactions.lastIndex,
+                                )
+                            }
+                        }
                     }
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TextButton(onClick = viewRecords) {
+                                Text("View all records", color = NeutralMuted, fontWeight = FontWeight.Medium)
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        PrimaryActionButton(text = "Add record", onClick = addMoneyIn, icon = Icons.Filled.Add)
+                    }
+                    VerticalSpacer(12)
                 }
-                Spacer(Modifier.height(8.dp))
-                PrimaryActionButton(text = "Add record", onClick = addMoneyIn, icon = Icons.Filled.Add)
             }
-            item { VerticalSpacer(12) }
         }
     }
 }
@@ -313,43 +333,47 @@ private fun ArrearsHeroCard(arrears: ArrearsDashboard, onClick: () -> Unit) {
     val monthLabel = "${
         arrears.month.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
     } ${arrears.month.year}"
-    GroupedPanel {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(ProofLedgerDimens.panelRadius))
-                .clickable(onClick = open)
-                .padding(ProofLedgerDimens.panelPadding),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(ProofLedgerDimens.panelRadius))
+            .background(SurfaceCard)
+            .border(
+                width = 1.dp,
+                color = NeutralInk.copy(alpha = 0.18f),
+                shape = RoundedCornerShape(ProofLedgerDimens.panelRadius),
+            )
+            .clickable(onClick = open)
+            .padding(ProofLedgerDimens.panelPadding),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Text(
+            "This month · $monthLabel",
+            color = NeutralMuted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Text(
+            "${arrears.peopleDueThisMonth} due · ${arrears.peopleFulfilledThisMonth} fulfilled",
+            color = NeutralInk,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Medium,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "This month · $monthLabel",
-                color = NeutralMuted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                "${arrears.peopleDueThisMonth} due · ${arrears.peopleFulfilledThisMonth} fulfilled",
-                color = NeutralInk,
+                "Outstanding  ${formatNaira(arrears.combinedOutstandingMinor)}",
+                color = if (arrears.combinedOutstandingMinor > 0) ProofAmber else NeutralInk,
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.SemiBold,
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "Outstanding  ${formatNaira(arrears.combinedOutstandingMinor)}",
-                    color = if (arrears.combinedOutstandingMinor > 0) ProofAmber else NeutralInk,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                androidx.compose.material3.Icon(
-                    imageVector = Icons.Filled.ChevronRight,
-                    contentDescription = "Open arrears dashboard",
-                    tint = NeutralMuted,
-                )
-            }
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = "Open arrears dashboard",
+                tint = NeutralMuted,
+            )
         }
     }
 }
