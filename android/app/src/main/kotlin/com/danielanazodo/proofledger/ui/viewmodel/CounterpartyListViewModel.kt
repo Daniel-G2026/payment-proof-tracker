@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
+import com.danielanazodo.proofledger.data.repository.CounterpartyTypeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -18,12 +19,14 @@ data class CounterpartyListUiState(
     val counterparties: List<LocalCounterpartyEntity> = emptyList(),
     val search: String = "",
     val type: String? = null,
+    val types: List<String> = emptyList(),
 )
 
 @HiltViewModel
 class CounterpartyListViewModel @Inject constructor(
     private val businessRepository: BusinessRepository,
     private val counterpartyRepository: CounterpartyRepository,
+    private val counterpartyTypeRepository: CounterpartyTypeRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CounterpartyListUiState())
     val state: StateFlow<CounterpartyListUiState> = _state.asStateFlow()
@@ -35,6 +38,13 @@ class CounterpartyListViewModel @Inject constructor(
             businessId = businessRepository.getSelectedBusinessId()
             observe()
             businessId?.let { counterpartyRepository.refreshFromRemote(it) }
+        }
+        viewModelScope.launch {
+            val id = businessRepository.getSelectedBusinessId() ?: return@launch
+            counterpartyTypeRepository.seedIfNeeded(id)
+            counterpartyTypeRepository.observeTypes(id).collect { types ->
+                _state.update { it.copy(types = types) }
+            }
         }
     }
 

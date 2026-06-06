@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
+import com.danielanazodo.proofledger.data.repository.CounterpartyTypeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +22,8 @@ data class CounterpartyFormUiState(
     val type: String = "customer",
     val phone: String = "",
     val notes: String = "",
+    // The business's managed person types, offered as chips on the form.
+    val types: List<String> = emptyList(),
     val loading: Boolean = false,
     val error: String? = null,
     val saved: Boolean = false,
@@ -30,13 +33,25 @@ data class CounterpartyFormUiState(
 class CounterpartyFormViewModel @Inject constructor(
     private val businessRepository: BusinessRepository,
     private val counterpartyRepository: CounterpartyRepository,
+    private val counterpartyTypeRepository: CounterpartyTypeRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val counterpartyId: String? = savedStateHandle["counterpartyId"]
     private val _state = MutableStateFlow(CounterpartyFormUiState(counterpartyId = counterpartyId))
     val state: StateFlow<CounterpartyFormUiState> = _state.asStateFlow()
+    private var businessId: String? = null
 
     init {
+        viewModelScope.launch {
+            val id = businessRepository.getSelectedBusinessId()
+            businessId = id
+            if (id != null) {
+                counterpartyTypeRepository.seedIfNeeded(id)
+                counterpartyTypeRepository.observeTypes(id).collect { types ->
+                    _state.update { it.copy(types = types) }
+                }
+            }
+        }
         if (counterpartyId != null) {
             viewModelScope.launch {
                 val counterparty = counterpartyRepository.observeById(counterpartyId)
@@ -90,6 +105,8 @@ class CounterpartyFormViewModel @Inject constructor(
                     )
                 }
             }.onSuccess {
+                // Persist a type typed on the form so it's offered next time.
+                businessId?.let { counterpartyTypeRepository.addType(it, current.type) }
                 _state.update { it.copy(loading = false, saved = true) }
             }.onFailure { t ->
                 _state.update {

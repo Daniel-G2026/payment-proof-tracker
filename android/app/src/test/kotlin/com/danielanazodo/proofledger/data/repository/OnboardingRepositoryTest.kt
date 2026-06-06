@@ -2,6 +2,8 @@ package com.danielanazodo.proofledger.data.repository
 
 import com.danielanazodo.proofledger.data.local.dao.LocalAppMetadataDao
 import com.danielanazodo.proofledger.data.local.entity.LocalAppMetadataEntity
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -15,6 +17,7 @@ class OnboardingRepositoryTest {
             store[entry.key] = entry
         }
         override suspend fun get(key: String): LocalAppMetadataEntity? = store[key]
+        override fun observe(key: String): Flow<LocalAppMetadataEntity?> = flowOf(store[key])
     }
 
     @Test

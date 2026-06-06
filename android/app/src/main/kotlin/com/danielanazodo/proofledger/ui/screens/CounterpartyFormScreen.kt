@@ -60,6 +60,7 @@ fun CounterpartyFormScreen(
                 selectedType = state.type,
                 onTypeChange = { type -> type?.let(viewModel::onTypeChange) },
                 includeAll = false,
+                types = state.types,
             )
             ProofLedgerTextField(
                 value = state.phone,
