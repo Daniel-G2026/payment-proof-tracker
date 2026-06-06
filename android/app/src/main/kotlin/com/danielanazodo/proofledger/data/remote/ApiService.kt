@@ -19,6 +19,8 @@ import com.danielanazodo.proofledger.data.remote.dto.ProfileUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.ProjectCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.ProjectDto
 import com.danielanazodo.proofledger.data.remote.dto.ProjectUpdateDto
+import com.danielanazodo.proofledger.data.remote.dto.ScheduleVersionCreateDto
+import com.danielanazodo.proofledger.data.remote.dto.ScheduleVersionDto
 import com.danielanazodo.proofledger.data.remote.dto.ScreenshotDto
 import com.danielanazodo.proofledger.data.remote.dto.SignedScreenshotUrlDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionCreateDto
@@ -176,6 +178,19 @@ interface ApiService {
         @Path("businessId") businessId: String,
         @Path("unitId") unitId: String,
     )
+
+    @GET("businesses/{businessId}/units/{unitId}/schedule-versions")
+    suspend fun listScheduleVersions(
+        @Path("businessId") businessId: String,
+        @Path("unitId") unitId: String,
+    ): List<ScheduleVersionDto>
+
+    @POST("businesses/{businessId}/units/{unitId}/schedule-versions")
+    suspend fun createScheduleVersion(
+        @Path("businessId") businessId: String,
+        @Path("unitId") unitId: String,
+        @Body body: ScheduleVersionCreateDto,
+    ): ScheduleVersionDto
 
     @GET("businesses/{businessId}/audit-events")
     suspend fun listAuditEvents(

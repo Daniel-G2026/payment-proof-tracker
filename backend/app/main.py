@@ -13,6 +13,7 @@ from app.api.routes import (
     profiles,
     projects,
     reports,
+    schedules,
     screenshots,
     sync_events,
     transaction_drafts,
@@ -99,6 +100,7 @@ app.include_router(businesses.router)
 app.include_router(categories.router)
 app.include_router(projects.router)
 app.include_router(units.router)
+app.include_router(schedules.router)
 app.include_router(counterparties.router)
 app.include_router(transactions.router)
 app.include_router(audit.router)

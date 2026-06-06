@@ -19,6 +19,7 @@ import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_10_11
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_11_12
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_12_13
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_13_14
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_14_15
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -240,6 +241,29 @@ class MigrationSqlTest {
         assertIndexExists("index_local_project_businessId")
         assertIndexExists("index_local_unit_projectId")
         assertIndexExists("index_local_unit_buyerCounterpartyId")
+
+        // -> v15 (Cut 2: schedule versions + installments)
+        MIGRATION_14_15.migrate(db)
+        db.execSQL(
+            """
+            INSERT INTO local_schedule_version(id, businessId, unitId, versionNo, source, isActive, offerLetterScreenshotId, createdAt, updatedAt, deletedAt, syncStatus, lastSyncAttemptAt)
+            VALUES('sv1', 'b1', 'u1', 1, 'manual', 1, NULL, 1, 1, NULL, 'SYNCED', NULL)
+            """
+        )
+        db.execSQL(
+            """
+            INSERT INTO local_installment(id, businessId, scheduleVersionId, sequence, amountMinor, dueDate, createdAt, updatedAt, deletedAt)
+            VALUES('in1', 'b1', 'sv1', 1, 50000000, '2026-01-31', 1, 1, NULL)
+            """
+        )
+        assertRowCount("local_schedule_version", 1)
+        assertRowCount("local_installment", 1)
+        // Earlier-created rows still present after the v15 migration.
+        assertRowCount("local_project", 1)
+        assertRowCount("local_unit", 1)
+        assertRowCount("local_transaction", 1)
+        assertIndexExists("index_local_schedule_version_unitId")
+        assertIndexExists("index_local_installment_scheduleVersionId")
     }
 
     private fun assertIndexExists(name: String) {

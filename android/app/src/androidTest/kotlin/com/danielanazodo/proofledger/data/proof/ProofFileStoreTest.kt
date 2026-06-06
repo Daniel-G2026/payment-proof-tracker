@@ -20,7 +20,7 @@ class ProofFileStoreTest {
         val first = File(dir, "one.jpg").apply { writeBytes(BYTES) }
         val second = File(dir, "two.jpg").apply { writeBytes(BYTES) }
         val different = File(dir, "different.jpg").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
-        val store = ProofFileStore(context)
+        val store = AndroidProofFileStore(context)
 
         val one = store.prepare(Uri.fromFile(first), "one")
         val two = store.prepare(Uri.fromFile(second), "two")
