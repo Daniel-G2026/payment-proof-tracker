@@ -192,6 +192,10 @@ class CounterpartyRepositoryTest {
             rows.remove(id)
         }
 
+        override suspend fun getDistinctTypes(businessId: String): List<String> =
+            rows.values.filter { it.businessId == businessId && it.deletedAt == null }
+                .map { it.type }.distinct()
+
         override suspend fun getRowsNeedingSync(businessId: String): List<LocalCounterpartyEntity> =
             rows.values
                 .filter {

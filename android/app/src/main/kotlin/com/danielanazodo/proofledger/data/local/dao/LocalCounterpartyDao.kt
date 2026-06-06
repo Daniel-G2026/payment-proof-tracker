@@ -24,6 +24,16 @@ interface LocalCounterpartyDao {
     @Query("DELETE FROM local_counterparty WHERE id = :id")
     suspend fun deleteById(id: String)
 
+    /** Distinct non-empty person types in use (Phase 13: seeds the managed
+     * type list so a fresh device recovers types from the synced people). */
+    @Query(
+        """
+        SELECT DISTINCT type FROM local_counterparty
+        WHERE businessId = :businessId AND deletedAt IS NULL AND type <> ''
+        """
+    )
+    suspend fun getDistinctTypes(businessId: String): List<String>
+
     @Query(
         """
         SELECT * FROM local_counterparty

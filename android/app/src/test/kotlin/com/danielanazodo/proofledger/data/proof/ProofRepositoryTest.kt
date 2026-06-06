@@ -482,6 +482,8 @@ class ProofRepositoryTest {
         }
 
         override suspend fun get(key: String): LocalAppMetadataEntity? = rows[key]
+
+        override fun observe(key: String): Flow<LocalAppMetadataEntity?> = flowOf(rows[key])
     }
 
     private class FakeSyncEventDao : LocalSyncEventDao {

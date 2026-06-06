@@ -28,6 +28,7 @@ import com.danielanazodo.proofledger.ui.screens.CreateBusinessScreen
 import com.danielanazodo.proofledger.ui.screens.CounterpartyDetailScreen
 import com.danielanazodo.proofledger.ui.screens.CounterpartyFormScreen
 import com.danielanazodo.proofledger.ui.screens.CounterpartyListScreen
+import com.danielanazodo.proofledger.ui.screens.CounterpartyTypeListScreen
 import com.danielanazodo.proofledger.ui.screens.EmptyDashboardScreen
 import com.danielanazodo.proofledger.ui.screens.ProfileSetupScreen
 import com.danielanazodo.proofledger.ui.screens.ProjectDetailScreen
@@ -245,7 +246,13 @@ private fun ResolvedGraph(
                 onBack = { navController.popBackStack() },
                 onAdd = { navController.navigateOnce(Route.AddCounterparty.path) },
                 onCounterpartyClick = { id -> navController.navigateOnce(Route.CounterpartyDetail.path(id)) },
+                onManageTypes = { navController.navigateOnce(Route.CounterpartyTypeList.path) },
                 onTabSelected = onTabSelected,
+            )
+        }
+        composable(Route.CounterpartyTypeList.path) {
+            CounterpartyTypeListScreen(
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Route.AddCounterparty.path) {
