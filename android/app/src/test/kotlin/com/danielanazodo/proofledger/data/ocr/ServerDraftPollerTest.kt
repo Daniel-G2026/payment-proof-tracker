@@ -216,6 +216,18 @@ class ServerDraftPollerTest {
             events: List<com.danielanazodo.proofledger.data.remote.dto.SyncEventReportDto>,
         ): com.danielanazodo.proofledger.data.remote.dto.SyncEventIngestResultDto =
             com.danielanazodo.proofledger.data.remote.dto.SyncEventIngestResultDto(events.size, 0)
+        override suspend fun uploadOfferLetterScreenshot(
+            businessId: String,
+            id: RequestBody,
+            originalFileSize: RequestBody,
+            width: RequestBody,
+            height: RequestBody,
+            documentType: RequestBody,
+            file: MultipartBody.Part,
+        ): ScreenshotDto = error("not used")
+        override suspend fun getScheduleDraft(
+            screenshotId: String,
+        ): com.danielanazodo.proofledger.data.remote.dto.ScheduleDraftDto = error("not used")
         private var index = 0
         override suspend fun getScreenshotDraft(screenshotId: String): TransactionDraftDto {
             val response = script.getOrNull(index) ?: script.last()

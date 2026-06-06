@@ -1,5 +1,7 @@
 package com.danielanazodo.proofledger.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -65,6 +67,14 @@ fun UnitScheduleScreen(
     val revise = rememberDebouncedClick(onClick = viewModel::onRevise)
     val cancelEdit = rememberDebouncedClick(onClick = viewModel::onCancelEdit)
     val isRenegotiation = state.activeVersion != null
+    val offerLetterPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri ->
+        if (uri != null) viewModel.onScanOfferLetter(uri.toString())
+    }
+    val scanOfferLetter = rememberDebouncedClick(windowMs = 1000L) {
+        offerLetterPicker.launch("image/*")
+    }
 
     ProofLedgerScreen(
         title = "${state.unitLabel} schedule",
@@ -127,6 +137,31 @@ fun UnitScheduleScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = NeutralMuted,
                 )
+            }
+
+            // Offer-letter scan (Cut 6): auto-fill the installments from a photo
+            // of the letter. Available in both view and edit modes; the editor
+            // opens pre-filled once the AI draft is ready.
+            if (state.offerLetterScanning) {
+                Text(
+                    "Reading offer letter…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = NeutralMuted,
+                )
+            } else {
+                QuietButton(
+                    text = "Scan offer letter",
+                    onClick = scanOfferLetter,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    "Take or pick a photo of the offer letter to fill the installments for you.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NeutralMuted,
+                )
+            }
+            state.offerLetterError?.let {
+                Text(it, color = ProofAmber, style = MaterialTheme.typography.bodySmall)
             }
 
             if (!state.showEditor) {
