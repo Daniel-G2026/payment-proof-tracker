@@ -1,5 +1,6 @@
 package com.danielanazodo.proofledger.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,7 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +35,7 @@ import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
 import com.danielanazodo.proofledger.ui.theme.ProofLime
 import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
+import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.ArrearsDashboardViewModel
 import java.time.LocalDate
 import java.time.format.TextStyle
@@ -39,6 +44,7 @@ import java.util.Locale
 @Composable
 fun ArrearsDashboardScreen(
     onBack: () -> Unit,
+    onPersonClick: (String) -> Unit,
     viewModel: ArrearsDashboardViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -92,7 +98,7 @@ fun ArrearsDashboardScreen(
             } else {
                 GroupedPanel {
                     relevant.forEachIndexed { index, buyer ->
-                        BuyerRow(buyer, today)
+                        BuyerRow(buyer, today, onClick = { onPersonClick(buyer.buyerId) })
                         if (index != relevant.lastIndex) HorizontalDivider()
                     }
                 }
@@ -102,17 +108,28 @@ fun ArrearsDashboardScreen(
 }
 
 @Composable
-private fun BuyerRow(buyer: BuyerArrears, today: LocalDate) {
+private fun BuyerRow(buyer: BuyerArrears, today: LocalDate, onClick: () -> Unit) {
     val multiUnit = buyer.units.size > 1
-    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    val open = rememberDebouncedClick(onClick = onClick)
+    Column(
+        Modifier.fillMaxWidth().clickable(onClick = open).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(buyer.buyerName, color = NeutralInk, fontWeight = FontWeight.Medium)
-            if (buyer.fulfilledThisMonth && buyer.behindMinor == 0L) {
-                Text("Fulfilled ✓", color = ProofLime, style = MaterialTheme.typography.bodySmall)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (buyer.fulfilledThisMonth && buyer.behindMinor == 0L) {
+                    Text("Fulfilled ✓", color = ProofLime, style = MaterialTheme.typography.bodySmall)
+                }
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = "Open ${buyer.buyerName}'s profile",
+                    tint = NeutralMuted,
+                )
             }
         }
         Text(

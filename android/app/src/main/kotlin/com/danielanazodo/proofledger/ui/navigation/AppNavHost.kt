@@ -188,6 +188,7 @@ private fun ResolvedGraph(
         composable(Route.ArrearsDashboard.path) {
             ArrearsDashboardScreen(
                 onBack = { navController.popBackStack() },
+                onPersonClick = { id -> navController.navigateOnce(Route.CounterpartyDetail.path(id)) },
             )
         }
         composable(Route.Summary.path) {
