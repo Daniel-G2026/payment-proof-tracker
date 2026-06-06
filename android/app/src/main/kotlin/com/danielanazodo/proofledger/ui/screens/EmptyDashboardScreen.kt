@@ -17,6 +17,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -51,6 +55,7 @@ import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofGrayDot
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
 import com.danielanazodo.proofledger.ui.theme.ProofLime
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
 import com.danielanazodo.proofledger.ui.theme.SurfaceCard
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.DashboardViewModel
@@ -75,7 +80,6 @@ fun EmptyDashboardScreen(
     val viewRecords = rememberDebouncedClick(onClick = onViewTransactions)
     val viewSyncIssues = rememberDebouncedClick(onClick = onViewSyncIssues)
     val transactionClick = rememberDebouncedClick(onClick = onTransactionClick)
-    val signOut = rememberDebouncedClick(onClick = viewModel::signOut)
     val downloadProofsNow = rememberDebouncedClick(onClick = viewModel::downloadProofsNow)
     val waitForWifiProofDownload =
         rememberDebouncedClick(onClick = viewModel::waitForWifiProofDownload)
@@ -90,7 +94,12 @@ fun EmptyDashboardScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(SurfaceCard)
-                    .padding(horizontal = 24.dp, vertical = 20.dp),
+                    .padding(
+                        start = ProofLedgerDimens.headerHorizontal,
+                        end = ProofLedgerDimens.headerHorizontal,
+                        top = ProofLedgerDimens.headerTop,
+                        bottom = ProofLedgerDimens.headerBottom,
+                    ),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -99,35 +108,41 @@ fun EmptyDashboardScreen(
                                 state.business?.name ?: "ProofLedger",
                                 color = NeutralInk,
                                 style = MaterialTheme.typography.headlineSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
                             )
-                            androidx.compose.material3.Icon(
-                                imageVector = Icons.Filled.ChevronRight,
-                                contentDescription = null,
+                            Icon(
+                                imageVector = Icons.Filled.KeyboardArrowDown,
+                                contentDescription = "Switch business",
                                 tint = NeutralMuted,
                             )
                         }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                            StatusDot(color = if (state.syncing) ProofGrayDot else ProofLime)
+                            StatusDot(color = if (state.syncing) ProofLime else ProofGrayDot)
                             Text(
-                                if (state.syncing) "Syncing records" else "Saved on this device",
+                                if (state.syncing) "Syncing records" else "Saved on device",
                                 color = NeutralMuted,
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
                     }
-                    TextButton(onClick = signOut) { Text("Sign out", color = NeutralMuted) }
+                    IconButton(onClick = viewSyncIssues) {
+                        Icon(
+                            imageVector = Icons.Outlined.Notifications,
+                            contentDescription = "Open sync issues",
+                            tint = NeutralMuted,
+                        )
+                    }
                 }
             }
         },
     ) { modifier ->
         LazyColumn(
             modifier = modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.sectionGap),
         ) {
             val arrears = state.arrears
-            if (arrears != null && (arrears.peopleDueThisMonth > 0 || arrears.combinedOutstandingMinor > 0)) {
-                item { ArrearsHeroCard(arrears = arrears, onClick = onViewArrears) }
-            }
             item {
                 val moneyIn = when (range) {
                     DashboardRange.Daily -> state.todayMoneyInMinor
@@ -165,25 +180,16 @@ fun EmptyDashboardScreen(
                             .height(1.dp)
                             .background(SurfaceCard.copy(alpha = 0.85f))
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        StatusDot(color = if (state.missingProofCount > 0) ProofAmber else ProofLime)
-                        Text(
-                            text = proofStatusLine(
-                                recordCount = state.recordCount,
-                                recordsWithProofCount = state.recordsWithProofCount,
-                                missingProofCount = state.missingProofCount,
-                            ),
-                            color = NeutralInk,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    ProofSummaryFooter(
+                        recordCount = state.recordCount,
+                        recordsWithProofCount = state.recordsWithProofCount,
+                        missingProofCount = state.missingProofCount,
+                    )
                 }
+            }
+
+            if (arrears != null && (arrears.peopleDueThisMonth > 0 || arrears.combinedOutstandingMinor > 0)) {
+                item { ArrearsHeroCard(arrears = arrears, onClick = onViewArrears) }
             }
 
             if (state.syncIssueCount > 0) {
@@ -311,10 +317,10 @@ private fun ArrearsHeroCard(arrears: ArrearsDashboard, onClick: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(ProofLedgerDimens.panelRadius))
                 .clickable(onClick = open)
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(ProofLedgerDimens.panelPadding),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Text(
                 "This month · $monthLabel",
@@ -324,7 +330,7 @@ private fun ArrearsHeroCard(arrears: ArrearsDashboard, onClick: () -> Unit) {
             Text(
                 "${arrears.peopleDueThisMonth} due · ${arrears.peopleFulfilledThisMonth} fulfilled",
                 color = NeutralInk,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Medium,
             )
             Row(
@@ -334,7 +340,8 @@ private fun ArrearsHeroCard(arrears: ArrearsDashboard, onClick: () -> Unit) {
             ) {
                 Text(
                     "Outstanding  ${formatNaira(arrears.combinedOutstandingMinor)}",
-                    color = if (arrears.combinedOutstandingMinor > 0) ProofAmber else ProofLime,
+                    color = if (arrears.combinedOutstandingMinor > 0) ProofAmber else NeutralInk,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
                 androidx.compose.material3.Icon(
@@ -343,6 +350,45 @@ private fun ArrearsHeroCard(arrears: ArrearsDashboard, onClick: () -> Unit) {
                     tint = NeutralMuted,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ProofSummaryFooter(
+    recordCount: Int,
+    recordsWithProofCount: Int,
+    missingProofCount: Int,
+) {
+    if (recordCount <= 0) {
+        Text("No records yet", color = NeutralMuted, style = MaterialTheme.typography.bodySmall)
+        return
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+    ) {
+        Text(
+            "${formatCompactCount(recordCount)} records",
+            color = NeutralMuted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        StatusDot(color = ProofLime)
+        Text(
+            "${formatCompactCount(recordsWithProofCount)} proof",
+            color = NeutralMuted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        if (missingProofCount > 0) {
+            StatusDot(color = ProofAmber)
+            Text(
+                "${formatCompactCount(missingProofCount)} missing",
+                color = ProofAmber,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -359,16 +405,3 @@ private enum class DashboardRange(val headerLabel: String, val toggleLabel: Stri
     }
 }
 
-private fun proofStatusLine(
-    recordCount: Int,
-    recordsWithProofCount: Int,
-    missingProofCount: Int,
-): String {
-    if (recordCount <= 0) return "No records yet"
-    val records = "${formatCompactCount(recordCount)} records"
-    return if (missingProofCount <= 0) {
-        "$records - proofs attached"
-    } else {
-        "$records - ${formatCompactCount(recordsWithProofCount)} with proof - ${formatCompactCount(missingProofCount)} missing"
-    }
-}
