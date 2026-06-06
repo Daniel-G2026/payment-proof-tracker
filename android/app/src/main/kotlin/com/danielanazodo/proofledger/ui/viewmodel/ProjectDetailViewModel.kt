@@ -78,8 +78,26 @@ class ProjectDetailViewModel @Inject constructor(
         viewModelScope.launch {
             // Pass-through null leaves the buyer unchanged in updateUnit, so to
             // truly clear a buyer here we re-create the row with null buyer.
-            // For Cut 1 the picker only assigns/reassigns to a real buyer.
+            // The picker only assigns/reassigns to a real buyer.
             unitRepository.updateUnit(unitId = unitId, buyerCounterpartyId = buyerCounterpartyId)
+        }
+    }
+
+    /** Create a new person from the buyer picker and assign them in one step —
+     * so the user never has to leave the unit to add a missing buyer. */
+    fun onCreateAndAssignBuyer(unitId: String, name: String, type: String = "customer") {
+        val clean = name.trim().ifBlank { null } ?: return
+        viewModelScope.launch {
+            val id = businessId ?: businessRepository.getSelectedBusinessId() ?: return@launch
+            businessId = id
+            val created = counterpartyRepository.createCounterparty(
+                businessId = id,
+                name = clean,
+                type = type,
+                phone = null,
+                notes = null,
+            )
+            unitRepository.updateUnit(unitId = unitId, buyerCounterpartyId = created.id)
         }
     }
 

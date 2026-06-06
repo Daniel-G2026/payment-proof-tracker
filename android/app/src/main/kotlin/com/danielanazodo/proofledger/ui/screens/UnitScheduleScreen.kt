@@ -1,5 +1,7 @@
 package com.danielanazodo.proofledger.ui.screens
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,20 +9,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -30,15 +38,19 @@ import com.danielanazodo.proofledger.ui.components.GroupedPanel
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
 import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
+import com.danielanazodo.proofledger.ui.components.QuietButton
 import com.danielanazodo.proofledger.ui.components.SectionLabel
 import com.danielanazodo.proofledger.data.balance.InstallmentFill
 import com.danielanazodo.proofledger.data.balance.InstallmentState
 import com.danielanazodo.proofledger.ui.format.formatNaira
+import com.danielanazodo.proofledger.ui.format.todayIsoDate
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
+import com.danielanazodo.proofledger.ui.theme.ProofBorder
 import com.danielanazodo.proofledger.ui.theme.ProofLime
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
+import com.danielanazodo.proofledger.ui.util.showAppDatePicker
 import com.danielanazodo.proofledger.ui.viewmodel.UnitScheduleViewModel
 import androidx.compose.ui.graphics.Color
 
@@ -48,7 +60,10 @@ fun UnitScheduleScreen(
     viewModel: UnitScheduleViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val save = rememberDebouncedClick(onClick = viewModel::onSave)
+    val revise = rememberDebouncedClick(onClick = viewModel::onRevise)
+    val cancelEdit = rememberDebouncedClick(onClick = viewModel::onCancelEdit)
     val isRenegotiation = state.activeVersion != null
 
     ProofLedgerScreen(
@@ -105,53 +120,109 @@ fun UnitScheduleScreen(
                     fontWeight = FontWeight.Medium,
                     color = if (state.arrearsMinor > 0) ProofAmber else NeutralInk,
                 )
-            } else {
+            } else if (!state.showEditor) {
                 Text(
-                    "No schedule yet. Enter the offer-letter installments below — " +
-                        "the amount due and the date it's due.",
+                    "No schedule yet. Add the offer-letter installments — the amount " +
+                        "due and the date it's due.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = NeutralMuted,
                 )
             }
 
-            SectionLabel(if (isRenegotiation) "Renegotiate (new version)" else "Enter schedule")
-            state.draftLines.forEachIndexed { index, line ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    ProofLedgerTextField(
-                        value = line.amount,
-                        onValueChange = { viewModel.onAmountChange(index, it) },
-                        label = "Amount (₦)",
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                    )
-                    ProofLedgerTextField(
-                        value = line.dueDate,
-                        onValueChange = { viewModel.onDueDateChange(index, it) },
-                        label = "Due (YYYY-MM-DD)",
-                        modifier = Modifier.weight(1f),
-                    )
-                    IconButton(onClick = { viewModel.onRemoveLine(index) }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Remove line", tint = NeutralMuted)
+            if (!state.showEditor) {
+                // View mode: the schedule is read-only until the user revises it.
+                PrimaryActionButton(
+                    text = "Revise schedule",
+                    onClick = revise,
+                    icon = Icons.Filled.Edit,
+                )
+                Text(
+                    "Revising creates a new version. Payments re-flow into it; older " +
+                        "versions are kept.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NeutralMuted,
+                )
+            } else {
+                SectionLabel(if (isRenegotiation) "Revise schedule (new version)" else "Enter schedule")
+                state.draftLines.forEachIndexed { index, line ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ProofLedgerTextField(
+                            value = line.amount,
+                            onValueChange = { viewModel.onAmountChange(index, it) },
+                            label = "Amount (₦)",
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f),
+                        )
+                        DateField(
+                            value = line.dueDate,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                showAppDatePicker(
+                                    context = context,
+                                    currentIsoDate = line.dueDate.ifBlank { todayIsoDate() },
+                                    onDateSelected = { viewModel.onDueDateChange(index, it) },
+                                )
+                            },
+                        )
+                        IconButton(onClick = { viewModel.onRemoveLine(index) }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Remove line", tint = NeutralMuted)
+                        }
                     }
                 }
+
+                TextButton(onClick = viewModel::onAddLine) {
+                    Icon(Icons.Filled.Add, contentDescription = null, tint = NeutralInk)
+                    Text("  Add installment", color = NeutralInk)
+                }
+
+                state.error?.let { Text(it, color = ProofAmber, style = MaterialTheme.typography.bodySmall) }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (isRenegotiation) {
+                        QuietButton(
+                            text = "Cancel",
+                            onClick = cancelEdit,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    PrimaryActionButton(
+                        text = if (isRenegotiation) "Save as new version" else "Save schedule",
+                        onClick = save,
+                        enabled = !state.saving,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
-
-            IconButton(onClick = viewModel::onAddLine) {
-                Icon(Icons.Filled.Add, contentDescription = "Add installment", tint = NeutralInk)
-            }
-
-            state.error?.let { Text(it, color = ProofAmber, style = MaterialTheme.typography.bodySmall) }
-
-            PrimaryActionButton(
-                text = if (isRenegotiation) "Save as new version" else "Save schedule",
-                onClick = save,
-                enabled = !state.saving,
-            )
         }
+    }
+}
+
+@Composable
+private fun DateField(
+    value: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val click = rememberDebouncedClick(onClick = onClick)
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .border(1.dp, ProofBorder, RoundedCornerShape(18.dp))
+            .clickable(onClick = click)
+            .padding(horizontal = 14.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(Icons.Filled.DateRange, contentDescription = null, tint = NeutralMuted)
+        Text(
+            value.ifBlank { "Due date" },
+            color = if (value.isBlank()) NeutralMuted else NeutralInk,
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }
 
