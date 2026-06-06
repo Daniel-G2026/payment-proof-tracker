@@ -7,8 +7,10 @@ import com.danielanazodo.proofledger.data.local.dao.LocalAppMetadataDao
 import com.danielanazodo.proofledger.data.local.dao.LocalBusinessDao
 import com.danielanazodo.proofledger.data.local.dao.LocalCategoryDao
 import com.danielanazodo.proofledger.data.local.dao.LocalCounterpartyDao
+import com.danielanazodo.proofledger.data.local.dao.LocalInstallmentDao
 import com.danielanazodo.proofledger.data.local.dao.LocalProfileDao
 import com.danielanazodo.proofledger.data.local.dao.LocalProjectDao
+import com.danielanazodo.proofledger.data.local.dao.LocalScheduleVersionDao
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
 import com.danielanazodo.proofledger.data.local.dao.LocalSyncEventDao
 import com.danielanazodo.proofledger.data.local.dao.LocalTransactionDao
@@ -26,6 +28,7 @@ import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_10_11
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_11_12
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_12_13
 import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_13_14
+import com.danielanazodo.proofledger.data.local.migrations.MIGRATION_14_15
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -55,6 +58,7 @@ object DatabaseModule {
                 MIGRATION_11_12,
                 MIGRATION_12_13,
                 MIGRATION_13_14,
+                MIGRATION_14_15,
             )
             .build()
 
@@ -85,6 +89,14 @@ object DatabaseModule {
     @Provides
     fun provideLocalUnitDao(db: AppDatabase): LocalUnitDao =
         db.localUnitDao()
+
+    @Provides
+    fun provideLocalScheduleVersionDao(db: AppDatabase): LocalScheduleVersionDao =
+        db.localScheduleVersionDao()
+
+    @Provides
+    fun provideLocalInstallmentDao(db: AppDatabase): LocalInstallmentDao =
+        db.localInstallmentDao()
 
     @Provides
     fun provideLocalScreenshotDao(db: AppDatabase): LocalScreenshotDao =

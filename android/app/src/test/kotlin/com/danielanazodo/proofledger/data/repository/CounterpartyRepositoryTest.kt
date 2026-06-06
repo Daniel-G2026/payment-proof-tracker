@@ -238,6 +238,15 @@ class CounterpartyRepositoryTest {
         private val createCounterpartyFailure: Throwable? = null,
         private val updateCounterpartyFailure: Throwable? = null,
     ) : ApiService {
+        override suspend fun listScheduleVersions(
+            businessId: String,
+            unitId: String,
+        ): List<com.danielanazodo.proofledger.data.remote.dto.ScheduleVersionDto> = emptyList()
+        override suspend fun createScheduleVersion(
+            businessId: String,
+            unitId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.ScheduleVersionCreateDto,
+        ): com.danielanazodo.proofledger.data.remote.dto.ScheduleVersionDto = error("not used")
         override suspend fun listProjects(
             businessId: String,
         ): List<com.danielanazodo.proofledger.data.remote.dto.ProjectDto> = emptyList()

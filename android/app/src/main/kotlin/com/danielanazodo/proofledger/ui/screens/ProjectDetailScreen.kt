@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -48,6 +49,7 @@ import com.danielanazodo.proofledger.ui.viewmodel.ProjectDetailViewModel
 @Composable
 fun ProjectDetailScreen(
     onBack: () -> Unit,
+    onUnitSchedule: (String) -> Unit,
     viewModel: ProjectDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -93,6 +95,7 @@ fun ProjectDetailScreen(
                         UnitRow(
                             label = unit.label,
                             buyerName = unit.buyerCounterpartyId?.let { buyerNamesById[it] },
+                            onOpenSchedule = { onUnitSchedule(unit.id) },
                             onAssignBuyer = { assigningBuyerFor = unit },
                             onDelete = { pendingDelete = unit },
                         )
@@ -136,15 +139,17 @@ fun ProjectDetailScreen(
 private fun UnitRow(
     label: String,
     buyerName: String?,
+    onOpenSchedule: () -> Unit,
     onAssignBuyer: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val openSchedule = rememberDebouncedClick(onClick = onOpenSchedule)
     val assign = rememberDebouncedClick(onClick = onAssignBuyer)
     val delete = rememberDebouncedClick(onClick = onDelete)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = assign)
+            .clickable(onClick = openSchedule)
             .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -157,9 +162,16 @@ private fun UnitRow(
                 fontWeight = FontWeight.Medium,
             )
             Text(
-                buyerName?.let { "Buyer: $it" } ?: "Tap to assign a buyer",
+                buyerName?.let { "Buyer: $it · tap for schedule" } ?: "Tap for schedule",
                 style = MaterialTheme.typography.bodySmall,
                 color = NeutralMuted,
+            )
+        }
+        IconButton(onClick = assign) {
+            Icon(
+                imageVector = Icons.Filled.Person,
+                contentDescription = "Assign buyer to $label",
+                tint = NeutralMuted,
             )
         }
         IconButton(onClick = delete) {

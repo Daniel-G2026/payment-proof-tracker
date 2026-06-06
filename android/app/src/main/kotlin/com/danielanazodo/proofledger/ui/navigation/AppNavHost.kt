@@ -32,6 +32,7 @@ import com.danielanazodo.proofledger.ui.screens.ProfileSetupScreen
 import com.danielanazodo.proofledger.ui.screens.ProjectDetailScreen
 import com.danielanazodo.proofledger.ui.screens.ProjectListScreen
 import com.danielanazodo.proofledger.ui.screens.ProofBackupScreen
+import com.danielanazodo.proofledger.ui.screens.UnitScheduleScreen
 import com.danielanazodo.proofledger.ui.screens.SharedProofIntakeScreen
 import com.danielanazodo.proofledger.ui.screens.SignInScreen
 import com.danielanazodo.proofledger.ui.screens.SettingsScreen
@@ -283,6 +284,15 @@ private fun ResolvedGraph(
             arguments = listOf(navArgument("projectId") { type = NavType.StringType }),
         ) {
             ProjectDetailScreen(
+                onBack = { navController.popBackStack() },
+                onUnitSchedule = { id -> navController.navigateOnce(Route.UnitSchedule.path(id)) },
+            )
+        }
+        composable(
+            route = Route.UnitSchedule.path,
+            arguments = listOf(navArgument("unitId") { type = NavType.StringType }),
+        ) {
+            UnitScheduleScreen(
                 onBack = { navController.popBackStack() },
             )
         }

@@ -362,9 +362,11 @@ Pass 1 (earmark): P1 fills I3 exactly. No earlier line touched.
 `arrears(2026-02-15)` = I1 due 01-31 ≤ asOf, unpaid ⇒ **₦500,000**.
 
 **Contract point — contrast with no earmark:** the *same* ₦500,000 @ 02-10 with
-**no** earmark would waterfall into I1 (filled, on-time) and `arrears` would be
-**₦0**. The earmark deliberately leaves I1 behind because the human directed the
-money at I3. This is the defining earmark test.
+**no** earmark waterfalls into I1 and `arrears` becomes **₦0**. (That payment is
+dated 02-10, after I1's 01-31 due date, so I1 is `FILLED_LATE` — late, but no
+longer in arrears because it is filled.) The earmark deliberately leaves I1
+behind because the human directed the money at I3. The defining contrast is the
+**arrears**: ₦0 without the earmark vs ₦500,000 with it.
 
 ### Example F — earmark drops on renegotiation (re-pour)
 
@@ -405,7 +407,9 @@ Allocation: J1 400k (P1@02-10, on-time cov ≤ 02-28 = 400k ⇒ on time); overfl
 
 ### Example G — overpayment surfaces as credit
 
-Payments: `P1 = ₦2,500,000 @ 2026-05-01` (no earmark). `asOf = 2026-05-01`.
+Payments: `P1 = ₦2,500,000 @ 2026-01-15` (no earmark). `asOf = 2026-05-01`. The
+payment is dated **before every due date** (so each line is covered on time) and
+`asOf` is **after the last due date** (so none are ahead) — isolating the credit.
 
 Allocation fills I1..I4 fully (₦2,000,000); ₦500,000 remains after the last line.
 
@@ -416,7 +420,8 @@ Allocation fills I1..I4 fully (₦2,000,000); ₦500,000 remains after the last 
 | I3 | ₦500,000 | `FILLED` | ₦0 |
 | I4 | ₦500,000 | `FILLED` | ₦0 |
 
-(All `D <= asOf` and on-time coverage = 500k each ⇒ `FILLED`, not ahead.)
+(Each line: on-time coverage = 500k — the 01-15 payment predates every due date
+— and `D <= asOf`, so `FILLED`, not ahead.)
 `creditMinor = ₦500,000` (surfaced, not applied beyond schedule).
 `arrears(2026-05-01)` = **₦0**.
 

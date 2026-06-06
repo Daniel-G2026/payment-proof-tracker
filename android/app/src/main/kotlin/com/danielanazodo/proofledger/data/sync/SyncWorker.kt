@@ -10,6 +10,7 @@ import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CategoryRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.ProjectRepository
+import com.danielanazodo.proofledger.data.repository.ScheduleRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import com.danielanazodo.proofledger.data.repository.UnitRepository
 import dagger.assisted.Assisted
@@ -34,6 +35,7 @@ class SyncWorker @AssistedInject constructor(
     private val counterpartyRepository: CounterpartyRepository,
     private val projectRepository: ProjectRepository,
     private val unitRepository: UnitRepository,
+    private val scheduleRepository: ScheduleRepository,
     private val transactionRepository: TransactionRepository,
     private val proofRepository: ProofRepository,
     private val syncEventReporter: SyncEventReporter,
@@ -51,6 +53,7 @@ class SyncWorker @AssistedInject constructor(
                 counterpartyRepository.syncPending(business.id)
                 projectRepository.syncPending(business.id)
                 unitRepository.syncPending(business.id)
+                scheduleRepository.syncPending(business.id)
                 transactionRepository.syncPending(business.id)
             }
         businessRepository.getSelectedBusinessId()?.let { selected ->
