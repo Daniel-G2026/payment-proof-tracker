@@ -32,7 +32,10 @@ class ProjectListViewModel @Inject constructor(
             val id = businessRepository.getSelectedBusinessId()
             businessId = id
             if (id != null) {
-                projectRepository.refreshFromRemote(id)
+                // Local-first: show cached projects immediately and refresh in
+                // the background. Awaiting the network here delayed the list
+                // until the round-trip finished (or timed out).
+                launch { projectRepository.refreshFromRemote(id) }
                 projectRepository.observeByBusiness(id).collect { rows ->
                     _state.update { it.copy(projects = rows) }
                 }
