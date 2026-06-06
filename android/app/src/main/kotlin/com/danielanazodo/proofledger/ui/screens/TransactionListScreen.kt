@@ -64,6 +64,7 @@ fun TransactionListScreen(
                             onClick = onManageCategories,
                             iconColor = ProofLime,
                             borderColor = NeutralInk,
+                            containerColor = NeutralInk,
                         )
                         IconCircleButton(
                             icon = ProofIcons.Plus,
@@ -71,6 +72,7 @@ fun TransactionListScreen(
                             onClick = onAdd,
                             iconColor = ProofLime,
                             borderColor = NeutralInk,
+                            containerColor = NeutralInk,
                         )
                     }
                 },
