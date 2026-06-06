@@ -9,6 +9,7 @@ import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CategoryRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
+import com.danielanazodo.proofledger.data.repository.CounterpartyTypeRepository
 import com.danielanazodo.proofledger.data.repository.ProjectRepository
 import com.danielanazodo.proofledger.data.repository.ScheduleRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
@@ -32,6 +33,7 @@ class SyncWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val businessRepository: BusinessRepository,
     private val categoryRepository: CategoryRepository,
+    private val counterpartyTypeRepository: CounterpartyTypeRepository,
     private val counterpartyRepository: CounterpartyRepository,
     private val projectRepository: ProjectRepository,
     private val unitRepository: UnitRepository,
@@ -49,7 +51,10 @@ class SyncWorker @AssistedInject constructor(
                 // project and a counterparty; a transaction references a unit.
                 // Push parents before children so a child never lands as an
                 // orphan — categories/counterparties → projects → units → txns.
+                // Person types have no FK dependents (counterparty.type is a
+                // string), so they drain early alongside categories.
                 categoryRepository.syncPending(business.id)
+                counterpartyTypeRepository.syncPending(business.id)
                 counterpartyRepository.syncPending(business.id)
                 projectRepository.syncPending(business.id)
                 unitRepository.syncPending(business.id)
@@ -58,6 +63,7 @@ class SyncWorker @AssistedInject constructor(
             }
         businessRepository.getSelectedBusinessId()?.let { selected ->
             categoryRepository.refreshFromRemote(selected)
+            counterpartyTypeRepository.refreshFromRemote(selected)
             projectRepository.refreshFromRemote(selected)
             unitRepository.refreshFromRemote(selected)
             transactionRepository.refreshFromRemote(selected)

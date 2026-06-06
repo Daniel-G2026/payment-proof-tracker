@@ -11,6 +11,9 @@ import com.danielanazodo.proofledger.data.remote.dto.CategoryUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartySummaryDto
+import com.danielanazodo.proofledger.data.remote.dto.CounterpartyTypeCreateDto
+import com.danielanazodo.proofledger.data.remote.dto.CounterpartyTypeDto
+import com.danielanazodo.proofledger.data.remote.dto.CounterpartyTypeUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.CounterpartyUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.DuplicateCandidateDto
 import com.danielanazodo.proofledger.data.remote.dto.DuplicateCandidateRequestDto
@@ -128,6 +131,31 @@ interface ApiService {
     suspend fun deleteCategory(
         @Path("businessId") businessId: String,
         @Path("categoryId") categoryId: String,
+    )
+
+    @GET("businesses/{businessId}/counterparty-types")
+    suspend fun listCounterpartyTypes(
+        @Path("businessId") businessId: String,
+        @Query("search") search: String? = null,
+    ): List<CounterpartyTypeDto>
+
+    @POST("businesses/{businessId}/counterparty-types")
+    suspend fun createCounterpartyType(
+        @Path("businessId") businessId: String,
+        @Body body: CounterpartyTypeCreateDto,
+    ): CounterpartyTypeDto
+
+    @PATCH("businesses/{businessId}/counterparty-types/{typeId}")
+    suspend fun updateCounterpartyType(
+        @Path("businessId") businessId: String,
+        @Path("typeId") typeId: String,
+        @Body body: CounterpartyTypeUpdateDto,
+    ): CounterpartyTypeDto
+
+    @DELETE("businesses/{businessId}/counterparty-types/{typeId}")
+    suspend fun deleteCounterpartyType(
+        @Path("businessId") businessId: String,
+        @Path("typeId") typeId: String,
     )
 
     @GET("businesses/{businessId}/projects")

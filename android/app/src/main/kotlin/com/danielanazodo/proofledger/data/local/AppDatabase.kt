@@ -7,6 +7,7 @@ import com.danielanazodo.proofledger.data.local.dao.LocalAppMetadataDao
 import com.danielanazodo.proofledger.data.local.dao.LocalBusinessDao
 import com.danielanazodo.proofledger.data.local.dao.LocalCategoryDao
 import com.danielanazodo.proofledger.data.local.dao.LocalCounterpartyDao
+import com.danielanazodo.proofledger.data.local.dao.LocalCounterpartyTypeDao
 import com.danielanazodo.proofledger.data.local.dao.LocalInstallmentDao
 import com.danielanazodo.proofledger.data.local.dao.LocalProfileDao
 import com.danielanazodo.proofledger.data.local.dao.LocalProjectDao
@@ -19,6 +20,7 @@ import com.danielanazodo.proofledger.data.local.entity.LocalAppMetadataEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalBusinessEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalCategoryEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
+import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyTypeEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalInstallmentEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalProfileEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalProjectEntity
@@ -35,6 +37,7 @@ import com.danielanazodo.proofledger.data.local.entity.LocalUnitEntity
         LocalBusinessEntity::class,
         LocalCategoryEntity::class,
         LocalCounterpartyEntity::class,
+        LocalCounterpartyTypeEntity::class,
         LocalProjectEntity::class,
         LocalUnitEntity::class,
         LocalScheduleVersionEntity::class,
@@ -43,7 +46,7 @@ import com.danielanazodo.proofledger.data.local.entity.LocalUnitEntity
         LocalSyncEventEntity::class,
         LocalTransactionEntity::class,
     ],
-    version = 16,
+    version = 17,
     exportSchema = true,
 )
 @TypeConverters(SyncStatusConverter::class, ProofStatusConverter::class)
@@ -53,6 +56,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun localBusinessDao(): LocalBusinessDao
     abstract fun localCategoryDao(): LocalCategoryDao
     abstract fun localCounterpartyDao(): LocalCounterpartyDao
+    abstract fun localCounterpartyTypeDao(): LocalCounterpartyTypeDao
     abstract fun localProjectDao(): LocalProjectDao
     abstract fun localUnitDao(): LocalUnitDao
     abstract fun localScheduleVersionDao(): LocalScheduleVersionDao
