@@ -454,6 +454,10 @@ class ProofRepositoryTest {
             businessId: String,
         ): Flow<List<LocalTransactionEntity>> = error("not used")
 
+        override fun observeMoneyOutForProject(
+            projectId: String,
+        ): Flow<List<LocalTransactionEntity>> = error("not used")
+
         override fun observeById(id: String): Flow<LocalTransactionEntity?> = error("not used")
 
         override fun observeRowsNeedingAttention(

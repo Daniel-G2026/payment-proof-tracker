@@ -3,12 +3,15 @@ package com.danielanazodo.proofledger.ui.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.danielanazodo.proofledger.data.balance.ProjectSpend
+import com.danielanazodo.proofledger.data.balance.ProjectSpendCalculator
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalProjectEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalUnitEntity
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.ProjectRepository
+import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import com.danielanazodo.proofledger.data.repository.UnitRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -23,6 +26,8 @@ data class ProjectDetailUiState(
     val units: List<LocalUnitEntity> = emptyList(),
     val buyers: List<LocalCounterpartyEntity> = emptyList(),
     val newUnitLabel: String = "",
+    // Phase 13 Cut 5: actual money-out spent on this project, by category.
+    val spend: ProjectSpend = ProjectSpend(0, emptyList()),
 )
 
 /**
@@ -38,6 +43,7 @@ class ProjectDetailViewModel @Inject constructor(
     private val projectRepository: ProjectRepository,
     private val unitRepository: UnitRepository,
     private val counterpartyRepository: CounterpartyRepository,
+    private val transactionRepository: TransactionRepository,
 ) : ViewModel() {
     private val projectId: String = checkNotNull(savedStateHandle["projectId"])
     private val _state = MutableStateFlow(ProjectDetailUiState())
@@ -58,6 +64,12 @@ class ProjectDetailViewModel @Inject constructor(
             val id = businessRepository.getSelectedBusinessId() ?: return@launch
             counterpartyRepository.observeByBusiness(id).collect { rows ->
                 _state.update { it.copy(buyers = rows) }
+            }
+        }
+        viewModelScope.launch {
+            transactionRepository.observeMoneyOutForProject(projectId).collect { txns ->
+                val spend = ProjectSpendCalculator.summarize(txns.map { it.category to it.amountMinor })
+                _state.update { it.copy(spend = spend) }
             }
         }
     }
