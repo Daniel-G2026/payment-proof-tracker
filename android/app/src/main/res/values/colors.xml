@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="proof_paper">#FAFAF7</color>
+    <color name="proof_paper">#F7F7F7</color>
+    <color name="proof_card">#FFFFFF</color>
     <color name="proof_ink">#1A1A1A</color>
 </resources>

@@ -15,7 +15,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
@@ -29,6 +28,7 @@ import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
 import com.danielanazodo.proofledger.ui.theme.ProofBorder
 import com.danielanazodo.proofledger.ui.theme.ProofLime
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
 
 @Composable
 fun RecordListRow(
@@ -42,7 +42,10 @@ fun RecordListRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { onClick(transaction.id) }
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(
+                    horizontal = ProofLedgerDimens.rowHorizontal,
+                    vertical = ProofLedgerDimens.rowVertical,
+                ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -62,12 +65,17 @@ fun RecordListRow(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    signedNaira(transaction.amountMinor, transaction.direction),
+            Column(
+                modifier = Modifier.width(148.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                MoneyAmount(
+                    text = signedNaira(transaction.amountMinor, transaction.direction),
                     color = if (transaction.direction == "money_in") NeutralInk else MoneyOutRed,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontFamily = FontFamily.Monospace,
+                    preferredSize = MaterialTheme.typography.titleSmall.fontSize,
+                    minimumSize = MaterialTheme.typography.labelSmall.fontSize,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 StatusDot(color = if (transaction.direction == "money_in") ProofLime else NeutralMuted)
             }
@@ -96,7 +104,10 @@ fun PersonListRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { onClick(counterparty.id) }
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(
+                    horizontal = ProofLedgerDimens.rowHorizontal,
+                    vertical = ProofLedgerDimens.rowVertical,
+                ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {

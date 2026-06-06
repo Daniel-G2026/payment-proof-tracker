@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -17,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 
@@ -46,9 +46,19 @@ fun EmptyState(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (title != null) {
-                Text(title, color = NeutralInk, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                Text(
+                    title,
+                    color = NeutralInk,
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleMedium,
+                )
             }
-            Text(message, color = NeutralMuted, textAlign = TextAlign.Center)
+            Text(
+                message,
+                color = NeutralMuted,
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 }
@@ -64,7 +74,12 @@ fun ErrorState(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(message, color = NeutralMuted, textAlign = TextAlign.Center)
+            Text(
+                message,
+                color = NeutralMuted,
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyMedium,
+            )
             if (onRetry != null) {
                 QuietButton("Try again", onClick = onRetry)
             }
@@ -97,7 +112,7 @@ fun OnboardingTipCard(
             Text(
                 text,
                 color = NeutralInk,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = onDismiss) {
