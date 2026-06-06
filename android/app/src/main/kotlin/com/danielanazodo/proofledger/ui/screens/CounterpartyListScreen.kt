@@ -16,7 +16,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,6 +36,9 @@ import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
 import com.danielanazodo.proofledger.ui.components.SectionLabel
 import com.danielanazodo.proofledger.ui.navigation.MainTab
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
+import com.danielanazodo.proofledger.ui.theme.ProofIcons
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
+import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.data.repository.CounterpartyTypeRepository
 import com.danielanazodo.proofledger.ui.viewmodel.CounterpartyListViewModel
@@ -61,8 +63,8 @@ fun CounterpartyListScreen(
         topBar = { PageHeader(title = "People", subtitle = "Customers, suppliers, and everyone you pay") },
     ) { modifier ->
         LazyColumn(
-            modifier = modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = modifier.fillMaxSize().proofLedgerScreenPadding(),
+            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
         ) {
             item { PrimaryActionButton(text = "Add person", onClick = add, icon = Icons.Filled.PersonAdd) }
             item {
@@ -70,7 +72,7 @@ fun CounterpartyListScreen(
                     value = state.search,
                     onValueChange = viewModel::onSearchChange,
                     label = "Search people",
-                    leadingIcon = Icons.Filled.Search,
+                    leadingIcon = ProofIcons.Search,
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )

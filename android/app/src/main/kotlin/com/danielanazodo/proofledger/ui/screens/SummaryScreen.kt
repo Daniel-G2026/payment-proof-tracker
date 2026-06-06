@@ -61,6 +61,8 @@ import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofGrayDot
 import com.danielanazodo.proofledger.ui.theme.ProofLime
 import com.danielanazodo.proofledger.ui.theme.SurfaceCard
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
+import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
 import com.danielanazodo.proofledger.ui.viewmodel.SummaryViewModel
 
 @Composable
@@ -101,8 +103,8 @@ fun SummaryScreen(
         topBar = { PageHeader(title = "Reports") },
     ) { modifier ->
         LazyColumn(
-            modifier = modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            modifier = modifier.fillMaxSize().proofLedgerScreenPadding(),
+            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.sectionGap),
         ) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -16,7 +16,6 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,6 +29,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
 import com.danielanazodo.proofledger.ui.components.proofTextFieldColors
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
+import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.CreateBusinessViewModel
 
@@ -50,7 +51,7 @@ fun CreateBusinessScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(24.dp),
+                .proofLedgerScreenPadding(),
             verticalArrangement = Arrangement.Top,
         ) {
             Spacer(Modifier.height(48.dp))
@@ -82,11 +83,12 @@ fun CreateBusinessScreen(
                     readOnly = true,
                     label = { Text("Type (optional)") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
-                    shape = RoundedCornerShape(18.dp),
+                    shape = MaterialTheme.shapes.medium,
                     colors = proofTextFieldColors(),
                     modifier = Modifier
                         .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
-                        .fillMaxWidth(),
+                        .fillMaxWidth()
+                        .height(ProofLedgerDimens.controlHeight),
                 )
                 ExposedDropdownMenu(
                     expanded = typeExpanded,

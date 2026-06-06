@@ -45,6 +45,8 @@ import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
 import com.danielanazodo.proofledger.ui.theme.ProofBorder
 import com.danielanazodo.proofledger.ui.theme.ProofLime
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
+import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.SettingsViewModel
 import java.util.Locale
@@ -75,8 +77,8 @@ fun SettingsScreen(
             modifier = modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+                .proofLedgerScreenPadding(),
+            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.sectionGap),
         ) {
             SettingsSection(title = "Business") {
                 SettingsRow(
@@ -205,7 +207,10 @@ private fun SettingsRow(
                         Modifier
                     }
                 )
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(
+                    horizontal = ProofLedgerDimens.rowHorizontal,
+                    vertical = ProofLedgerDimens.rowVertical,
+                ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {

@@ -1,7 +1,9 @@
 package com.danielanazodo.proofledger.ui.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Shapes
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 object ProofLedgerDimens {
@@ -30,4 +32,9 @@ val ProofLedgerShapes = Shapes(
     medium = RoundedCornerShape(14.dp),
     large = RoundedCornerShape(16.dp),
     extraLarge = RoundedCornerShape(20.dp),
+)
+
+fun Modifier.proofLedgerScreenPadding(): Modifier = padding(
+    horizontal = ProofLedgerDimens.screenHorizontal,
+    vertical = ProofLedgerDimens.screenVertical,
 )

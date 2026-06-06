@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
 
 @Composable
 fun PlaceholderHomeScreen() {
@@ -19,7 +20,7 @@ fun PlaceholderHomeScreen() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(24.dp),
+                .proofLedgerScreenPadding(),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

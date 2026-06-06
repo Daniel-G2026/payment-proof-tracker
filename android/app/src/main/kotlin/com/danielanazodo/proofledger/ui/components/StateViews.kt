@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
 
 /**
  * Shared full-area state views so every screen renders loading / empty / error
@@ -90,7 +91,7 @@ fun ErrorState(
 @Composable
 private fun CenteredState(modifier: Modifier, content: @Composable () -> Unit) {
     Box(
-        modifier = modifier.fillMaxSize().padding(24.dp),
+        modifier = modifier.fillMaxSize().padding(ProofLedgerDimens.screenHorizontal),
         contentAlignment = Alignment.Center,
     ) {
         content()
