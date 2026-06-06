@@ -16,6 +16,7 @@ import com.danielanazodo.proofledger.data.remote.dto.TransactionCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionDto
 import com.danielanazodo.proofledger.data.remote.dto.TransactionUpdateDto
 import com.danielanazodo.proofledger.data.sync.AUTH_EXPIRED_SYNC_MESSAGE
+import com.danielanazodo.proofledger.data.sync.NetworkMonitor
 import com.danielanazodo.proofledger.data.sync.SyncEventLogger
 import com.danielanazodo.proofledger.data.sync.isSyncConflictFailure
 import com.danielanazodo.proofledger.data.sync.toSyncErrorMessage
@@ -38,6 +39,7 @@ class TransactionRepository @Inject constructor(
     private val proofRepository: ProofRepository,
     private val syncEventLogger: SyncEventLogger,
     private val analytics: Analytics,
+    private val networkMonitor: NetworkMonitor,
 ) {
     fun observeTransactions(businessId: String): Flow<List<LocalTransactionEntity>> =
         localDao.observeByBusiness(businessId)
@@ -97,21 +99,28 @@ class TransactionRepository @Inject constructor(
             imageSha256 = imageSha256,
             excludeTransactionId = excludeTransactionId,
         )
-        val remote = runCatching {
-            api.duplicateCandidates(
-                businessId = businessId,
-                body = DuplicateCandidateRequestDto(
-                    amountMinor = amountMinor,
-                    direction = direction,
-                    transactionDate = transactionDate,
-                    counterpartyId = counterpartyId,
-                    counterpartyName = counterpartyName,
-                    referenceNumber = referenceNumber,
-                    screenshotId = screenshotId,
-                    excludeTransactionId = excludeTransactionId,
-                ),
-            ).map { it.toDuplicateCandidate() }
-        }.getOrDefault(emptyList())
+        // Offline-first: skip the best-effort backend check when there's no
+        // connectivity so the user isn't made to wait on a connect timeout —
+        // the local check above already covers the common duplicate cases.
+        val remote = if (!networkMonitor.isOnline()) {
+            emptyList()
+        } else {
+            runCatching {
+                api.duplicateCandidates(
+                    businessId = businessId,
+                    body = DuplicateCandidateRequestDto(
+                        amountMinor = amountMinor,
+                        direction = direction,
+                        transactionDate = transactionDate,
+                        counterpartyId = counterpartyId,
+                        counterpartyName = counterpartyName,
+                        referenceNumber = referenceNumber,
+                        screenshotId = screenshotId,
+                        excludeTransactionId = excludeTransactionId,
+                    ),
+                ).map { it.toDuplicateCandidate() }
+            }.getOrDefault(emptyList())
+        }
 
         val merged = (local + remote)
             .groupBy { it.transaction.id }
@@ -390,6 +399,10 @@ class TransactionRepository @Inject constructor(
             AnalyticsEvents.TRANSACTION_SAVED,
             mapOf("direction" to direction, "has_proof" to (screenshotId != null)),
         )
+        // Offline-first: the row is already saved locally (PENDING_UPLOAD). Don't
+        // make the user wait on a connect timeout — return now and let the
+        // SyncWorker push it when connectivity returns.
+        if (!networkMonitor.isOnline()) return local
         return runCatching { api.createTransaction(businessId, local.toCreateDto(screenshotId)) }
             .fold(
                 onSuccess = { remote ->
@@ -445,6 +458,9 @@ class TransactionRepository @Inject constructor(
             lastSyncAttemptAt = now,
         )
         localDao.upsert(updated)
+        // Offline-first: saved locally as PENDING_UPDATE; the SyncWorker drains
+        // it later. Skip the inline push (and its connect timeout) when offline.
+        if (!networkMonitor.isOnline()) return updated
         return runCatching {
             api.updateTransaction(current.businessId, current.id, updated.toUpdateDto(screenshotId))
         }.fold(
