@@ -43,7 +43,7 @@ import com.danielanazodo.proofledger.data.local.entity.LocalUnitEntity
         LocalSyncEventEntity::class,
         LocalTransactionEntity::class,
     ],
-    version = 15,
+    version = 16,
     exportSchema = true,
 )
 @TypeConverters(SyncStatusConverter::class, ProofStatusConverter::class)

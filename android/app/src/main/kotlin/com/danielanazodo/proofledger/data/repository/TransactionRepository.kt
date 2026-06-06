@@ -60,6 +60,12 @@ class TransactionRepository @Inject constructor(
     ): Flow<List<LocalTransactionEntity>> =
         localDao.observeByCounterparty(businessId, counterpartyId)
 
+    /** Money-in transactions linked to a unit, oldest-first — the payments the
+     * [com.danielanazodo.proofledger.data.balance.AllocationEngine] pours into
+     * the unit's active schedule (Phase 13 Cut 3). */
+    fun observeMoneyInForUnit(unitId: String): Flow<List<LocalTransactionEntity>> =
+        localDao.observeMoneyInForUnit(unitId)
+
     suspend fun findDuplicateCandidates(
         businessId: String,
         amountMinor: Long,
@@ -335,6 +341,9 @@ class TransactionRepository @Inject constructor(
         note: String?,
         bankName: String?,
         referenceNumber: String?,
+        // Phase 13 Cut 3: money-in unit link + optional earmark.
+        unitId: String? = null,
+        earmarkedInstallmentId: String? = null,
         // Phase 8.1: orphan screenshot id to link atomically on the server.
         // Only flows through on the first (online) API call — if that call
         // fails, the orphan stays on the server until cron cleanup. We don't
@@ -363,6 +372,8 @@ class TransactionRepository @Inject constructor(
             deletedAt = null,
             syncStatus = SyncStatus.PENDING_UPLOAD,
             lastSyncAttemptAt = now,
+            unitId = unitId,
+            earmarkedInstallmentId = earmarkedInstallmentId,
         )
         localDao.upsert(local)
         analytics.track(
@@ -397,6 +408,9 @@ class TransactionRepository @Inject constructor(
         note: String?,
         bankName: String?,
         referenceNumber: String?,
+        // Phase 13 Cut 3: money-in unit link + optional earmark.
+        unitId: String? = null,
+        earmarkedInstallmentId: String? = null,
         screenshotId: String? = null,  // Phase 8.1 — see createTransaction
     ): LocalTransactionEntity {
         val current = localDao.getById(transactionId)
@@ -412,6 +426,8 @@ class TransactionRepository @Inject constructor(
             note = note,
             bankName = bankName,
             referenceNumber = referenceNumber,
+            unitId = unitId,
+            earmarkedInstallmentId = earmarkedInstallmentId,
             updatedAt = now,
             syncStatus = SyncStatus.PENDING_UPDATE,
             lastSyncAttemptAt = now,
@@ -491,6 +507,9 @@ class TransactionRepository @Inject constructor(
             counterpartyId = counterpartyId,
             counterpartyName = counterpartyName,
             category = category,
+            projectId = projectId,
+            unitId = unitId,
+            earmarkedInstallmentId = earmarkedInstallmentId,
             note = note,
             bankName = bankName,
             referenceNumber = referenceNumber,
@@ -531,6 +550,8 @@ class TransactionRepository @Inject constructor(
             counterpartyId = counterpartyId,
             counterpartyName = counterpartyName,
             category = category,
+            unitId = unitId,
+            earmarkedInstallmentId = earmarkedInstallmentId,
             note = note,
             bankName = bankName,
             referenceNumber = referenceNumber,
@@ -548,6 +569,8 @@ class TransactionRepository @Inject constructor(
             counterpartyId = counterpartyId,
             counterpartyName = counterpartyName,
             category = category,
+            unitId = unitId,
+            earmarkedInstallmentId = earmarkedInstallmentId,
             note = note,
             bankName = bankName,
             referenceNumber = referenceNumber,

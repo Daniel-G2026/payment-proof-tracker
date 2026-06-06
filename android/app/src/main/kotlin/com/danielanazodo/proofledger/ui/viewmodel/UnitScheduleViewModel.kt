@@ -3,11 +3,16 @@ package com.danielanazodo.proofledger.ui.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.danielanazodo.proofledger.data.balance.AllocationEngine
+import com.danielanazodo.proofledger.data.balance.Installment
+import com.danielanazodo.proofledger.data.balance.InstallmentFill
+import com.danielanazodo.proofledger.data.balance.Payment
 import com.danielanazodo.proofledger.data.local.entity.LocalInstallmentEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalScheduleVersionEntity
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.ScheduleLineInput
 import com.danielanazodo.proofledger.data.repository.ScheduleRepository
+import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import com.danielanazodo.proofledger.data.repository.UnitRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
@@ -18,6 +23,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
@@ -31,6 +37,10 @@ data class UnitScheduleUiState(
     val unitLabel: String = "",
     val activeVersion: LocalScheduleVersionEntity? = null,
     val activeInstallments: List<LocalInstallmentEntity> = emptyList(),
+    // Computed (never stored) fills over the unit's linked money-in payments.
+    val fills: List<InstallmentFill> = emptyList(),
+    val arrearsMinor: Long = 0,
+    val creditMinor: Long = 0,
     val versionCount: Int = 0,
     val draftLines: List<ScheduleLineDraft> = listOf(ScheduleLineDraft()),
     val error: String? = null,
@@ -44,6 +54,7 @@ class UnitScheduleViewModel @Inject constructor(
     private val businessRepository: BusinessRepository,
     private val unitRepository: UnitRepository,
     private val scheduleRepository: ScheduleRepository,
+    private val transactionRepository: TransactionRepository,
 ) : ViewModel() {
     private val unitId: String = checkNotNull(savedStateHandle["unitId"])
 
@@ -79,6 +90,38 @@ class UnitScheduleViewModel @Inject constructor(
         viewModelScope.launch {
             activeInstallments.collect { rows ->
                 _ui.update { it.copy(activeInstallments = rows) }
+            }
+        }
+        // Compute fills on read: pour the unit's linked money-in payments into
+        // the active schedule. Nothing persisted — re-derives whenever either
+        // the schedule or the payments change.
+        viewModelScope.launch {
+            combine(
+                activeInstallments,
+                transactionRepository.observeMoneyInForUnit(unitId),
+            ) { installments, payments ->
+                AllocationEngine.allocate(
+                    installments = installments.map {
+                        Installment(it.id, it.sequence, it.amountMinor, LocalDate.parse(it.dueDate))
+                    },
+                    payments = payments.map {
+                        Payment(
+                            id = it.id,
+                            amountMinor = it.amountMinor,
+                            date = LocalDate.parse(it.transactionDate.take(10)),
+                            earmarkedInstallmentId = it.earmarkedInstallmentId,
+                        )
+                    },
+                    asOf = LocalDate.now(),
+                )
+            }.collect { result ->
+                _ui.update {
+                    it.copy(
+                        fills = result.fills,
+                        arrearsMinor = result.arrearsMinor,
+                        creditMinor = result.creditMinor,
+                    )
+                }
             }
         }
     }
