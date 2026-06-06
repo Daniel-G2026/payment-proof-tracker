@@ -70,6 +70,10 @@ class TransactionRepository @Inject constructor(
     fun observeMoneyInLinkedForBusiness(businessId: String): Flow<List<LocalTransactionEntity>> =
         localDao.observeMoneyInLinkedForBusiness(businessId)
 
+    /** Money-out tagged to a project (Phase 13 Cut 5 per-project spend). */
+    fun observeMoneyOutForProject(projectId: String): Flow<List<LocalTransactionEntity>> =
+        localDao.observeMoneyOutForProject(projectId)
+
     suspend fun findDuplicateCandidates(
         businessId: String,
         amountMinor: Long,
@@ -345,7 +349,8 @@ class TransactionRepository @Inject constructor(
         note: String?,
         bankName: String?,
         referenceNumber: String?,
-        // Phase 13 Cut 3: money-in unit link + optional earmark.
+        // Phase 13: money-in unit link + earmark (Cut 3); money-out project (Cut 5).
+        projectId: String? = null,
         unitId: String? = null,
         earmarkedInstallmentId: String? = null,
         // Phase 8.1: orphan screenshot id to link atomically on the server.
@@ -376,6 +381,7 @@ class TransactionRepository @Inject constructor(
             deletedAt = null,
             syncStatus = SyncStatus.PENDING_UPLOAD,
             lastSyncAttemptAt = now,
+            projectId = projectId,
             unitId = unitId,
             earmarkedInstallmentId = earmarkedInstallmentId,
         )
@@ -412,7 +418,8 @@ class TransactionRepository @Inject constructor(
         note: String?,
         bankName: String?,
         referenceNumber: String?,
-        // Phase 13 Cut 3: money-in unit link + optional earmark.
+        // Phase 13: money-in unit link + earmark (Cut 3); money-out project (Cut 5).
+        projectId: String? = null,
         unitId: String? = null,
         earmarkedInstallmentId: String? = null,
         screenshotId: String? = null,  // Phase 8.1 — see createTransaction
@@ -430,6 +437,7 @@ class TransactionRepository @Inject constructor(
             note = note,
             bankName = bankName,
             referenceNumber = referenceNumber,
+            projectId = projectId,
             unitId = unitId,
             earmarkedInstallmentId = earmarkedInstallmentId,
             updatedAt = now,
@@ -554,6 +562,7 @@ class TransactionRepository @Inject constructor(
             counterpartyId = counterpartyId,
             counterpartyName = counterpartyName,
             category = category,
+            projectId = projectId,
             unitId = unitId,
             earmarkedInstallmentId = earmarkedInstallmentId,
             note = note,
@@ -573,6 +582,7 @@ class TransactionRepository @Inject constructor(
             counterpartyId = counterpartyId,
             counterpartyName = counterpartyName,
             category = category,
+            projectId = projectId,
             unitId = unitId,
             earmarkedInstallmentId = earmarkedInstallmentId,
             note = note,

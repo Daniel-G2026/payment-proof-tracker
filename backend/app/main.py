@@ -38,6 +38,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     in dev when the user hasn't booted the docker-compose stack) we log and
     fall through. Uploads still work; they just skip extraction enqueueing.
     """
+    # Fail fast if the DB schema is behind the code's migrations — a
+    # merged-but-unapplied migration otherwise 500s the first real write.
+    from app.core.migration_check import verify_migrations_current
+    from app.db.session import engine
+
+    verify_migrations_current(engine)
     # Create the Redis pool when extraction needs it OR when the upload
     # rate-limiter is configured (Phase 12) — both reuse the same pool.
     pool = None

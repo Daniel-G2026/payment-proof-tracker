@@ -9,11 +9,13 @@ import com.danielanazodo.proofledger.data.balance.Installment
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
 import com.danielanazodo.proofledger.data.local.entity.LocalCategoryEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
+import com.danielanazodo.proofledger.data.local.entity.LocalProjectEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalScreenshotEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalUnitEntity
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CategoryRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
+import com.danielanazodo.proofledger.data.repository.ProjectRepository
 import com.danielanazodo.proofledger.data.repository.ScheduleRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
 import com.danielanazodo.proofledger.data.repository.UnitRepository
@@ -117,6 +119,10 @@ data class TransactionFormUiState(
     val selectedUnitId: String? = null,
     val earmarkOptions: List<Installment> = emptyList(),
     val selectedEarmarkInstallmentId: String? = null,
+    // Phase 13 Cut 5: money-out → project tagging. All projects in the business;
+    // the chosen project (null = the general / no-project bucket).
+    val projectOptions: List<LocalProjectEntity> = emptyList(),
+    val selectedProjectId: String? = null,
     val loading: Boolean = false,
     val error: String? = null,
     val saved: Boolean = false,
@@ -130,6 +136,7 @@ class TransactionFormViewModel @Inject constructor(
     private val categoryRepository: CategoryRepository,
     private val unitRepository: UnitRepository,
     private val scheduleRepository: ScheduleRepository,
+    private val projectRepository: ProjectRepository,
     private val proofRepository: ProofRepository,
     private val sharedProofIntakeRepository: SharedProofIntakeRepository,
     private val ocrService: OcrService,
@@ -165,6 +172,13 @@ class TransactionFormViewModel @Inject constructor(
                 categoryRepository.observeByBusiness(id).collect { rows ->
                     _state.update { it.copy(categories = rows) }
                 }
+            }
+        }
+        // Phase 13 Cut 5: project options for money-out tagging.
+        viewModelScope.launch {
+            val id = businessRepository.getSelectedBusinessId() ?: return@launch
+            projectRepository.observeByBusiness(id).collect { rows ->
+                _state.update { it.copy(projectOptions = rows) }
             }
         }
         initialIntakeToken?.let { token ->
@@ -217,9 +231,11 @@ class TransactionFormViewModel @Inject constructor(
                             noteUserEdited = true,
                             bankName = transaction.bankName.orEmpty(),
                             referenceNumber = transaction.referenceNumber.orEmpty(),
-                            // Phase 13 Cut 3: restore the unit link + earmark.
+                            // Phase 13: restore the unit link + earmark (Cut 3)
+                            // and the project tag (Cut 5).
                             selectedUnitId = transaction.unitId,
                             selectedEarmarkInstallmentId = transaction.earmarkedInstallmentId,
+                            selectedProjectId = transaction.projectId,
                             // Surface the existing proof in the UI without
                             // marking dirty, so leaving it untouched on save
                             // doesn't re-attach a duplicate.
@@ -364,6 +380,11 @@ class TransactionFormViewModel @Inject constructor(
 
     fun onSelectEarmark(installmentId: String?) {
         _state.update { it.copy(selectedEarmarkInstallmentId = installmentId) }
+    }
+
+    /** Phase 13 Cut 5: tag (or untag) a money-out transaction with a project. */
+    fun onSelectProject(projectId: String?) {
+        _state.update { it.copy(selectedProjectId = projectId) }
     }
 
     private fun loadEarmarkOptions(unitId: String?) {
@@ -640,9 +661,12 @@ class TransactionFormViewModel @Inject constructor(
                 // pendingScreenshotId from a Phase 8 server-draft poll, which
                 // is NOT an orphan — the screenshot is already linked.
                 val orphanIdForLink = if (current.proofDirty) current.pendingScreenshotId else null
-                // Phase 13 Cut 3: only money-in carries a unit link / earmark.
+                // Phase 13: money-in carries a unit link / earmark (Cut 3);
+                // money-out carries a project tag (Cut 5).
                 val linkedUnitId = if (current.direction == "money_in") current.selectedUnitId else null
                 val earmarkId = if (linkedUnitId != null) current.selectedEarmarkInstallmentId else null
+                val taggedProjectId =
+                    if (current.direction == "money_out") current.selectedProjectId else null
                 val savedTransaction = if (transactionId == null) {
                     transactionRepository.createTransaction(
                         businessId = selectedBusinessId,
@@ -655,6 +679,7 @@ class TransactionFormViewModel @Inject constructor(
                         note = current.note.clean(),
                         bankName = current.bankName.clean(),
                         referenceNumber = current.referenceNumber.clean(),
+                        projectId = taggedProjectId,
                         unitId = linkedUnitId,
                         earmarkedInstallmentId = earmarkId,
                         screenshotId = orphanIdForLink,
@@ -671,6 +696,7 @@ class TransactionFormViewModel @Inject constructor(
                         note = current.note.clean(),
                         bankName = current.bankName.clean(),
                         referenceNumber = current.referenceNumber.clean(),
+                        projectId = taggedProjectId,
                         unitId = linkedUnitId,
                         earmarkedInstallmentId = earmarkId,
                         screenshotId = orphanIdForLink,

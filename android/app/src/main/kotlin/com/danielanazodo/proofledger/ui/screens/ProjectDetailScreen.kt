@@ -42,6 +42,7 @@ import com.danielanazodo.proofledger.ui.components.ProofLedgerConfirmDialog
 import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
 import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
 import com.danielanazodo.proofledger.ui.components.SectionLabel
+import com.danielanazodo.proofledger.ui.format.formatNaira
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofLime
@@ -104,6 +105,42 @@ fun ProjectDetailScreen(
                         )
                         if (index != state.units.lastIndex) {
                             HorizontalDivider()
+                        }
+                    }
+                }
+            }
+
+            // Phase 13 Cut 5: actual money-out tagged to this project, by category.
+            SectionLabel("Spending on this project")
+            val spend = state.spend
+            if (spend.totalMinor == 0L) {
+                Text(
+                    "No money-out tagged to this project yet. Tag spending when you " +
+                        "record money out.",
+                    color = NeutralMuted,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else {
+                GroupedPanel {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text("Total spent", color = NeutralInk, fontWeight = FontWeight.Medium)
+                        Text(
+                            formatNaira(spend.totalMinor),
+                            color = NeutralInk,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    spend.byCategory.forEach { line ->
+                        HorizontalDivider()
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(line.category, color = NeutralMuted)
+                            Text(formatNaira(line.totalMinor), color = NeutralInk)
                         }
                     }
                 }

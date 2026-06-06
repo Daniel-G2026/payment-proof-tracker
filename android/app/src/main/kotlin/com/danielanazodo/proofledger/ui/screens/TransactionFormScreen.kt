@@ -348,6 +348,33 @@ fun TransactionFormScreen(
                 }
             }
 
+            // Phase 13 Cut 5: tag money-out to a project (e.g. land, materials,
+            // wages for a development). "No project" = the general bucket.
+            if (state.direction == "money_out" && state.projectOptions.isNotEmpty()) {
+                Text(
+                    "Project (optional)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = NeutralMuted,
+                )
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    ProofLedgerFilterChip(
+                        selected = state.selectedProjectId == null,
+                        onClick = { viewModel.onSelectProject(null) },
+                        label = "No project",
+                    )
+                    state.projectOptions.forEach { project ->
+                        ProofLedgerFilterChip(
+                            selected = state.selectedProjectId == project.id,
+                            onClick = { viewModel.onSelectProject(project.id) },
+                            label = project.name,
+                        )
+                    }
+                }
+            }
+
             ProofLedgerTextField(
                 value = state.bankName,
                 onValueChange = viewModel::onBankNameChange,

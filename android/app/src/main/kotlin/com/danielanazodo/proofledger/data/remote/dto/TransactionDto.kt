@@ -38,7 +38,8 @@ data class TransactionCreateDto(
     @Json(name = "counterparty_id") val counterpartyId: String? = null,
     @Json(name = "counterparty_name") val counterpartyName: String? = null,
     val category: String? = null,
-    /** Phase 13 Cut 3: money-in unit link + optional earmark. */
+    /** Phase 13: money-in unit link + earmark (Cut 3); money-out project (Cut 5). */
+    @Json(name = "project_id") val projectId: String? = null,
     @Json(name = "unit_id") val unitId: String? = null,
     @Json(name = "earmarked_installment_id") val earmarkedInstallmentId: String? = null,
     val note: String? = null,
@@ -59,7 +60,8 @@ data class TransactionUpdateDto(
     @Json(name = "counterparty_id") val counterpartyId: String? = null,
     @Json(name = "counterparty_name") val counterpartyName: String? = null,
     val category: String? = null,
-    /** Phase 13 Cut 3: money-in unit link + optional earmark. */
+    /** Phase 13: money-in unit link + earmark (Cut 3); money-out project (Cut 5). */
+    @Json(name = "project_id") val projectId: String? = null,
     @Json(name = "unit_id") val unitId: String? = null,
     @Json(name = "earmarked_installment_id") val earmarkedInstallmentId: String? = null,
     val note: String? = null,

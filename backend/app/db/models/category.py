@@ -43,6 +43,10 @@ DEFAULT_CONSTRUCTION_CATEGORIES: tuple[str, ...] = (
     "Wages",
     "Equipment & tools",
     "Subcontractor",
+    # Phase 13 Cut 5: land/site acquisition is a major money-out bucket for
+    # installment house-sale / construction businesses. Seeded for new
+    # businesses and backfilled for existing ones (Alembic 0019).
+    "Land / site cost",
     "Client payment",
     "Miscellaneous",
 )
