@@ -21,6 +21,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.danielanazodo.proofledger.ui.screens.ArrearsDashboardScreen
 import com.danielanazodo.proofledger.ui.screens.BusinessSelectScreen
 import com.danielanazodo.proofledger.ui.screens.CategoryListScreen
 import com.danielanazodo.proofledger.ui.screens.CreateBusinessScreen
@@ -179,8 +180,14 @@ private fun ResolvedGraph(
                 onViewCounterparties = { navController.navigateOnce(Route.CounterpartyList.path) },
                 onViewProofBackup = { navController.navigateOnce(Route.ProofBackup.path) },
                 onViewSyncIssues = { navController.navigateOnce(Route.SyncIssues.path) },
+                onViewArrears = { navController.navigateOnce(Route.ArrearsDashboard.path) },
                 onTransactionClick = { id -> navController.navigateOnce(Route.TransactionDetail.path(id)) },
                 onTabSelected = onTabSelected,
+            )
+        }
+        composable(Route.ArrearsDashboard.path) {
+            ArrearsDashboardScreen(
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Route.Summary.path) {

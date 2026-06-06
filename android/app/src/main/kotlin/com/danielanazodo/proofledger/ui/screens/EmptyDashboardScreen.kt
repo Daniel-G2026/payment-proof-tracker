@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danielanazodo.proofledger.data.balance.ArrearsDashboard
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
 import com.danielanazodo.proofledger.ui.components.MetricLine
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
@@ -63,6 +64,7 @@ fun EmptyDashboardScreen(
     onViewCounterparties: () -> Unit,
     onViewProofBackup: () -> Unit,
     onViewSyncIssues: () -> Unit,
+    onViewArrears: () -> Unit,
     onTransactionClick: (String) -> Unit,
     onTabSelected: (MainTab) -> Unit,
     viewModel: DashboardViewModel = hiltViewModel(),
@@ -122,6 +124,10 @@ fun EmptyDashboardScreen(
             modifier = modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
+            val arrears = state.arrears
+            if (arrears != null && (arrears.peopleDueThisMonth > 0 || arrears.combinedOutstandingMinor > 0)) {
+                item { ArrearsHeroCard(arrears = arrears, onClick = onViewArrears) }
+            }
             item {
                 val moneyIn = when (range) {
                     DashboardRange.Daily -> state.todayMoneyInMinor
@@ -291,6 +297,52 @@ fun EmptyDashboardScreen(
                 PrimaryActionButton(text = "Add record", onClick = addMoneyIn, icon = Icons.Filled.Add)
             }
             item { VerticalSpacer(12) }
+        }
+    }
+}
+
+@Composable
+private fun ArrearsHeroCard(arrears: ArrearsDashboard, onClick: () -> Unit) {
+    val open = rememberDebouncedClick(onClick = onClick)
+    val monthLabel = "${
+        arrears.month.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
+    } ${arrears.month.year}"
+    GroupedPanel {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(onClick = open)
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                "This month · $monthLabel",
+                color = NeutralMuted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                "${arrears.peopleDueThisMonth} due · ${arrears.peopleFulfilledThisMonth} fulfilled",
+                color = NeutralInk,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Outstanding  ${formatNaira(arrears.combinedOutstandingMinor)}",
+                    color = if (arrears.combinedOutstandingMinor > 0) ProofAmber else ProofLime,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                androidx.compose.material3.Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = "Open arrears dashboard",
+                    tint = NeutralMuted,
+                )
+            }
         }
     }
 }

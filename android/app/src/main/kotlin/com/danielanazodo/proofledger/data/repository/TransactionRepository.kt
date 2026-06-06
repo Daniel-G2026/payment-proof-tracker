@@ -66,6 +66,10 @@ class TransactionRepository @Inject constructor(
     fun observeMoneyInForUnit(unitId: String): Flow<List<LocalTransactionEntity>> =
         localDao.observeMoneyInForUnit(unitId)
 
+    /** All unit-linked money-in across the business (Phase 13 Cut 4 dashboard). */
+    fun observeMoneyInLinkedForBusiness(businessId: String): Flow<List<LocalTransactionEntity>> =
+        localDao.observeMoneyInLinkedForBusiness(businessId)
+
     suspend fun findDuplicateCandidates(
         businessId: String,
         amountMinor: Long,
