@@ -38,7 +38,11 @@ fun displayDate(dateIso: String): String = runCatching {
 
 fun formatNaira(amountMinor: Long): String {
     val naira = amountMinor / 100.0
-    return NumberFormat.getCurrencyInstance(Locale("en", "NG")).format(naira)
+    return NumberFormat.getCurrencyInstance(Locale("en", "NG")).apply {
+        val hasKobo = amountMinor % 100L != 0L
+        minimumFractionDigits = if (hasKobo) 2 else 0
+        maximumFractionDigits = if (hasKobo) 2 else 0
+    }.format(naira)
 }
 
 // ₦999,999,999,999.99 — well below Long.MAX_VALUE (9.2 * 10^18 minor) so the

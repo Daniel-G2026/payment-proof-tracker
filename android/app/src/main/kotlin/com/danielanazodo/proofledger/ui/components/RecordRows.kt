@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
@@ -63,10 +64,12 @@ fun RecordListRow(
                     "${displayDate(transaction.transactionDate)} · ${recordDirectionLabel(transaction.direction)} · ${SyncLabel(transaction.syncStatus.name)}",
                     color = NeutralMuted,
                     style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Column(
-                modifier = Modifier.width(148.dp),
+                modifier = Modifier.width(136.dp),
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {

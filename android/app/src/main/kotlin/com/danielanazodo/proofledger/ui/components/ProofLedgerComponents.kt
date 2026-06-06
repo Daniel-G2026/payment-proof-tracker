@@ -165,18 +165,23 @@ fun IconCircleButton(
     val click = rememberDebouncedClick(onClick = onClick)
     IconButton(
         onClick = click,
-        modifier = modifier
-            .size(ProofLedgerDimens.iconTouchTarget)
-            .clip(CircleShape)
-            .background(SurfaceCard)
-            .border(1.dp, ProofBorder, CircleShape),
+        modifier = modifier.size(ProofLedgerDimens.iconTouchTarget),
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = NeutralInk,
-            modifier = Modifier.size(ProofLedgerDimens.iconVisibleSize),
-        )
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(SurfaceCard)
+                .border(1.dp, ProofBorder, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = NeutralInk,
+                modifier = Modifier.size(18.dp),
+            )
+        }
     }
 }
 
@@ -226,7 +231,15 @@ fun ProofLedgerTextField(
             textStyle = MaterialTheme.typography.bodyMedium,
             shape = RoundedCornerShape(ProofLedgerDimens.controlRadius),
             colors = proofTextFieldColors(),
-            modifier = Modifier.fillMaxWidth().heightIn(min = ProofLedgerDimens.controlHeight),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (singleLine) {
+                        Modifier.height(ProofLedgerDimens.controlHeight)
+                    } else {
+                        Modifier.heightIn(min = ProofLedgerDimens.controlHeight)
+                    },
+                ),
         )
     }
 }

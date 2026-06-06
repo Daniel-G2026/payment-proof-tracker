@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -36,6 +37,7 @@ import com.danielanazodo.proofledger.data.local.entity.LocalScreenshotEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
 import com.danielanazodo.proofledger.ui.components.DetailLine
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
+import com.danielanazodo.proofledger.ui.components.MoneyAmount
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.ProofLedgerConfirmDialog
 import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
@@ -49,6 +51,7 @@ import com.danielanazodo.proofledger.ui.format.formatNaira
 import com.danielanazodo.proofledger.ui.theme.MoneyOutRed
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
+import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
 import com.danielanazodo.proofledger.ui.theme.SurfacePanel
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.TransactionDetailViewModel
@@ -70,8 +73,11 @@ fun TransactionDetailScreen(
 
     ProofLedgerScreen(title = "Record", onBack = back) { modifier ->
         Column(
-            modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(
+                horizontal = ProofLedgerDimens.screenHorizontal,
+                vertical = ProofLedgerDimens.screenVertical,
+            ),
+            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
         ) {
             val transaction = state.transaction
             if (transaction == null) {
@@ -122,14 +128,18 @@ private fun TransactionDetailContent(
     var fullProofOpen by remember { mutableStateOf(false) }
 
     GroupedPanel {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            Modifier.padding(ProofLedgerDimens.panelPadding),
+            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
+        ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
                     Text(recordDirectionLabel(transaction.direction), color = NeutralMuted, style = MaterialTheme.typography.bodySmall)
-                    Text(
-                        formatNaira(transaction.amountMinor),
+                    MoneyAmount(
+                        text = formatNaira(transaction.amountMinor),
                         color = if (transaction.direction == "money_out") MoneyOutRed else NeutralInk,
-                        style = MaterialTheme.typography.headlineMedium,
+                        preferredSize = MaterialTheme.typography.headlineMedium.fontSize,
+                        modifier = Modifier.fillMaxWidth(0.82f),
                     )
                 }
                 ProofStatusDot(if (proof == null) "missing proof" else "proof attached")
@@ -199,7 +209,11 @@ private fun ProofCard(
                 AsyncImage(
                     model = File(proof.localOriginalPath),
                     contentDescription = "Payment proof preview",
-                    modifier = Modifier.fillMaxWidth().height(190.dp).clickable(onClick = open),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(190.dp)
+                        .clip(MaterialTheme.shapes.medium)
+                        .clickable(onClick = open),
                 )
             } else {
                 Column(
