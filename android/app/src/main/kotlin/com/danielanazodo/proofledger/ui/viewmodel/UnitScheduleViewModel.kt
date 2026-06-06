@@ -14,6 +14,7 @@ import com.danielanazodo.proofledger.data.ocr.ScheduleDraftPoller
 import com.danielanazodo.proofledger.data.ocr.ScheduleDraftState
 import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
+import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
 import com.danielanazodo.proofledger.data.repository.ScheduleLineInput
 import com.danielanazodo.proofledger.data.repository.ScheduleRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
@@ -62,6 +63,10 @@ data class UnitScheduleUiState(
     val offerLetterScanning: Boolean = false,
     val offerLetterError: String? = null,
     val pendingOfferLetterScreenshotId: String? = null,
+    // The buyer name the offer letter was extracted for (shown for the user to
+    // confirm it's the right unit). mismatch = differs from this unit's buyer.
+    val offerLetterBuyerName: String? = null,
+    val offerLetterBuyerMismatch: Boolean = false,
 ) {
     val showEditor: Boolean get() = activeVersion == null || editing
 }
@@ -75,12 +80,16 @@ class UnitScheduleViewModel @Inject constructor(
     private val scheduleRepository: ScheduleRepository,
     private val transactionRepository: TransactionRepository,
     private val proofRepository: ProofRepository,
+    private val counterpartyRepository: CounterpartyRepository,
     private val scheduleDraftPoller: ScheduleDraftPoller,
 ) : ViewModel() {
     private val unitId: String = checkNotNull(savedStateHandle["unitId"])
 
     private val _ui = MutableStateFlow(UnitScheduleUiState())
     private var businessId: String? = null
+    // The unit's buyer name, resolved once, to sanity-check the offer letter
+    // names the same person (advisory — see contract §1).
+    private var unitBuyerName: String? = null
 
     private val activeInstallments: StateFlow<List<LocalInstallmentEntity>> =
         scheduleRepository.observeActiveVersion(unitId)
@@ -95,7 +104,9 @@ class UnitScheduleViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             businessId = businessRepository.getSelectedBusinessId()
-            _ui.update { it.copy(unitLabel = unitRepository.getById(unitId)?.label ?: "Unit") }
+            val unit = unitRepository.getById(unitId)
+            _ui.update { it.copy(unitLabel = unit?.label ?: "Unit") }
+            unitBuyerName = unit?.buyerCounterpartyId?.let { counterpartyRepository.getById(it)?.name }
             businessId?.let { scheduleRepository.refreshForUnit(it, unitId) }
         }
         viewModelScope.launch {
@@ -165,6 +176,8 @@ class UnitScheduleViewModel @Inject constructor(
             error = null,
             offerLetterError = null,
             pendingOfferLetterScreenshotId = null,
+            offerLetterBuyerName = null,
+            offerLetterBuyerMismatch = false,
         )
     }
 
@@ -207,6 +220,7 @@ class UnitScheduleViewModel @Inject constructor(
                         val lines = rows
                             ?.map { ScheduleLineDraft(amount = formatNairaInput(it.amountMinor), dueDate = it.dueDate) }
                             ?.takeIf { it.isNotEmpty() }
+                        val buyer = st.draft.buyerName?.trim()?.ifBlank { null }
                         _ui.update { s ->
                             s.copy(
                                 offerLetterScanning = false,
@@ -214,6 +228,8 @@ class UnitScheduleViewModel @Inject constructor(
                                 pendingOfferLetterScreenshotId = screenshotId,
                                 draftLines = lines ?: s.draftLines,
                                 offerLetterError = reviewNote(st.draft.totalMinor, rows, lines != null),
+                                offerLetterBuyerName = buyer,
+                                offerLetterBuyerMismatch = buyerMismatch(buyer, unitBuyerName),
                             )
                         }
                     }
@@ -293,6 +309,8 @@ class UnitScheduleViewModel @Inject constructor(
                     error = null,
                     offerLetterError = null,
                     pendingOfferLetterScreenshotId = null,
+                    offerLetterBuyerName = null,
+                    offerLetterBuyerMismatch = false,
                 )
             }
         }
@@ -328,6 +346,21 @@ class UnitScheduleViewModel @Inject constructor(
         }
         return null
     }
+
+    /**
+     * Advisory buyer check (contract §1): true when the offer letter clearly
+     * names a different person than this unit's buyer. Lenient — a missing name
+     * on either side, or one name containing the other (e.g. "Ada Obi" vs
+     * "Mrs Ada Obi"), is NOT a mismatch, to avoid false alarms.
+     */
+    private fun buyerMismatch(extracted: String?, unitBuyer: String?): Boolean {
+        val a = normalizeName(extracted) ?: return false
+        val b = normalizeName(unitBuyer) ?: return false
+        return a != b && !a.contains(b) && !b.contains(a)
+    }
+
+    private fun normalizeName(value: String?): String? =
+        value?.lowercase()?.replace(Regex("[^a-z0-9]+"), " ")?.trim()?.ifBlank { null }
 
     private companion object {
         const val OFFLINE_MESSAGE =

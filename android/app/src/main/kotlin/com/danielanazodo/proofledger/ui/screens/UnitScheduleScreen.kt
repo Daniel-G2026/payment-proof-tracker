@@ -163,6 +163,22 @@ fun UnitScheduleScreen(
             state.offerLetterError?.let {
                 Text(it, color = ProofAmber, style = MaterialTheme.typography.bodySmall)
             }
+            state.offerLetterBuyerName?.let { buyer ->
+                if (state.offerLetterBuyerMismatch) {
+                    Text(
+                        "This letter names \"$buyer\", which doesn't match this unit's buyer. " +
+                            "Make sure you're scanning the right unit.",
+                        color = ProofAmber,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    Text(
+                        "Offer letter buyer: $buyer",
+                        color = NeutralMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
 
             if (!state.showEditor) {
                 // View mode: the schedule is read-only until the user revises it.
