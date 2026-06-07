@@ -78,23 +78,47 @@ fun ProjectListScreen(
             PrimaryActionButton(text = "Add project", onClick = addProject, icon = Icons.Filled.Add)
 
             SectionLabel("Your projects")
-            if (state.projects.isEmpty()) {
+            if (state.total == 0) {
                 Text(
                     "No projects yet. Add one above.",
                     color = NeutralMuted,
                     style = MaterialTheme.typography.bodyMedium,
                 )
             } else {
-                GroupedPanel {
-                    state.projects.forEachIndexed { index, project ->
-                        ProjectRow(
-                            name = project.name,
-                            onClick = { onProjectClick(project.id) },
-                            onDelete = { pendingDelete = project },
-                        )
-                        if (index != state.projects.lastIndex) {
-                            HorizontalDivider()
+                if (state.total > state.projects.size || state.query.isNotBlank()) {
+                    ProofLedgerTextField(
+                        value = state.query,
+                        onValueChange = viewModel::onQueryChange,
+                        label = "Search projects",
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (state.projects.isEmpty()) {
+                    Text(
+                        "No projects match \"${state.query.trim()}\".",
+                        color = NeutralMuted,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                } else {
+                    GroupedPanel {
+                        state.projects.forEachIndexed { index, project ->
+                            ProjectRow(
+                                name = project.name,
+                                onClick = { onProjectClick(project.id) },
+                                onDelete = { pendingDelete = project },
+                            )
+                            if (index != state.projects.lastIndex) {
+                                HorizontalDivider()
+                            }
                         }
+                    }
+                    if (state.query.isBlank() && state.total > state.projects.size) {
+                        Text(
+                            "Showing ${state.projects.size} of ${state.total} — search to find others.",
+                            color = NeutralMuted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                 }
             }

@@ -14,7 +14,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class ProjectListUiState(
+    // The visible slice of projects — recent cap by default, all matches when searching.
     val projects: List<LocalProjectEntity> = emptyList(),
+    val query: String = "",
+    val total: Int = 0,
     val newProject: String = "",
 )
 
@@ -26,6 +29,8 @@ class ProjectListViewModel @Inject constructor(
     private val _state = MutableStateFlow(ProjectListUiState())
     val state: StateFlow<ProjectListUiState> = _state.asStateFlow()
     private var businessId: String? = null
+    // Full project list; the visible slice in state is derived from this + query.
+    private var allProjects: List<LocalProjectEntity> = emptyList()
 
     init {
         viewModelScope.launch {
@@ -37,10 +42,26 @@ class ProjectListViewModel @Inject constructor(
                 // until the round-trip finished (or timed out).
                 launch { projectRepository.refreshFromRemote(id) }
                 projectRepository.observeByBusiness(id).collect { rows ->
-                    _state.update { it.copy(projects = rows) }
+                    allProjects = rows
+                    applyFilter()
                 }
             }
         }
+    }
+
+    fun onQueryChange(value: String) {
+        _state.update { it.copy(query = value) }
+        applyFilter()
+    }
+
+    private fun applyFilter() {
+        val slice = browseSlice(
+            all = allProjects,
+            query = _state.value.query,
+            recencyKey = { it.createdAt },
+            matches = { project, q -> project.name.contains(q, ignoreCase = true) },
+        )
+        _state.update { it.copy(projects = slice.visible, total = slice.total) }
     }
 
     fun onNewProjectChange(value: String) = _state.update { it.copy(newProject = value) }

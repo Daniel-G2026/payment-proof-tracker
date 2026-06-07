@@ -23,7 +23,10 @@ import kotlinx.coroutines.launch
 
 data class ProjectDetailUiState(
     val project: LocalProjectEntity? = null,
+    // The visible slice of units — recent cap by default, all matches when searching.
     val units: List<LocalUnitEntity> = emptyList(),
+    val unitQuery: String = "",
+    val unitsTotal: Int = 0,
     val buyers: List<LocalCounterpartyEntity> = emptyList(),
     val newUnitLabel: String = "",
     // Phase 13 Cut 5: actual money-out spent on this project, by category.
@@ -49,6 +52,8 @@ class ProjectDetailViewModel @Inject constructor(
     private val _state = MutableStateFlow(ProjectDetailUiState())
     val state: StateFlow<ProjectDetailUiState> = _state.asStateFlow()
     private var businessId: String? = null
+    // Full unit list; the visible slice in state is derived from this + the query.
+    private var allUnits: List<LocalUnitEntity> = emptyList()
 
     init {
         viewModelScope.launch {
@@ -57,7 +62,8 @@ class ProjectDetailViewModel @Inject constructor(
         }
         viewModelScope.launch {
             unitRepository.observeByProject(projectId).collect { rows ->
-                _state.update { it.copy(units = rows) }
+                allUnits = rows
+                applyUnitFilter()
             }
         }
         viewModelScope.launch {
@@ -72,6 +78,21 @@ class ProjectDetailViewModel @Inject constructor(
                 _state.update { it.copy(spend = spend) }
             }
         }
+    }
+
+    fun onUnitQueryChange(value: String) {
+        _state.update { it.copy(unitQuery = value) }
+        applyUnitFilter()
+    }
+
+    private fun applyUnitFilter() {
+        val slice = browseSlice(
+            all = allUnits,
+            query = _state.value.unitQuery,
+            recencyKey = { it.createdAt },
+            matches = { unit, q -> unit.label.contains(q, ignoreCase = true) },
+        )
+        _state.update { it.copy(units = slice.visible, unitsTotal = slice.total) }
     }
 
     fun onNewUnitLabelChange(value: String) = _state.update { it.copy(newUnitLabel = value) }
