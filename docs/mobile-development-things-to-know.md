@@ -80,6 +80,33 @@ For dependent records, sync in dependency order:
 
 Do not silently degrade a transaction from a selected counterparty to only a plain name. Locally, the transaction should keep the `counterpartyId`. If the counterparty cannot sync, the transaction should remain pending until the counterparty sync succeeds.
 
+### Upload is only half of sync — every entity needs a restore trigger too
+
+Syncing a row *up* (`syncPending`) does nothing for a user on a **fresh
+device** unless something also pulls it back *down* (`refreshFromRemote`). It is
+easy to wire the upload and forget the download — the data sits safely on the
+server but never reappears after a reinstall or new sign-in. This already bit us
+twice: proof images (no download path at all originally), and **units/houses**
+(a `refreshFromRemote` existed but was only called by the background
+`SyncWorker`, never when you actually open a project).
+
+- **Rule:** for every entity, ask "what triggers its restore on a clean
+  device?" The background `SyncWorker` is a backstop, not a guarantee — it may
+  not have finished when the user navigates. The screen that **shows** an entity
+  should also kick a **local-first** refresh on open: render the Room cache
+  instantly, then `refreshFromRemote` in the background and let the observe
+  update the UI. (Parents like projects/counterparties do this in their list
+  ViewModels; children like units must do the same in their detail ViewModel.)
+- **Smell:** a parent restores but its children don't — e.g. the project comes
+  back and its money-out totals are right, but "No houses yet" shows even though
+  houses exist on the server. That means the child entity has an upload path and
+  maybe a `refreshFromRemote`, but **no screen triggers the pull**.
+- **Still open (lazy restore):** installment **schedules** only restore when you
+  open a specific unit's schedule screen (`refreshForUnit`). The arrears
+  dashboard, which aggregates schedules across all units, can therefore read low
+  on a fresh device until each unit has been opened. A bulk schedule restore is
+  the proper fix.
+
 ## UI and Infrastructure Boundaries
 
 The UI will be polished and redesigned later. Expect future work such as settings, multiple businesses, tabs, navigation updates, dashboard redesign, and refined transaction flows.
@@ -428,6 +455,26 @@ Dates, times, and enumerated values typed by hand invite malformed input
 - **Bonus:** extract one shared "open the date picker" helper and call it from
   every form, so date entry feels identical app-wide.
 
+### 9. Picking from a suggestion must end editing — clear focus
+
+When a text field has a live autocomplete (type a name → tap a matching
+suggestion to fill it), tapping the suggestion fills the value but, by default,
+**leaves the field focused**. The blinking caret and the keyboard stay, so the
+field looks like the user is still typing into it even though they've committed
+to a choice. Users read that lingering caret as "this isn't done yet."
+
+- **Rule:** when a tap **selects a value into a field** (a suggestion row, an
+  autocomplete match, a chip that fills the field), call
+  `LocalFocusManager.current.clearFocus()` as part of the same handler. That
+  drops the caret and dismisses the keyboard, so selection visibly *ends* the
+  edit.
+- **Applies to:** the transaction form's "Who paid? / Who you paid?" person
+  suggestions and the category chips — and any future autocomplete-fill field.
+  (A picker inside a **dialog** doesn't need this: dismissing the dialog destroys
+  the focused field anyway.)
+- **Smell:** you tap a suggestion, the value fills in, but the cursor keeps
+  blinking in the field and the keyboard stays up.
+
 ### Quick self-check before shipping a form or picker
 
 - Does any dialog/sheet use a stock component that ignores the app theme?
@@ -437,6 +484,8 @@ Dates, times, and enumerated values typed by hand invite malformed input
 - After save, does the screen drop to a clean read-only view with an explicit
   edit entry — or does it linger in edit mode?
 - Do money fields group digits, and do dates/enums use pickers?
+- Does tapping a suggestion/autocomplete match **clear focus**, or does the caret
+  linger as if the user is still typing?
 
 ## Browse Lists That Accumulate
 
