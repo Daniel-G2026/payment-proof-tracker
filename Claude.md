@@ -60,6 +60,22 @@ project. Additive over the existing engine; built manual-slice-before-AI,
 docs/contracts first. See the Phase 13 section and "Semantic edges" in
 `docs/master-plan.md`.
 
+Navigation redesign (PR #37, `phase13-nav-projects-tab`, open — verified on
+emulator, not yet merged): **Projects** is promoted from a Settings entry to a
+top-level bottom-nav tab, so the bottom nav is now **Home · Records · Projects ·
+People · Settings**. The arrears dashboard moved *inside* the Projects tab
+(its "View arrears" action removed from Home); the rich monthly arrears summary
+card — due/fulfilled counts + combined outstanding balance — now sits at the top
+of the Projects tab instead of Home, tapping through to the full dashboard.
+**Reports** is demoted from a tab to a "Reports & export" card on the Home
+dashboard (this reverses the Phase 12 "Reports promoted to a top-level tab"
+decision — intentional, usage-driven), and `SummaryScreen` is now a nested
+back-button screen. Settings is pure config again (no "Projects & units" row).
+Units (`ProjectDetailScreen`) and projects (`ProjectListScreen`) now render in a
+fixed-height scroll window (a bounded `LazyColumn`) so the user can flick through
+the full list without growing the page; search still appears once the list
+outgrows the window. UI/navigation only — no Room/repository/backend changes.
+
 Phase 11 (Reports and Exports) is complete. The Android app has a
 "Reports & export" entry on the Home dashboard that opens a dedicated Summary
 screen with a Month/Week period picker (whole periods only; previous/next
