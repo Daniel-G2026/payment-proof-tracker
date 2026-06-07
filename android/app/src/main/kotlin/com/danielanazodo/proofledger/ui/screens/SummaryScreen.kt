@@ -46,11 +46,9 @@ import com.danielanazodo.proofledger.ui.components.GroupedPanel
 import com.danielanazodo.proofledger.ui.components.MetricLine
 import com.danielanazodo.proofledger.ui.components.MoneyAmount
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
-import com.danielanazodo.proofledger.ui.components.PageHeader
 import com.danielanazodo.proofledger.ui.components.ProofLedgerFilterChip
-import com.danielanazodo.proofledger.ui.components.ProofLedgerMainScaffold
+import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
 import com.danielanazodo.proofledger.ui.components.QuietButton
-import com.danielanazodo.proofledger.ui.navigation.MainTab
 import com.danielanazodo.proofledger.ui.components.SectionLabel
 import com.danielanazodo.proofledger.ui.components.SummaryPanel
 import com.danielanazodo.proofledger.ui.components.VerticalSpacer
@@ -68,7 +66,7 @@ import com.danielanazodo.proofledger.ui.viewmodel.SummaryViewModel
 
 @Composable
 fun SummaryScreen(
-    onTabSelected: (MainTab) -> Unit,
+    onBack: () -> Unit,
     viewModel: SummaryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -98,10 +96,9 @@ fun SummaryScreen(
 
     val summary = state.summary
 
-    ProofLedgerMainScaffold(
-        selectedTab = MainTab.Reports,
-        onTabSelected = onTabSelected,
-        topBar = { PageHeader(title = "Reports") },
+    ProofLedgerScreen(
+        title = "Reports",
+        onBack = onBack,
     ) { modifier ->
         LazyColumn(
             modifier = modifier.fillMaxSize().proofLedgerScreenPadding(),

@@ -131,7 +131,7 @@ private fun ResolvedGraph(
         val route = when (tab) {
             MainTab.Home -> Route.Dashboard.path
             MainTab.Records -> Route.TransactionList.path
-            MainTab.Reports -> Route.Summary.path
+            MainTab.Projects -> Route.ProjectList.path
             MainTab.People -> Route.CounterpartyList.path
             MainTab.Settings -> Route.Settings.path
         }
@@ -181,7 +181,7 @@ private fun ResolvedGraph(
                 onViewCounterparties = { navController.navigateOnce(Route.CounterpartyList.path) },
                 onViewProofBackup = { navController.navigateOnce(Route.ProofBackup.path) },
                 onViewSyncIssues = { navController.navigateOnce(Route.SyncIssues.path) },
-                onViewArrears = { navController.navigateOnce(Route.ArrearsDashboard.path) },
+                onViewReports = { navController.navigateOnce(Route.Summary.path) },
                 onTransactionClick = { id -> navController.navigateOnce(Route.TransactionDetail.path(id)) },
                 onTabSelected = onTabSelected,
             )
@@ -193,7 +193,7 @@ private fun ResolvedGraph(
             )
         }
         composable(Route.Summary.path) {
-            SummaryScreen(onTabSelected = onTabSelected)
+            SummaryScreen(onBack = { navController.popBackStack() })
         }
         composable(Route.SyncIssues.path) {
             SyncIssuesScreen(
@@ -207,7 +207,6 @@ private fun ResolvedGraph(
                 onProofBackup = { navController.navigateOnce(Route.ProofBackup.path) },
                 onSyncIssues = { navController.navigateOnce(Route.SyncIssues.path) },
                 onSwitchBusiness = { navController.navigateOnce(Route.BusinessSwitch.path) },
-                onProjects = { navController.navigateOnce(Route.ProjectList.path) },
                 onSignedOut = onResolveAgain,
                 onTabSelected = onTabSelected,
             )
@@ -290,8 +289,9 @@ private fun ResolvedGraph(
         }
         composable(Route.ProjectList.path) {
             ProjectListScreen(
-                onBack = { navController.popBackStack() },
+                onTabSelected = onTabSelected,
                 onProjectClick = { id -> navController.navigateOnce(Route.ProjectDetail.path(id)) },
+                onViewArrears = { navController.navigateOnce(Route.ArrearsDashboard.path) },
             )
         }
         composable(

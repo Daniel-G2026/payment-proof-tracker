@@ -2,8 +2,10 @@ package com.danielanazodo.proofledger.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.danielanazodo.proofledger.data.balance.ArrearsDashboard
 import com.danielanazodo.proofledger.data.local.entity.LocalProjectEntity
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
+import com.danielanazodo.proofledger.data.repository.DashboardArrearsRepository
 import com.danielanazodo.proofledger.data.repository.ProjectRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -14,17 +16,21 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class ProjectListUiState(
-    // The visible slice of projects — recent cap by default, all matches when searching.
+    // All projects (filtered by the query when searching). The screen renders these
+    // in a fixed-height scroll window, so the full list never grows the page.
     val projects: List<LocalProjectEntity> = emptyList(),
     val query: String = "",
     val total: Int = 0,
     val newProject: String = "",
+    // Phase 13 Cut 4 summary, surfaced on the Projects tab. Null until computed.
+    val arrears: ArrearsDashboard? = null,
 )
 
 @HiltViewModel
 class ProjectListViewModel @Inject constructor(
     private val businessRepository: BusinessRepository,
     private val projectRepository: ProjectRepository,
+    private val dashboardArrearsRepository: DashboardArrearsRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(ProjectListUiState())
     val state: StateFlow<ProjectListUiState> = _state.asStateFlow()
@@ -41,6 +47,11 @@ class ProjectListViewModel @Inject constructor(
                 // the background. Awaiting the network here delayed the list
                 // until the round-trip finished (or timed out).
                 launch { projectRepository.refreshFromRemote(id) }
+                launch {
+                    dashboardArrearsRepository.observe(id).collect { arrears ->
+                        _state.update { it.copy(arrears = arrears) }
+                    }
+                }
                 projectRepository.observeByBusiness(id).collect { rows ->
                     allProjects = rows
                     applyFilter()
@@ -55,11 +66,14 @@ class ProjectListViewModel @Inject constructor(
     }
 
     private fun applyFilter() {
+        // No recent cap: the screen shows every project inside a scroll window, so
+        // we hand it the full list (newest first), filtered when the user searches.
         val slice = browseSlice(
             all = allProjects,
             query = _state.value.query,
             recencyKey = { it.createdAt },
             matches = { project, q -> project.name.contains(q, ignoreCase = true) },
+            recentCap = Int.MAX_VALUE,
         )
         _state.update { it.copy(projects = slice.visible, total = slice.total) }
     }

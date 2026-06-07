@@ -37,7 +37,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.danielanazodo.proofledger.data.balance.ArrearsDashboard
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
 import com.danielanazodo.proofledger.ui.components.MetricLine
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
@@ -70,7 +69,7 @@ fun EmptyDashboardScreen(
     onViewCounterparties: () -> Unit,
     onViewProofBackup: () -> Unit,
     onViewSyncIssues: () -> Unit,
-    onViewArrears: () -> Unit,
+    onViewReports: () -> Unit,
     onTransactionClick: (String) -> Unit,
     onTabSelected: (MainTab) -> Unit,
     viewModel: DashboardViewModel = hiltViewModel(),
@@ -94,7 +93,7 @@ fun EmptyDashboardScreen(
         DashboardRange.Weekly -> state.weekMoneyOutMinor
         DashboardRange.Monthly -> state.monthMoneyOutMinor
     }
-    val arrears = state.arrears
+    val viewReports = rememberDebouncedClick(onClick = onViewReports)
 
     LaunchedEffect(state.signedOut) { if (state.signedOut) onSignedOut() }
 
@@ -201,9 +200,7 @@ fun EmptyDashboardScreen(
                         )
                     }
 
-                    if (arrears != null && (arrears.peopleDueThisMonth > 0 || arrears.combinedOutstandingMinor > 0)) {
-                        ArrearsHeroCard(arrears = arrears, onClick = onViewArrears)
-                    }
+                    ReportsCard(onClick = viewReports)
 
                     if (state.syncIssueCount > 0) {
                         GroupedPanel {
@@ -328,12 +325,9 @@ fun EmptyDashboardScreen(
 }
 
 @Composable
-private fun ArrearsHeroCard(arrears: ArrearsDashboard, onClick: () -> Unit) {
+private fun ReportsCard(onClick: () -> Unit) {
     val open = rememberDebouncedClick(onClick = onClick)
-    val monthLabel = "${
-        arrears.month.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
-    } ${arrears.month.year}"
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(ProofLedgerDimens.panelRadius))
@@ -345,36 +339,27 @@ private fun ArrearsHeroCard(arrears: ArrearsDashboard, onClick: () -> Unit) {
             )
             .clickable(onClick = open)
             .padding(ProofLedgerDimens.panelPadding),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            "This month · $monthLabel",
-            color = NeutralMuted,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        Text(
-            "${arrears.peopleDueThisMonth} due · ${arrears.peopleFulfilledThisMonth} fulfilled",
-            color = NeutralInk,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Medium,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(
-                "Outstanding  ${formatNaira(arrears.combinedOutstandingMinor)}",
-                color = if (arrears.combinedOutstandingMinor > 0) ProofAmber else NeutralInk,
+                "Reports & export",
+                color = NeutralInk,
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Medium,
             )
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = "Open arrears dashboard",
-                tint = NeutralMuted,
+            Text(
+                "See totals by month and export a CSV or PDF.",
+                color = NeutralMuted,
+                style = MaterialTheme.typography.bodySmall,
             )
         }
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = "Open reports",
+            tint = NeutralMuted,
+        )
     }
 }
 
