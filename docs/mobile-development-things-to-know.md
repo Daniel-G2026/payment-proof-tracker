@@ -438,6 +438,37 @@ Dates, times, and enumerated values typed by hand invite malformed input
   edit entry — or does it linger in edit mode?
 - Do money fields group digits, and do dates/enums use pickers?
 
+## Browse Lists That Accumulate
+
+The "Forms, Pickers, and Input UX" rules above (§2 *bounded + searchable
+selectors*, §4 *filter large sets*) are about form **pickers**. The same rule
+applies to **browse / navigation lists** — any on-screen list that grows without
+bound as the business is used. If a list can only ever get longer, a plain
+`items.forEach { Row(...) }` is a latent bug: eventually the user is scrolling a
+wall to find one thing.
+
+**Anything that accumulates gets a query bar.** What accumulates in this app:
+units (houses) per project, projects, people, transactions, categories, person
+types, schedule versions, sync issues — anything the user keeps adding to over
+months. Assume every one of these will be long for a real user, even if it's
+short in dev.
+
+The pattern (mirror `CounterpartyListScreen` / `TransactionListScreen`, which
+already do this):
+
+- **Search field at the top**, filtering the full set by name/label, local-first
+  (filter the Room-backed list; don't round-trip the network to search).
+- When the query is blank, show only a **bounded recent slice** (~5 most recent,
+  newest first) — not the whole list.
+- **Be honest about truncation.** Show a "Showing 5 of 23 — search to find the
+  rest" line so a hidden item never reads as "doesn't exist." Never silently cap.
+- Keep **create-inline** where it exists (e.g. "Add house") above the list, so
+  adding doesn't require leaving the screen.
+
+Rule of thumb: if you're about to render a list that can only grow, add the
+query bar + recents cap *before* you ship it — not after a user has 80 rows.
+(Known current offender to retrofit: the units list on `ProjectDetailScreen`.)
+
 ## General Mobile Lessons
 
 - The emulator is not the phone; networking and Wi-Fi constraints can behave differently.

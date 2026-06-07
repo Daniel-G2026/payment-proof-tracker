@@ -89,25 +89,51 @@ fun ProjectDetailScreen(
             PrimaryActionButton(text = "Add house", onClick = addUnit, icon = Icons.Filled.Add)
 
             SectionLabel("Houses")
-            if (state.units.isEmpty()) {
+            if (state.unitsTotal == 0) {
                 Text(
                     "No houses yet. Add one above.",
                     color = NeutralMuted,
                     style = MaterialTheme.typography.bodyMedium,
                 )
             } else {
-                GroupedPanel {
-                    state.units.forEachIndexed { index, unit ->
-                        UnitRow(
-                            label = unit.label,
-                            buyerName = unit.buyerCounterpartyId?.let { buyerNamesById[it] },
-                            onOpenSchedule = { onUnitSchedule(unit.id) },
-                            onAssignBuyer = { assigningBuyerFor = unit },
-                            onDelete = { pendingDelete = unit },
-                        )
-                        if (index != state.units.lastIndex) {
-                            HorizontalDivider()
+                // Search appears once the list outgrows the recent cap (or while
+                // searching) so the user never scrolls a long list to find one.
+                if (state.unitsTotal > state.units.size || state.unitQuery.isNotBlank()) {
+                    ProofLedgerTextField(
+                        value = state.unitQuery,
+                        onValueChange = viewModel::onUnitQueryChange,
+                        label = "Search houses",
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (state.units.isEmpty()) {
+                    Text(
+                        "No houses match \"${state.unitQuery.trim()}\".",
+                        color = NeutralMuted,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                } else {
+                    GroupedPanel {
+                        state.units.forEachIndexed { index, unit ->
+                            UnitRow(
+                                label = unit.label,
+                                buyerName = unit.buyerCounterpartyId?.let { buyerNamesById[it] },
+                                onOpenSchedule = { onUnitSchedule(unit.id) },
+                                onAssignBuyer = { assigningBuyerFor = unit },
+                                onDelete = { pendingDelete = unit },
+                            )
+                            if (index != state.units.lastIndex) {
+                                HorizontalDivider()
+                            }
                         }
+                    }
+                    if (state.unitQuery.isBlank() && state.unitsTotal > state.units.size) {
+                        Text(
+                            "Showing ${state.units.size} of ${state.unitsTotal} — search to find others.",
+                            color = NeutralMuted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                 }
             }
