@@ -39,6 +39,7 @@ release/
 *.class
 *.keystore
 *.jks
+keystore.properties
 
 # ---- IDE / editor ----
 .vscode/

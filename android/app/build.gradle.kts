@@ -18,6 +18,25 @@ val localProps = Properties().apply {
 fun localProp(name: String, default: String): String =
     (localProps.getProperty(name) ?: default).trim()
 
+// ---- keystore.properties (not committed) — release signing ----
+// Looked up from a root `keystore.properties` first, then environment variables
+// (for CI). When none are present the release build falls back to debug signing
+// so minified smoke builds still work without the upload key on hand.
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+fun keystoreProp(name: String): String? =
+    (keystoreProps.getProperty(name) ?: System.getenv(name))?.trim()?.ifBlank { null }
+
+val releaseStoreFilePath = keystoreProp("RELEASE_STORE_FILE")
+val hasReleaseSigning = releaseStoreFilePath != null &&
+    rootProject.file(releaseStoreFilePath).exists() &&
+    keystoreProp("RELEASE_STORE_PASSWORD") != null &&
+    keystoreProp("RELEASE_KEY_ALIAS") != null &&
+    keystoreProp("RELEASE_KEY_PASSWORD") != null
+
 android {
     namespace = "com.danielanazodo.proofledger"
     compileSdk = 35
@@ -27,7 +46,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 1
-        versionName = "0.2.0"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -60,12 +79,19 @@ android {
     }
 
     signingConfigs {
-        // TODO(release): replace with a real keystore loaded from local.properties
-        // before publishing to the Play Store. Signing release with the debug
-        // key here is purely so the minified APK can be installed for smoke
-        // testing without a separate apksigner step.
         getByName("debug") {
             // Default debug config already points at ~/.android/debug.keystore.
+        }
+        // Real upload key, configured only when keystore.properties / env vars are
+        // present (see keystore.properties.example). Never commit the keystore or
+        // its passwords.
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFilePath!!)
+                storePassword = keystoreProp("RELEASE_STORE_PASSWORD")
+                keyAlias = keystoreProp("RELEASE_KEY_ALIAS")
+                keyPassword = keystoreProp("RELEASE_KEY_PASSWORD")
+            }
         }
     }
 
@@ -76,8 +102,17 @@ android {
             // Explicit so release builds can never be attached to a debugger
             // even if some future tweak forgets to inherit defaults.
             isDebuggable = false
-            // Debug-signed for now — see TODO above.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                // Fallback: debug-signed so minified smoke builds still work
+                // without the upload key. NOT publishable to the Play Store.
+                logger.warn(
+                    "WARNING: release build is debug-signed — no keystore.properties " +
+                        "found. This artifact CANNOT be published. See keystore.properties.example.",
+                )
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {
