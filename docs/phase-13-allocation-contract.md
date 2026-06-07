@@ -217,10 +217,14 @@ units (locked rule). With the current calendar month fixed:
   whose **total this-month shortfall across all their units is `0`** (every
   installment due this month, across every unit they hold, is fully filled as of
   `asOf`).
-- **`combinedOutstandingTotal`** = Σ over **all** buyers/units of the unit
-  combined total (§4.2) = Σ `arrears(monthEnd)`. This sums across **all** units
-  (a buyer's multiple units all contribute), even though the *people* counts
-  dedupe by buyer.
+- **`combinedOutstandingTotal`** = Σ over units **with an assigned buyer** of the
+  unit combined total (§4.2) = Σ `arrears(monthEnd)`. A buyer's multiple units
+  all contribute (even though the *people* counts dedupe by buyer). Units with a
+  schedule but **no assigned buyer** (`buyerId == null`) are **excluded entirely**
+  — they're not a live receivable until a buyer is set. This commonly arises when
+  an offer letter is scanned (Cut 6) before the buyer is assigned; such a unit is
+  invisible to the home dashboard (not in the people counts, not in the total)
+  until its buyer is set.
 
 Per-buyer tap-in detail splits, per the locked decision:
 

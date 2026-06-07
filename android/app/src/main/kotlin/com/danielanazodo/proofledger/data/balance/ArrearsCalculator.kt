@@ -104,8 +104,14 @@ object ArrearsCalculator {
             Computed(unit, behind, due, hasDue, dueItems.sortedBy { it.dueDate })
         }
 
-        // The money total sums across ALL units (including any without a buyer).
-        val combinedTotal = computed.sumOf { it.behind + it.dueThisMonth }
+        // Only money owed by an ASSIGNED buyer counts toward the home total. A
+        // unit with a schedule but no buyer yet (e.g. an offer letter scanned
+        // before the buyer was set) isn't a live receivable, so it stays out of
+        // the headline — consistent with the people counts below, which already
+        // dedupe by buyer (buyerId != null). Assign the buyer to make it count.
+        val combinedTotal = computed
+            .filter { it.data.buyerId != null }
+            .sumOf { it.behind + it.dueThisMonth }
 
         // People counts + the buyer list dedupe by buyer (counted once).
         val buyers = computed

@@ -111,6 +111,36 @@ class ArrearsCalculatorTest {
     }
 
     @Test
+    fun `unit with a schedule but no buyer is excluded from the home dashboard`() {
+        val units = listOf(
+            // Assigned buyer Ada: 500k due this month, unpaid → counts.
+            UnitScheduleData(
+                unitId = "p1", unitLabel = "Plot 1", buyerId = "ada", buyerName = "Ada",
+                installments = listOf(inst("i1", 1, 500_000, "2026-02-10")),
+                payments = emptyList(),
+            ),
+            // No buyer yet (offer letter scanned before assigning): 900k past-due
+            // + this-month, but must NOT surface anywhere on the home dashboard.
+            UnitScheduleData(
+                unitId = "p2", unitLabel = "Plot 2", buyerId = null, buyerName = null,
+                installments = listOf(
+                    inst("j1", 1, 400_000, "2026-01-31"),
+                    inst("j2", 2, 500_000, "2026-02-20"),
+                ),
+                payments = emptyList(),
+            ),
+        )
+
+        val dash = ArrearsCalculator.summarize(units, asOf)
+
+        // Only Ada's 500k counts; the buyer-less unit's 900k is excluded.
+        assertEquals(500_000 * naira, dash.combinedOutstandingMinor)
+        assertEquals(1, dash.peopleDueThisMonth)
+        // The buyer-less unit produces no buyer row.
+        assertEquals(listOf("ada"), dash.buyers.map { it.buyerId })
+    }
+
+    @Test
     fun `empty input yields a clean zero dashboard`() {
         val dash = ArrearsCalculator.summarize(emptyList(), asOf)
         assertEquals(0, dash.peopleDueThisMonth)
