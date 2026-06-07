@@ -67,6 +67,11 @@ data class UnitScheduleUiState(
     // confirm it's the right unit). mismatch = differs from this unit's buyer.
     val offerLetterBuyerName: String? = null,
     val offerLetterBuyerMismatch: Boolean = false,
+    // Phase 13 Cut 6 — after saving an offer-letter schedule onto a unit that has
+    // no buyer, offer to add the extracted person as the buyer (advisory, opt-in).
+    val addBuyerPromptName: String? = null,
+    val addingBuyer: Boolean = false,
+    val buyerAddedName: String? = null,
 ) {
     val showEditor: Boolean get() = activeVersion == null || editing
 }
@@ -90,6 +95,9 @@ class UnitScheduleViewModel @Inject constructor(
     // The unit's buyer name, resolved once, to sanity-check the offer letter
     // names the same person (advisory — see contract §1).
     private var unitBuyerName: String? = null
+    // Whether the unit already has a buyer assigned — gates the post-save
+    // "add as buyer" offer (we only offer when the unit has none).
+    private var unitHasBuyer: Boolean = false
 
     private val activeInstallments: StateFlow<List<LocalInstallmentEntity>> =
         scheduleRepository.observeActiveVersion(unitId)
@@ -106,6 +114,7 @@ class UnitScheduleViewModel @Inject constructor(
             businessId = businessRepository.getSelectedBusinessId()
             val unit = unitRepository.getById(unitId)
             _ui.update { it.copy(unitLabel = unit?.label ?: "Unit") }
+            unitHasBuyer = unit?.buyerCounterpartyId != null
             unitBuyerName = unit?.buyerCounterpartyId?.let { counterpartyRepository.getById(it)?.name }
             businessId?.let { scheduleRepository.refreshForUnit(it, unitId) }
         }
@@ -294,6 +303,7 @@ class UnitScheduleViewModel @Inject constructor(
             }
             businessId = id
             val screenshotId = _ui.value.pendingOfferLetterScreenshotId
+            val extractedBuyer = _ui.value.offerLetterBuyerName
             scheduleRepository.createScheduleVersion(
                 businessId = id,
                 unitId = unitId,
@@ -301,6 +311,12 @@ class UnitScheduleViewModel @Inject constructor(
                 source = if (screenshotId != null) "offer_letter" else "manual",
                 offerLetterScreenshotId = screenshotId,
             )
+            // Offer to add the extracted buyer only after a successful offer-letter
+            // save, and only when the unit has no buyer yet (contract §1: never
+            // auto-assign; the user opts in).
+            val offerBuyer =
+                if (screenshotId != null && extractedBuyer != null && !unitHasBuyer) extractedBuyer
+                else null
             _ui.update {
                 it.copy(
                     saving = false,
@@ -311,10 +327,58 @@ class UnitScheduleViewModel @Inject constructor(
                     pendingOfferLetterScreenshotId = null,
                     offerLetterBuyerName = null,
                     offerLetterBuyerMismatch = false,
+                    addBuyerPromptName = offerBuyer,
+                    buyerAddedName = null,
                 )
             }
         }
     }
+
+    /** Create the offer-letter's named buyer as a counterparty and assign them to
+     * this unit, in one step (mirrors the project screen's create-and-assign).
+     * Only reachable from the post-save prompt, so the unit had no buyer. */
+    fun onAddOfferLetterBuyer() {
+        val name = _ui.value.addBuyerPromptName?.trim()?.ifBlank { null } ?: return
+        _ui.update { it.copy(addingBuyer = true) }
+        viewModelScope.launch {
+            val id = businessId ?: businessRepository.getSelectedBusinessId()
+            if (id == null) {
+                _ui.update { it.copy(addingBuyer = false, error = "No business selected.") }
+                return@launch
+            }
+            businessId = id
+            val result = runCatching {
+                val created = counterpartyRepository.createCounterparty(
+                    businessId = id,
+                    name = name,
+                    type = "customer",
+                    phone = null,
+                    notes = null,
+                )
+                unitRepository.updateUnit(unitId = unitId, buyerCounterpartyId = created.id)
+                created
+            }
+            result.fold(
+                onSuccess = { created ->
+                    unitHasBuyer = true
+                    unitBuyerName = created.name
+                    _ui.update {
+                        it.copy(addingBuyer = false, addBuyerPromptName = null, buyerAddedName = name)
+                    }
+                },
+                onFailure = {
+                    _ui.update {
+                        it.copy(
+                            addingBuyer = false,
+                            error = "Couldn't add the buyer. You can assign them from the house instead.",
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    fun onDismissAddBuyer() = _ui.update { it.copy(addBuyerPromptName = null) }
 
     private fun parseAmountMinor(raw: String): Long? {
         val cleaned = raw.trim().replace(",", "").replace(" ", "")

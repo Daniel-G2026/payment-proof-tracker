@@ -77,6 +77,7 @@ fun UnitScheduleScreen(
     val scanOfferLetter = rememberDebouncedClick(windowMs = 1000L) {
         offerLetterPicker.launch("image/*")
     }
+    val addBuyer = rememberDebouncedClick(onClick = viewModel::onAddOfferLetterBuyer)
 
     ProofLedgerScreen(
         title = "${state.unitLabel} schedule",
@@ -86,6 +87,45 @@ fun UnitScheduleScreen(
             modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).proofLedgerScreenPadding(),
             verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
         ) {
+            // Post-save offer to add the offer-letter's buyer (Cut 6). Shown only
+            // when the unit had no buyer and the AI named one. Opt-in; never
+            // auto-assigns. Once added, a brief confirmation replaces it.
+            state.addBuyerPromptName?.let { name ->
+                GroupedPanel {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            "Schedule saved. The offer letter names \"$name\". " +
+                                "Add them as this unit's buyer?",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = NeutralInk,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            QuietButton(
+                                text = "Not now",
+                                onClick = viewModel::onDismissAddBuyer,
+                                modifier = Modifier.weight(1f),
+                            )
+                            PrimaryActionButton(
+                                text = "Add as buyer",
+                                onClick = addBuyer,
+                                enabled = !state.addingBuyer,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+            }
+            state.buyerAddedName?.let { name ->
+                Text(
+                    "$name is now this unit's buyer.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = ProofLime,
+                )
+            }
+
             // Current active schedule + computed fill states, if any.
             if (state.activeVersion != null) {
                 SectionLabel("Current schedule (v${state.activeVersion!!.versionNo})")
