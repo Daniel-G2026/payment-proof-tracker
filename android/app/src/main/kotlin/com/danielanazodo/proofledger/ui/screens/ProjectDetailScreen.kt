@@ -6,7 +6,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -52,6 +55,11 @@ import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.ProjectDetailViewModel
 
+// Show search once the house list is taller than the scroll window, and cap the
+// window so the list scrolls inside the panel instead of growing the page.
+private const val UNIT_FEED_VISIBLE_ROWS = 5
+private val UNIT_FEED_MAX_HEIGHT = 320.dp
+
 @Composable
 fun ProjectDetailScreen(
     onBack: () -> Unit,
@@ -96,9 +104,9 @@ fun ProjectDetailScreen(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             } else {
-                // Search appears once the list outgrows the recent cap (or while
-                // searching) so the user never scrolls a long list to find one.
-                if (state.unitsTotal > state.units.size || state.unitQuery.isNotBlank()) {
+                // Search is for when the user remembers the house; it only earns its
+                // space once there are more houses than fit the scroll window.
+                if (state.unitsTotal > UNIT_FEED_VISIBLE_ROWS || state.unitQuery.isNotBlank()) {
                     ProofLedgerTextField(
                         value = state.unitQuery,
                         onValueChange = viewModel::onUnitQueryChange,
@@ -114,23 +122,28 @@ fun ProjectDetailScreen(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 } else {
+                    // Self-contained scroll window: flick through every house here
+                    // without the whole page growing. Bounded height → the list
+                    // scrolls inside the panel; short lists just wrap to content.
                     GroupedPanel {
-                        state.units.forEachIndexed { index, unit ->
-                            UnitRow(
-                                label = unit.label,
-                                buyerName = unit.buyerCounterpartyId?.let { buyerNamesById[it] },
-                                onOpenSchedule = { onUnitSchedule(unit.id) },
-                                onAssignBuyer = { assigningBuyerFor = unit },
-                                onDelete = { pendingDelete = unit },
-                            )
-                            if (index != state.units.lastIndex) {
-                                HorizontalDivider()
+                        LazyColumn(modifier = Modifier.heightIn(max = UNIT_FEED_MAX_HEIGHT)) {
+                            itemsIndexed(state.units, key = { _, unit -> unit.id }) { index, unit ->
+                                UnitRow(
+                                    label = unit.label,
+                                    buyerName = unit.buyerCounterpartyId?.let { buyerNamesById[it] },
+                                    onOpenSchedule = { onUnitSchedule(unit.id) },
+                                    onAssignBuyer = { assigningBuyerFor = unit },
+                                    onDelete = { pendingDelete = unit },
+                                )
+                                if (index != state.units.lastIndex) {
+                                    HorizontalDivider()
+                                }
                             }
                         }
                     }
-                    if (state.unitQuery.isBlank() && state.unitsTotal > state.units.size) {
+                    if (state.unitQuery.isBlank() && state.unitsTotal > UNIT_FEED_VISIBLE_ROWS) {
                         Text(
-                            "Showing ${state.units.size} of ${state.unitsTotal} — search to find others.",
+                            "Scroll to see all ${state.unitsTotal} houses.",
                             color = NeutralMuted,
                             style = MaterialTheme.typography.bodySmall,
                         )

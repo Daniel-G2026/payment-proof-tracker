@@ -23,7 +23,8 @@ import kotlinx.coroutines.launch
 
 data class ProjectDetailUiState(
     val project: LocalProjectEntity? = null,
-    // The visible slice of units — recent cap by default, all matches when searching.
+    // All units (filtered by the query when searching). The screen renders these
+    // in a fixed-height scroll window, so the full list never grows the page.
     val units: List<LocalUnitEntity> = emptyList(),
     val unitQuery: String = "",
     val unitsTotal: Int = 0,
@@ -86,11 +87,14 @@ class ProjectDetailViewModel @Inject constructor(
     }
 
     private fun applyUnitFilter() {
+        // No recent cap: the screen shows every unit inside a scroll window, so we
+        // hand it the full list (newest first), filtered when the user searches.
         val slice = browseSlice(
             all = allUnits,
             query = _state.value.unitQuery,
             recencyKey = { it.createdAt },
             matches = { unit, q -> unit.label.contains(q, ignoreCase = true) },
+            recentCap = Int.MAX_VALUE,
         )
         _state.update { it.copy(units = slice.visible, unitsTotal = slice.total) }
     }

@@ -7,9 +7,10 @@ class MainTabTest {
 
     @Test
     fun `bottom nav has the five expected tabs in order`() {
-        // Guards the Phase 12 nav contract: Home, Records, Reports, People, Settings.
+        // Nav contract: Projects is a top-level tab (Phase 13); Reports moved to a
+        // Home card and Settings no longer hosts Projects.
         assertEquals(
-            listOf("Home", "Records", "Reports", "People", "Settings"),
+            listOf("Home", "Records", "Projects", "People", "Settings"),
             MainTab.entries.map { it.label },
         )
     }

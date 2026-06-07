@@ -347,7 +347,7 @@ fun ProofLedgerBottomNav(
 private fun MainTab.icon(): ImageVector = when (this) {
     MainTab.Home -> ProofIcons.Home
     MainTab.Records -> ProofIcons.Records
-    MainTab.Reports -> ProofIcons.Reports
+    MainTab.Projects -> ProofIcons.Projects
     MainTab.People -> ProofIcons.People
     MainTab.Settings -> ProofIcons.Settings
 }
