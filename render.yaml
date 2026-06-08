@@ -1,0 +1,107 @@
+# Render Blueprint — provisions the whole backend in one place:
+#   API (web) + arq worker (background) + Postgres + Redis/Key Value.
+# Apply via Render dashboard: New > Blueprint, point it at this repo.
+#
+# Secrets (marked `sync: false`) are NOT in this file — you set their values
+# once in the Render dashboard after the blueprint creates the env group.
+# DATABASE_URL and REDIS_URL are wired automatically from the managed services.
+#
+# Plan names / the Key Value `type` may need a tweak in Render's validator
+# (Render renames tiers occasionally) — adjust in the dashboard if it complains.
+
+services:
+  # ---- API: the FastAPI app the mobile client talks to ----
+  - type: web
+    name: proofledger-api
+    runtime: docker
+    branch: main
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerCommand: uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    plan: starter
+    # Run DB migrations before each new version serves traffic.
+    preDeployCommand: uv run alembic upgrade head
+    envVars:
+      - fromGroup: proofledger-secrets
+      - key: DATABASE_URL
+        fromDatabase:
+          name: proofledger-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: proofledger-redis
+          type: redis
+          property: connectionString
+      - key: ENVIRONMENT
+        value: production
+
+  # ---- Worker: AI extraction jobs + the daily purge crons. Always-on. ----
+  - type: worker
+    name: proofledger-worker
+    runtime: docker
+    branch: main
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerCommand: uv run arq app.worker.worker.WorkerSettings
+    plan: starter
+    envVars:
+      - fromGroup: proofledger-secrets
+      - key: DATABASE_URL
+        fromDatabase:
+          name: proofledger-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: proofledger-redis
+          type: redis
+          property: connectionString
+      - key: ENVIRONMENT
+        value: production
+
+  # ---- Redis / Key Value: arq job queue + the extraction rate-limit bucket ----
+  - type: redis
+    name: proofledger-redis
+    plan: free          # 25 MB is plenty for the queue; bump if it fills
+    maxmemoryPolicy: noeviction
+    ipAllowList: []     # internal only — no public access
+
+databases:
+  - name: proofledger-db
+    databaseName: proofledger
+    user: proofledger
+    plan: basic-256mb   # cheapest paid Postgres with automated backups
+
+# Secrets shared by API + worker. The blueprint creates the group with these
+# keys; you fill the VALUES once in the Render dashboard (Environment > Env Groups).
+envVarGroups:
+  - name: proofledger-secrets
+    envVars:
+      # Anthropic (AI draft extraction). Set a billing cap on the Anthropic side.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: EXTRACTION_ENABLED
+        value: "true"          # set "false" to launch without the AI worker
+      # Supabase auth — from your Supabase project settings.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      # Proof image storage (S3-compatible: Cloudflare R2 / Supabase Storage / S3).
+      - key: PROOF_STORAGE_BACKEND
+        value: s3
+      - key: PROOF_STORAGE_S3_ENDPOINT_URL
+        sync: false
+      - key: PROOF_STORAGE_S3_BUCKET
+        sync: false
+      - key: PROOF_STORAGE_S3_REGION
+        sync: false
+      - key: PROOF_STORAGE_S3_ACCESS_KEY
+        sync: false
+      - key: PROOF_STORAGE_S3_SECRET_KEY
+        sync: false
+      # Signs the time-limited proof image URLs. Use a long random string.
+      - key: PROOF_SIGNED_URL_SECRET
+        sync: false
