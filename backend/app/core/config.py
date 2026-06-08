@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -5,6 +6,20 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     database_url: str
+
+    @field_validator("database_url")
+    @classmethod
+    def _ensure_psycopg_driver(cls, v: str) -> str:
+        """Managed hosts (Render, Heroku, Supabase) hand out connection strings
+        as ``postgres://`` or ``postgresql://``, but our synchronous SQLAlchemy
+        engine needs the psycopg3 driver. Normalise so any provider's URL works
+        out of the box; an explicit ``+driver`` (e.g. the local
+        ``postgresql+psycopg://``) is left untouched."""
+        if v.startswith("postgres://"):
+            v = "postgresql://" + v[len("postgres://"):]
+        if v.startswith("postgresql://"):
+            v = "postgresql+psycopg://" + v[len("postgresql://"):]
+        return v
     redis_url: str = "redis://localhost:6379/0"
     environment: str = "development"
 
