@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -88,6 +89,10 @@ fun TransactionFormScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    // Picking a value from a suggestion/chip should end editing: clear focus so the
+    // caret + keyboard don't linger and make the field look like it's still being
+    // typed in (see docs/mobile-development-things-to-know.md).
+    val focusManager = LocalFocusManager.current
     var fullProofOpen by remember { mutableStateOf(false) }
     var pickerOpen by remember { mutableStateOf(false) }
     var datePickerOpen by remember { mutableStateOf(false) }
@@ -243,7 +248,10 @@ fun TransactionFormScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     state.suggestions.forEach { counterparty ->
                         TextButton(
-                            onClick = { selectCounterparty(counterparty) },
+                            onClick = {
+                                focusManager.clearFocus()
+                                selectCounterparty(counterparty)
+                            },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text("${counterparty.name} - ${counterpartyTypeLabel(counterparty.type)}")
@@ -290,7 +298,10 @@ fun TransactionFormScreen(
                     state.categories.forEach { category ->
                         ProofLedgerFilterChip(
                             selected = category.normalizedName == normalizedCategory,
-                            onClick = { selectCategory(category.name) },
+                            onClick = {
+                                focusManager.clearFocus()
+                                selectCategory(category.name)
+                            },
                             label = category.name,
                         )
                     }

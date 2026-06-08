@@ -58,8 +58,18 @@ class ProjectDetailViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            businessId = businessRepository.getSelectedBusinessId()
+            val id = businessRepository.getSelectedBusinessId()
+            businessId = id
             _state.update { it.copy(project = projectRepository.getById(projectId)) }
+            // Local-first restore: units otherwise only refresh via the background
+            // SyncWorker, so opening a project on a fresh device (or before the
+            // worker finishes) shows an empty house list even though the houses
+            // exist on the server. Pull them now; the observe below renders the
+            // cache instantly and updates when this completes. Best-effort —
+            // offline just keeps whatever is already cached.
+            if (id != null) {
+                runCatching { unitRepository.refreshFromRemote(id) }
+            }
         }
         viewModelScope.launch {
             unitRepository.observeByProject(projectId).collect { rows ->
