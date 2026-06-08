@@ -124,6 +124,7 @@ class ProofStorage:
             raise HTTPException(status_code=500, detail="Proof storage bucket is not configured.")
         try:
             import boto3
+            from botocore.config import Config
         except ImportError as exc:
             raise HTTPException(
                 status_code=500,
@@ -135,6 +136,14 @@ class ProofStorage:
             region_name=settings.proof_storage_s3_region or None,
             aws_access_key_id=settings.proof_storage_s3_access_key or None,
             aws_secret_access_key=settings.proof_storage_s3_secret_key or None,
+            # Force path-style addressing + SigV4 so S3-compatible providers work,
+            # not just AWS. Supabase Storage requires path-style (its bucket host
+            # isn't a virtual subdomain); Cloudflare R2 and AWS support it too, so
+            # this is the safe universal choice.
+            config=Config(
+                signature_version="s3v4",
+                s3={"addressing_style": "path"},
+            ),
         )
 
 
