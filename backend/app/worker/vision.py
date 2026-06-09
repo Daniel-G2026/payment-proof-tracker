@@ -262,7 +262,6 @@ class AnthropicVisionClient:
     async def extract_offer_letter(
         self, image_bytes: bytes, mime_type: str
     ) -> OfferLetterExtraction:
-        image_b64 = base64.standard_b64encode(image_bytes).decode("ascii")
         response = await self._client.messages.create(
             model=self._model,
             max_tokens=2048,  # installment arrays are larger than payment fields
@@ -279,14 +278,7 @@ class AnthropicVisionClient:
                 {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": mime_type,
-                                "data": image_b64,
-                            },
-                        },
+                        offer_letter_media_block(image_bytes, mime_type),
                         {
                             "type": "text",
                             "text": "Extract the installment schedule from this offer letter.",
@@ -417,6 +409,31 @@ def _clean_date(value: Any) -> date | None:
 MAX_INSTALLMENT_AMOUNT_MINOR = 10**15
 MAX_INSTALLMENTS = 600
 
+# Offer letters reach us as a photo/scan (image) or a PDF. PDFs go through
+# Anthropic's `document` content block — the model OCRs the text and renders each
+# page as an image server-side — while photos use the `image` block as before.
+# All active Claude models (incl. the Haiku 4.5 extractor) accept PDF documents.
+def offer_letter_media_block(image_bytes: bytes, mime_type: str) -> dict[str, Any]:
+    data_b64 = base64.standard_b64encode(image_bytes).decode("ascii")
+    if mime_type == "application/pdf":
+        return {
+            "type": "document",
+            "source": {
+                "type": "base64",
+                "media_type": "application/pdf",
+                "data": data_b64,
+            },
+        }
+    return {
+        "type": "image",
+        "source": {
+            "type": "base64",
+            "media_type": mime_type,
+            "data": data_b64,
+        },
+    }
+
+
 OFFER_LETTER_TOOL_NAME = "record_offer_letter"
 
 OFFER_LETTER_TOOL_SCHEMA: dict[str, Any] = {
@@ -500,7 +517,7 @@ OFFER_LETTER_TOOL_SCHEMA: dict[str, Any] = {
 # Padded past 1024 tokens so it qualifies for Anthropic prompt caching.
 OFFER_LETTER_SYSTEM_PROMPT = """You are an extraction engine for property offer letters / allocation letters from small real-estate and construction businesses, primarily in Nigeria and other African markets.
 
-Your job: given one image of an offer letter, allocation letter, or payment-plan schedule for a house/plot, extract the installment payment plan. Return your answer via the `record_offer_letter` tool — never as free text.
+Your job: given one image or PDF of an offer letter, allocation letter, or payment-plan schedule for a house/plot, extract the installment payment plan. Return your answer via the `record_offer_letter` tool — never as free text.
 
 # Field rules
 

@@ -28,8 +28,9 @@ payment proofs, not a parallel pipeline.
 
 ## 0. Vocabulary
 
-- **Offer letter** — a document (usually a photo/scan) a developer issues to a
-  buyer stating the unit, the total price, and the installment plan. Cut 6
+- **Offer letter** — a document a developer issues to a buyer stating the unit,
+  the total price, and the installment plan. Accepted as a photo/scan
+  (JPEG/PNG/WebP) **or a PDF** — offer letters are commonly held as PDFs. Cut 6
   extracts the **plan**, not legal text.
 - **Schedule draft** — the server-side AI extraction result for one offer-letter
   screenshot: a proposed `(buyer_name?, total_minor?, currency?, installments[])`
@@ -173,6 +174,13 @@ The normalizer (extend `vision.py`) produces a cleaned draft:
 - **Upload**: existing `POST /businesses/{bid}/screenshots` gains optional
   `document_type`. `offer_letter` uploads auto-enqueue the offer-letter job
   (gated by the same `extraction_enabled` + rate limit as Phase 8).
+  `offer_letter` uploads additionally accept `application/pdf` (validated by the
+  `%PDF-` magic bytes); the payment-proof path stays image-only. PDFs ride the
+  same orphan-upload + storage + poll machinery as images; the vision client
+  sends a PDF as an Anthropic `document` content block (each page OCR'd +
+  rendered server-side) and an image as an `image` block. All active models,
+  including the Haiku 4.5 extractor, accept PDFs (≤100 pages at 200K context;
+  the existing 5 MB upload cap still applies).
 - **Poll**: `GET /screenshots/{screenshot_id}/schedule-draft` →
   `ScheduleDraftOut`. `404` = not yet (client treats as "keep polling");
   `status=ready` returns cleaned fields; `failed`/`rate_limited` are terminal.

@@ -530,8 +530,10 @@ class ProofRepository @Inject constructor(
         businessId: String,
         proofId: String,
     ): OrphanUploadResult {
+        // allowPdf=true: offer letters are often PDFs, not photos. A PDF skips
+        // the bitmap pipeline (no uploadPath) and uploads with its own mime.
         val prepared = withContext(Dispatchers.IO) {
-            fileStore.prepare(uri, proofId)
+            fileStore.prepare(uri, proofId, allowPdf = true)
         }
         val file = File(prepared.uploadPath ?: prepared.originalPath)
         val uploadMimeType = if (prepared.uploadPath != null) {

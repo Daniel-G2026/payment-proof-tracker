@@ -69,13 +69,16 @@ fun UnitScheduleScreen(
     val revise = rememberDebouncedClick(onClick = viewModel::onRevise)
     val cancelEdit = rememberDebouncedClick(onClick = viewModel::onCancelEdit)
     val isRenegotiation = state.activeVersion != null
+    // OpenDocument (not GetContent) so the picker can offer images AND PDFs —
+    // offer letters are commonly shared as PDFs. We read the bytes immediately
+    // during upload, so transient (non-persisted) read access is enough.
     val offerLetterPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent(),
+        ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) viewModel.onScanOfferLetter(uri.toString())
     }
     val scanOfferLetter = rememberDebouncedClick(windowMs = 1000L) {
-        offerLetterPicker.launch("image/*")
+        offerLetterPicker.launch(arrayOf("image/*", "application/pdf"))
     }
     val addBuyer = rememberDebouncedClick(onClick = viewModel::onAddOfferLetterBuyer)
 
@@ -182,8 +185,8 @@ fun UnitScheduleScreen(
             }
 
             // Offer-letter scan (Cut 6): auto-fill the installments from a photo
-            // of the letter. Available in both view and edit modes; the editor
-            // opens pre-filled once the AI draft is ready.
+            // or PDF of the letter. Available in both view and edit modes; the
+            // editor opens pre-filled once the AI draft is ready.
             if (state.offerLetterScanning) {
                 Text(
                     "Reading offer letter…",
@@ -197,7 +200,7 @@ fun UnitScheduleScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Text(
-                    "Take or pick a photo of the offer letter to fill the installments for you.",
+                    "Pick a photo or PDF of the offer letter to fill the installments for you.",
                     style = MaterialTheme.typography.bodySmall,
                     color = NeutralMuted,
                 )

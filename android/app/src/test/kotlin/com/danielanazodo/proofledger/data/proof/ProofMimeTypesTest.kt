@@ -58,5 +58,41 @@ class ProofMimeTypesTest {
         assertEquals(".jpg", ProofMimeTypes.extensionFor("image/jpeg"))
         assertEquals(".png", ProofMimeTypes.extensionFor("image/png"))
         assertEquals(".webp", ProofMimeTypes.extensionFor("image/webp"))
+        assertEquals(".pdf", ProofMimeTypes.extensionFor("application/pdf"))
+    }
+
+    @Test
+    fun `pdf is only accepted when allowPdf is set`() {
+        val pdfHeader = byteArrayOf(
+            '%'.code.toByte(),
+            'P'.code.toByte(),
+            'D'.code.toByte(),
+            'F'.code.toByte(),
+            '-'.code.toByte(),
+            '1'.code.toByte(),
+            '.'.code.toByte(),
+            '4'.code.toByte(),
+        )
+
+        // Default (image-only) path — the payment-proof + share-sheet callers.
+        assertNull(ProofMimeTypes.fromHeader(pdfHeader))
+        assertNull(ProofMimeTypes.normalizeAllowed("application/pdf"))
+        assertNull(ProofMimeTypes.fromPath("offer-letter.pdf"))
+
+        // Offer-letter path opts in.
+        assertEquals("application/pdf", ProofMimeTypes.fromHeader(pdfHeader, allowPdf = true))
+        assertEquals("application/pdf", ProofMimeTypes.normalizeAllowed("application/pdf", allowPdf = true))
+        assertEquals("application/pdf", ProofMimeTypes.fromPath("offer-letter.pdf", allowPdf = true))
+    }
+
+    @Test
+    fun `images still sniff correctly even when allowPdf is set`() {
+        assertEquals(
+            "image/jpeg",
+            ProofMimeTypes.fromHeader(
+                byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0x00),
+                allowPdf = true,
+            ),
+        )
     }
 }

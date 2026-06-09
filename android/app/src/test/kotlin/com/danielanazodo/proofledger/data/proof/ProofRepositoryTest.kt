@@ -518,7 +518,7 @@ class ProofRepositoryTest {
         val deletedIds = mutableListOf<String>()
         val downloadedIds = mutableListOf<String>()
 
-        override fun prepare(uri: Uri, id: String): PreparedProofFile = error("not used")
+        override fun prepare(uri: Uri, id: String, allowPdf: Boolean): PreparedProofFile = error("not used")
 
         override fun deleteForId(id: String) {
             deletedIds += id
