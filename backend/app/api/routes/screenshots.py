@@ -19,7 +19,11 @@ from app.api.deps import CurrentUser, get_db
 from app.api.routes.transactions import _get_transaction, _require_member
 from app.core.config import settings
 from app.db.models import Screenshot
-from app.db.models.screenshot import ALLOWED_DOCUMENT_TYPES, DOCUMENT_TYPE_PAYMENT_PROOF
+from app.db.models.screenshot import (
+    ALLOWED_DOCUMENT_TYPES,
+    DOCUMENT_TYPE_OFFER_LETTER,
+    DOCUMENT_TYPE_PAYMENT_PROOF,
+)
 from app.schemas.screenshot import ScreenshotOut, SignedScreenshotUrl
 from app.services.extraction import try_enqueue_extraction
 from app.services.rate_limit import RateLimit, check_rate_limit
@@ -51,7 +55,9 @@ MAX_PIXEL_DIMENSION = 100_000
 DbSession = Annotated[Session, Depends(get_db)]
 
 
-def _validate_image_payload(content: bytes, declared_mime: str) -> None:
+def _validate_upload_payload(
+    content: bytes, declared_mime: str, *, allow_pdf: bool
+) -> None:
     """Reject non-image bytes and disallowed image subtypes.
 
     The multipart Content-Type header is client-controlled, so anything that
@@ -59,11 +65,28 @@ def _validate_image_payload(content: bytes, declared_mime: str) -> None:
     do both: allowlist the mime AND sniff the magic bytes so a `.exe` labeled
     `image/jpeg` is refused at ingest time rather than sitting in the proof
     store as a phishing payload waiting on a signed URL.
+
+    `allow_pdf` is set only for offer-letter uploads (Phase 13 Cut 6): offer
+    letters are real documents users hold as PDFs, whereas payment proofs are
+    screenshots, so the payment-proof path stays strictly image-only.
     """
+    if declared_mime == "application/pdf":
+        if not allow_pdf:
+            raise HTTPException(
+                status_code=415,
+                detail="Proof must be a JPEG, PNG, or WebP image.",
+            )
+        if not content.startswith(b"%PDF-"):
+            raise HTTPException(
+                status_code=415, detail="Offer letter bytes are not a valid PDF."
+            )
+        return
     if declared_mime not in ALLOWED_IMAGE_MIMES:
         raise HTTPException(
             status_code=415,
-            detail="Proof must be a JPEG, PNG, or WebP image.",
+            detail="Offer letter must be a PDF, or a JPEG, PNG, or WebP image."
+            if allow_pdf
+            else "Proof must be a JPEG, PNG, or WebP image.",
         )
     if declared_mime == "image/jpeg":
         if not content.startswith(b"\xff\xd8\xff"):
@@ -210,7 +233,17 @@ async def upload_screenshot(
     fields, file_bytes, file_mime = _parse_multipart(content_type, body)
     if len(file_bytes) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Proof image is larger than 5 MB.")
-    _validate_image_payload(file_bytes, file_mime)
+    # Phase 13 Cut 6: which kind of document this is (defaults to payment_proof
+    # so every existing caller is unaffected). Drives both the upload payload
+    # rules (PDFs allowed only for offer letters) and the worker's tool dispatch.
+    document_type = (fields.get("document_type") or DOCUMENT_TYPE_PAYMENT_PROOF).strip()
+    if document_type not in ALLOWED_DOCUMENT_TYPES:
+        raise HTTPException(status_code=422, detail="Unsupported document_type.")
+    _validate_upload_payload(
+        file_bytes,
+        file_mime,
+        allow_pdf=document_type == DOCUMENT_TYPE_OFFER_LETTER,
+    )
 
     # Phase 8.1: transaction_id is optional — when absent, this is an
     # "orphan" upload from the in-form create flow. The transaction-create
@@ -231,12 +264,6 @@ async def upload_screenshot(
     # Empty/blank → keep null on the column.
     ocr_text_raw = fields.get("ocr_text", "").strip() if fields.get("ocr_text") else ""
     ocr_text = ocr_text_raw or None
-    # Phase 13 Cut 6: which kind of document this is (defaults to payment_proof
-    # so every existing caller is unaffected). Drives the extraction worker's
-    # tool/prompt dispatch.
-    document_type = (fields.get("document_type") or DOCUMENT_TYPE_PAYMENT_PROOF).strip()
-    if document_type not in ALLOWED_DOCUMENT_TYPES:
-        raise HTTPException(status_code=422, detail="Unsupported document_type.")
     existing = db.get(Screenshot, screenshot_id)
     if existing is not None:
         if existing.business_id != business_id or existing.deleted_at is not None:

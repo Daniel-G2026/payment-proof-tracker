@@ -23,7 +23,16 @@ data class PreparedProofFile(
 )
 
 interface ProofFileStore {
-    fun prepare(uri: Uri, id: String = UUID.randomUUID().toString()): PreparedProofFile
+    /**
+     * @param allowPdf when true, a PDF source is accepted and uploaded as-is
+     *  (no bitmap compression). Used only by the offer-letter scan; the
+     *  payment-proof path leaves it false so PDFs are rejected there.
+     */
+    fun prepare(
+        uri: Uri,
+        id: String = UUID.randomUUID().toString(),
+        allowPdf: Boolean = false,
+    ): PreparedProofFile
     fun deleteForId(id: String)
     fun sha256(uri: Uri): String
 
@@ -42,9 +51,9 @@ interface ProofFileStore {
 class AndroidProofFileStore @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : ProofFileStore {
-    override fun prepare(uri: Uri, id: String): PreparedProofFile {
-        val metadataMimeType = ProofMimeTypes.normalizeAllowed(context.contentResolver.getType(uri))
-            ?: ProofMimeTypes.fromPath(uri.path)
+    override fun prepare(uri: Uri, id: String, allowPdf: Boolean): PreparedProofFile {
+        val metadataMimeType = ProofMimeTypes.normalizeAllowed(context.contentResolver.getType(uri), allowPdf)
+            ?: ProofMimeTypes.fromPath(uri.path, allowPdf)
         val originalDir = File(context.filesDir, "proofs/originals").apply { mkdirs() }
         val temporaryFile = File(originalDir, "$id.tmp")
         try {
@@ -56,7 +65,7 @@ class AndroidProofFileStore @Inject constructor(
             temporaryFile.delete()
             throw t
         }
-        val mimeType = ProofMimeTypes.fromFile(temporaryFile)
+        val mimeType = ProofMimeTypes.fromFile(temporaryFile, allowPdf)
             ?: metadataMimeType
             ?: "image/jpeg"
         val originalFile = File(originalDir, "$id${ProofMimeTypes.extensionFor(mimeType)}")
@@ -68,9 +77,12 @@ class AndroidProofFileStore @Inject constructor(
             throw t
         }
 
-        val bounds = decodeBounds(originalFile)
+        val isImage = mimeType.startsWith("image/")
+        val bounds = if (isImage) decodeBounds(originalFile) else BitmapFactory.Options()
         val originalSize = originalFile.length()
-        val uploadFile = if (originalSize > COMPRESS_THRESHOLD_BYTES) {
+        // PDFs (and any non-image source) upload as-is — the bitmap pipeline
+        // only applies to images.
+        val uploadFile = if (isImage && originalSize > COMPRESS_THRESHOLD_BYTES) {
             createCompressedUploadCopy(originalFile, bounds, id)
         } else {
             null

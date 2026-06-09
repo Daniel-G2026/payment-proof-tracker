@@ -34,7 +34,11 @@ from app.db.models.screenshot import (
 )
 from app.main import app
 from app.worker import worker as worker_module
-from app.worker.vision import OfferLetterExtraction, normalize_offer_letter
+from app.worker.vision import (
+    OfferLetterExtraction,
+    normalize_offer_letter,
+    offer_letter_media_block,
+)
 
 engine = create_engine(
     "sqlite:///:memory:",
@@ -44,6 +48,7 @@ engine = create_engine(
 TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 JPEG_MAGIC = b"\xff\xd8\xff\xe0"
+PDF_MAGIC = b"%PDF-1.4\n"
 
 
 @pytest.fixture(autouse=True)
@@ -277,6 +282,28 @@ class TestOfferLetterNormalizer:
         assert result.installments is None
 
 
+# --- media content block (image vs PDF) ----------------------------------
+
+
+class TestOfferLetterMediaBlock:
+    def test_pdf_uses_document_block(self):
+        import base64
+
+        block = offer_letter_media_block(PDF_MAGIC + b"data", "application/pdf")
+        assert block["type"] == "document"
+        assert block["source"]["type"] == "base64"
+        assert block["source"]["media_type"] == "application/pdf"
+        assert block["source"]["data"] == base64.standard_b64encode(
+            PDF_MAGIC + b"data"
+        ).decode("ascii")
+
+    def test_image_uses_image_block(self):
+        block = offer_letter_media_block(JPEG_MAGIC + b"data", "image/jpeg")
+        assert block["type"] == "image"
+        assert block["source"]["type"] == "base64"
+        assert block["source"]["media_type"] == "image/jpeg"
+
+
 # --- worker offer-letter path -------------------------------------------
 
 
@@ -486,6 +513,47 @@ class TestUploadDocumentType:
             assert db.get(Screenshot, sid).document_type == DOCUMENT_TYPE_PAYMENT_PROOF
         finally:
             db.close()
+
+    def test_offer_letter_upload_accepts_pdf(self, client_for):
+        user_id = uuid.uuid4()
+        client = client_for(user_id, "u@example.com")
+        business_id = _create_business(client)
+        files = {"file": ("letter.pdf", PDF_MAGIC + b"x" * 64, "application/pdf")}
+        data = {"original_file_size": "72", "document_type": DOCUMENT_TYPE_OFFER_LETTER}
+        resp = client.post(f"/businesses/{business_id}/screenshots", files=files, data=data)
+        assert resp.status_code == 200, resp.text
+        sid = uuid.UUID(resp.json()["id"])
+        db = TestingSessionLocal()
+        try:
+            row = db.get(Screenshot, sid)
+            assert row.document_type == DOCUMENT_TYPE_OFFER_LETTER
+            assert row.mime_type == "application/pdf"
+        finally:
+            db.close()
+
+    def test_payment_proof_upload_rejects_pdf(self, client_for):
+        # PDFs are scoped to offer letters; the payment-proof path stays
+        # image-only even though the bytes are a valid PDF.
+        user_id = uuid.uuid4()
+        client = client_for(user_id, "u@example.com")
+        business_id = _create_business(client)
+        files = {"file": ("doc.pdf", PDF_MAGIC + b"x" * 64, "application/pdf")}
+        resp = client.post(
+            f"/businesses/{business_id}/screenshots",
+            files=files,
+            data={"original_file_size": "72"},
+        )
+        assert resp.status_code == 415
+
+    def test_offer_letter_upload_rejects_non_pdf_bytes(self, client_for):
+        # Magic-byte sniff: a non-PDF labeled application/pdf is refused.
+        user_id = uuid.uuid4()
+        client = client_for(user_id, "u@example.com")
+        business_id = _create_business(client)
+        files = {"file": ("letter.pdf", b"not a pdf at all" + b"x" * 64, "application/pdf")}
+        data = {"original_file_size": "79", "document_type": DOCUMENT_TYPE_OFFER_LETTER}
+        resp = client.post(f"/businesses/{business_id}/screenshots", files=files, data=data)
+        assert resp.status_code == 415
 
 
 class TestScheduleRawJsonPurge:
