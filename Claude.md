@@ -60,8 +60,7 @@ project. Additive over the existing engine; built manual-slice-before-AI,
 docs/contracts first. See the Phase 13 section and "Semantic edges" in
 `docs/master-plan.md`.
 
-Navigation redesign (PR #37, `phase13-nav-projects-tab`, open — verified on
-emulator, not yet merged): **Projects** is promoted from a Settings entry to a
+Navigation redesign (merged, PR #37): **Projects** is promoted from a Settings entry to a
 top-level bottom-nav tab, so the bottom nav is now **Home · Records · Projects ·
 People · Settings**. The arrears dashboard moved *inside* the Projects tab
 (its "View arrears" action removed from Home); the rich monthly arrears summary
@@ -75,6 +74,36 @@ Units (`ProjectDetailScreen`) and projects (`ProjectListScreen`) now render in a
 fixed-height scroll window (a bounded `LazyColumn`) so the user can flick through
 the full list without growing the page; search still appears once the list
 outgrows the window. UI/navigation only — no Room/repository/backend changes.
+
+**v1 is deployed to production (2026-06-08) and verified end-to-end.** The
+backend runs on **Render** at `https://proofledger-api.onrender.com` — the
+FastAPI API plus the always-on arq worker (AI extraction + the daily purge
+crons), with managed **Postgres** and **Redis**. Auth is **Supabase**; proof
+images live in **Cloudflare R2** (chosen for no egress fees; region `auto`, and
+the S3 client forces path-style + SigV4 so any S3-compatible provider works —
+`app/services/proof_storage.py`). A root `render.yaml` blueprint provisions the
+whole stack; secrets live in the Render `proofledger-secrets` env group and are
+never committed. `database_url` is normalized in `config.py` so a managed host's
+`postgres://` string gets the `+psycopg` driver. The full flow (sign in → create
+business → money in/out → attach proof → sync) was confirmed against production.
+Two bugs found during release smoke-testing were fixed: houses now restore on a
+fresh device (`ProjectDetailViewModel` does a local-first unit `refreshFromRemote`
+on open) and picking an existing person in "Who paid?" now clears focus so the
+caret stops lingering (see `docs/mobile-development-things-to-know.md`). The
+Android release is signed with a real upload keystore (gitignored
+`keystore.properties`; `keystore.properties.example` documents the `keytool`
+steps), `versionName` 1.0.0; build the publishable bundle with
+`:app:bundleRelease`. **The release AAB must be built with `API_BASE_URL` set to
+the Render URL in `local.properties`** — a debug/default build points at
+`10.0.2.2` and would be broken for real users. Remaining before public launch
+(not code — store/compliance): host the privacy policy, complete the Play Data
+Safety form, create the Play Console listing, and upload the AAB. Drafts:
+`docs/privacy-policy-DRAFT.md`, `docs/play-data-safety-DRAFT.md`,
+`docs/backend-deploy-guide.md`, `docs/v1-release-checklist.md`. Known follow-up:
+installment **schedules** restore lazily per-unit (`ScheduleRepository.refreshForUnit`
+only when a unit's schedule opens), so the arrears dashboard can read low on a
+fresh device until each unit is opened — a bulk schedule restore is the proper
+fix.
 
 Phase 11 (Reports and Exports) is complete. The Android app has a
 "Reports & export" entry on the Home dashboard that opens a dedicated Summary
