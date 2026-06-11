@@ -44,6 +44,7 @@ import com.danielanazodo.proofledger.ui.components.QuietButton
 import com.danielanazodo.proofledger.ui.components.SectionLabel
 import com.danielanazodo.proofledger.data.balance.InstallmentFill
 import com.danielanazodo.proofledger.data.balance.InstallmentState
+import com.danielanazodo.proofledger.data.repository.ScheduleDuplicateCandidate
 import com.danielanazodo.proofledger.ui.format.formatNaira
 import com.danielanazodo.proofledger.ui.format.todayIsoDate
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
@@ -65,7 +66,8 @@ fun UnitScheduleScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val save = rememberDebouncedClick(onClick = viewModel::onSave)
+    val save = rememberDebouncedClick { viewModel.onSave() }
+    val saveAnyway = rememberDebouncedClick(onClick = viewModel::onSaveAnyway)
     val revise = rememberDebouncedClick(onClick = viewModel::onRevise)
     val cancelEdit = rememberDebouncedClick(onClick = viewModel::onCancelEdit)
     val isRenegotiation = state.activeVersion != null
@@ -277,21 +279,82 @@ fun UnitScheduleScreen(
 
                 state.error?.let { Text(it, color = ProofAmber, style = MaterialTheme.typography.bodySmall) }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (isRenegotiation) {
-                        QuietButton(
-                            text = "Cancel",
-                            onClick = cancelEdit,
+                if (state.duplicateWarnings.isNotEmpty()) {
+                    DuplicateWarningPanel(
+                        candidates = state.duplicateWarnings,
+                        saving = state.saving,
+                        onReview = viewModel::onReviewDuplicates,
+                        onSaveAnyway = saveAnyway,
+                    )
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (isRenegotiation) {
+                            QuietButton(
+                                text = "Cancel",
+                                onClick = cancelEdit,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        PrimaryActionButton(
+                            text = if (isRenegotiation) "Save as new version" else "Save schedule",
+                            onClick = save,
+                            enabled = !state.saving,
                             modifier = Modifier.weight(1f),
                         )
                     }
-                    PrimaryActionButton(
-                        text = if (isRenegotiation) "Save as new version" else "Save schedule",
-                        onClick = save,
-                        enabled = !state.saving,
-                        modifier = Modifier.weight(1f),
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DuplicateWarningPanel(
+    candidates: List<ScheduleDuplicateCandidate>,
+    saving: Boolean,
+    onReview: () -> Unit,
+    onSaveAnyway: () -> Unit,
+) {
+    GroupedPanel {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                "This looks like an offer letter you already entered.",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = NeutralInk,
+            )
+            candidates.forEach { candidate ->
+                Column {
+                    Text(
+                        listOfNotNull(candidate.buyerName, candidate.unitLabel.ifBlank { null })
+                            .joinToString(" · ")
+                            .ifBlank { "Existing schedule" },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = NeutralInk,
+                    )
+                    Text(
+                        "${candidate.installmentCount} installments · ${formatNaira(candidate.totalMinor)} · " +
+                            candidate.reasons.joinToString(", ") { it.label },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = NeutralMuted,
                     )
                 }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                QuietButton(
+                    text = "Review fields",
+                    onClick = onReview,
+                    modifier = Modifier.weight(1f),
+                )
+                PrimaryActionButton(
+                    text = "Save anyway",
+                    onClick = onSaveAnyway,
+                    enabled = !saving,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }

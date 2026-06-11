@@ -186,6 +186,10 @@ class BusinessRepositoryTest {
             businessId: String,
             unitId: String,
         ): List<com.danielanazodo.proofledger.data.remote.dto.ScheduleVersionDto> = emptyList()
+        override suspend fun scheduleDuplicateCandidates(
+            businessId: String,
+            body: com.danielanazodo.proofledger.data.remote.dto.ScheduleDuplicateRequestDto,
+        ): List<com.danielanazodo.proofledger.data.remote.dto.ScheduleDuplicateCandidateDto> = emptyList()
         override suspend fun createScheduleVersion(
             businessId: String,
             unitId: String,

@@ -23,6 +23,8 @@ import com.danielanazodo.proofledger.data.remote.dto.ProjectCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.ProjectDto
 import com.danielanazodo.proofledger.data.remote.dto.ProjectUpdateDto
 import com.danielanazodo.proofledger.data.remote.dto.ScheduleDraftDto
+import com.danielanazodo.proofledger.data.remote.dto.ScheduleDuplicateCandidateDto
+import com.danielanazodo.proofledger.data.remote.dto.ScheduleDuplicateRequestDto
 import com.danielanazodo.proofledger.data.remote.dto.ScheduleVersionCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.ScheduleVersionDto
 import com.danielanazodo.proofledger.data.remote.dto.ScreenshotDto
@@ -220,6 +222,16 @@ interface ApiService {
         @Path("unitId") unitId: String,
         @Body body: ScheduleVersionCreateDto,
     ): ScheduleVersionDto
+
+    /**
+     * Phase 13 — advisory offer-letter duplicate check. Online-only and
+     * best-effort: the caller swallows failures and never blocks the confirm.
+     */
+    @POST("businesses/{businessId}/schedule-drafts/duplicate-candidates")
+    suspend fun scheduleDuplicateCandidates(
+        @Path("businessId") businessId: String,
+        @Body body: ScheduleDuplicateRequestDto,
+    ): List<ScheduleDuplicateCandidateDto>
 
     @GET("businesses/{businessId}/audit-events")
     suspend fun listAuditEvents(

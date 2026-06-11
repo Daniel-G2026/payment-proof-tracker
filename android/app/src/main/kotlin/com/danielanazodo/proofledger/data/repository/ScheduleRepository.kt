@@ -8,6 +8,9 @@ import com.danielanazodo.proofledger.data.local.entity.LocalInstallmentEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalScheduleVersionEntity
 import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.dto.InstallmentInputDto
+import com.danielanazodo.proofledger.data.remote.dto.ScheduleDuplicateCandidateDto
+import com.danielanazodo.proofledger.data.remote.dto.ScheduleDuplicateInstallmentDto
+import com.danielanazodo.proofledger.data.remote.dto.ScheduleDuplicateRequestDto
 import com.danielanazodo.proofledger.data.remote.dto.ScheduleVersionCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.ScheduleVersionDto
 import com.danielanazodo.proofledger.data.sync.SyncEventLogger
@@ -154,6 +157,59 @@ class ScheduleRepository @Inject constructor(
         remote.forEach { storeRemote(it) }
     }
 
+    /**
+     * Advisory pre-confirm check (mirrors the Phase 9 transaction duplicate
+     * check): has this scanned offer letter — its buyer + installment plan, or
+     * its exact proof bytes — already been entered as a schedule elsewhere in the
+     * business? Best-effort and online-only: a failure (offline, server error)
+     * returns empty so the confirm is never blocked — same posture as
+     * [refreshForUnit]. `excludeUnitId` is the unit being confirmed, so its own
+     * prior version (a renegotiation) is not surfaced as a duplicate.
+     */
+    suspend fun findDuplicateScheduleCandidates(
+        businessId: String,
+        buyerName: String?,
+        lines: List<ScheduleLineInput>,
+        screenshotId: String?,
+        excludeUnitId: String?,
+    ): List<ScheduleDuplicateCandidate> {
+        val candidates = runCatching {
+            api.scheduleDuplicateCandidates(
+                businessId = businessId,
+                body = ScheduleDuplicateRequestDto(
+                    buyerName = buyerName,
+                    installments = lines.map {
+                        ScheduleDuplicateInstallmentDto(
+                            amountMinor = it.amountMinor,
+                            dueDate = it.dueDate.toString(),
+                        )
+                    },
+                    screenshotId = screenshotId,
+                    excludeUnitId = excludeUnitId,
+                ),
+            ).map { it.toDuplicateCandidate() }
+        }.getOrDefault(emptyList())
+        syncEventLogger.log(
+            businessId = businessId,
+            entityType = "schedule_version",
+            entityId = excludeUnitId,
+            action = "duplicate_check",
+            status = if (candidates.isEmpty()) "no_duplicate" else "duplicate_found",
+        )
+        return candidates
+    }
+
+    /** Telemetry: the user saw a duplicate warning and chose to save anyway. */
+    suspend fun logScheduleDuplicateWarningIgnored(businessId: String, unitId: String) {
+        syncEventLogger.log(
+            businessId = businessId,
+            entityType = "schedule_version",
+            entityId = unitId,
+            action = "duplicate_warning_ignored",
+            status = "success",
+        )
+    }
+
     private suspend fun storeRemote(remote: ScheduleVersionDto) {
         versionDao.upsert(remote.toEntity())
         // Replace the version's installments with the authoritative server set.
@@ -225,6 +281,20 @@ class ScheduleRepository @Inject constructor(
         )
     }
 
+    private fun ScheduleDuplicateCandidateDto.toDuplicateCandidate(): ScheduleDuplicateCandidate =
+        ScheduleDuplicateCandidate(
+            unitId = unitId,
+            projectId = projectId,
+            unitLabel = unitLabel,
+            buyerName = buyerName,
+            scheduleVersionId = scheduleVersionId,
+            versionNo = versionNo,
+            installmentCount = installmentCount,
+            totalMinor = totalMinor,
+            reasons = reasons.mapNotNull { ScheduleDuplicateReason.fromWire(it) },
+            score = score,
+        )
+
     private suspend fun logSync(
         row: LocalScheduleVersionEntity,
         action: String,
@@ -239,5 +309,29 @@ class ScheduleRepository @Inject constructor(
             status = status,
             errorMessage = throwable?.toSyncErrorMessage(),
         )
+    }
+}
+
+/** A prior schedule that looks like the offer letter being confirmed (Phase 13
+ * advisory duplicate detection). Mirrors [DuplicateCandidate] for transactions. */
+data class ScheduleDuplicateCandidate(
+    val unitId: String,
+    val projectId: String,
+    val unitLabel: String,
+    val buyerName: String?,
+    val scheduleVersionId: String,
+    val versionNo: Int,
+    val installmentCount: Int,
+    val totalMinor: Long,
+    val reasons: List<ScheduleDuplicateReason>,
+    val score: Int,
+)
+
+enum class ScheduleDuplicateReason(val wire: String, val label: String, val score: Int) {
+    SAME_PROOF("same_proof", "same offer-letter image", 100),
+    SAME_BUYER_AND_SCHEDULE("same_buyer_and_schedule", "same buyer and schedule", 75);
+
+    companion object {
+        fun fromWire(value: String): ScheduleDuplicateReason? = entries.firstOrNull { it.wire == value }
     }
 }
