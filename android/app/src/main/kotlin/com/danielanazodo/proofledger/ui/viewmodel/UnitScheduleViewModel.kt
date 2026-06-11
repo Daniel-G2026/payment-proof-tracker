@@ -15,6 +15,7 @@ import com.danielanazodo.proofledger.data.ocr.ScheduleDraftState
 import com.danielanazodo.proofledger.data.proof.ProofRepository
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.CounterpartyRepository
+import com.danielanazodo.proofledger.data.repository.ScheduleDuplicateCandidate
 import com.danielanazodo.proofledger.data.repository.ScheduleLineInput
 import com.danielanazodo.proofledger.data.repository.ScheduleRepository
 import com.danielanazodo.proofledger.data.repository.TransactionRepository
@@ -57,6 +58,10 @@ data class UnitScheduleUiState(
     val editing: Boolean = false,
     val error: String? = null,
     val saving: Boolean = false,
+    // Advisory offer-letter duplicate warning (Phase 13): prior schedules that
+    // look like the one being confirmed. Non-empty pauses the save until the
+    // user reviews or chooses "Save anyway"; never blocks.
+    val duplicateWarnings: List<ScheduleDuplicateCandidate> = emptyList(),
     // Phase 13 Cut 6 — offer-letter scan: "Reading offer letter…" banner while
     // the AI draft is in flight, an advisory message on failure/partial read,
     // and the screenshot id carried onto the schedule version on save.
@@ -187,6 +192,7 @@ class UnitScheduleViewModel @Inject constructor(
             pendingOfferLetterScreenshotId = null,
             offerLetterBuyerName = null,
             offerLetterBuyerMismatch = false,
+            duplicateWarnings = emptyList(),
         )
     }
 
@@ -274,7 +280,13 @@ class UnitScheduleViewModel @Inject constructor(
         s.copy(draftLines = s.draftLines.mapIndexed { i, l -> if (i == index) l.copy(dueDate = value) else l })
     }
 
-    fun onSave() {
+    /**
+     * Validate the draft and create a schedule version. The first tap runs an
+     * advisory duplicate check (unless [force]); if it surfaces a look-alike, the
+     * save pauses and the warning is shown ("Review fields" / "Save anyway").
+     * [force] = true skips the check (the "Save anyway" path).
+     */
+    fun onSave(force: Boolean = false) {
         val lines = _ui.value.draftLines
         val parsed = mutableListOf<ScheduleLineInput>()
         lines.forEachIndexed { index, draft ->
@@ -304,6 +316,19 @@ class UnitScheduleViewModel @Inject constructor(
             businessId = id
             val screenshotId = _ui.value.pendingOfferLetterScreenshotId
             val extractedBuyer = _ui.value.offerLetterBuyerName
+            if (!force) {
+                val duplicates = scheduleRepository.findDuplicateScheduleCandidates(
+                    businessId = id,
+                    buyerName = extractedBuyer ?: unitBuyerName,
+                    lines = parsed,
+                    screenshotId = screenshotId,
+                    excludeUnitId = unitId,
+                )
+                if (duplicates.isNotEmpty()) {
+                    _ui.update { it.copy(saving = false, duplicateWarnings = duplicates) }
+                    return@launch
+                }
+            }
             scheduleRepository.createScheduleVersion(
                 businessId = id,
                 unitId = unitId,
@@ -327,12 +352,29 @@ class UnitScheduleViewModel @Inject constructor(
                     pendingOfferLetterScreenshotId = null,
                     offerLetterBuyerName = null,
                     offerLetterBuyerMismatch = false,
+                    duplicateWarnings = emptyList(),
                     addBuyerPromptName = offerBuyer,
                     buyerAddedName = null,
                 )
             }
         }
     }
+
+    /** "Save anyway" from the duplicate warning — log the ignore and save past
+     * the check. */
+    fun onSaveAnyway() {
+        val id = businessId
+        if (id != null) {
+            viewModelScope.launch {
+                scheduleRepository.logScheduleDuplicateWarningIgnored(id, unitId)
+            }
+        }
+        onSave(force = true)
+    }
+
+    /** "Review fields" from the duplicate warning — dismiss it and return to the
+     * editor so the user can change the schedule before saving again. */
+    fun onReviewDuplicates() = _ui.update { it.copy(duplicateWarnings = emptyList()) }
 
     /** Create the offer-letter's named buyer as a counterparty and assign them to
      * this unit, in one step (mirrors the project screen's create-and-assign).

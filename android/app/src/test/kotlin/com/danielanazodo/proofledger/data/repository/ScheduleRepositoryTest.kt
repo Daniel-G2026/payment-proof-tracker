@@ -9,6 +9,8 @@ import com.danielanazodo.proofledger.data.local.entity.LocalScheduleVersionEntit
 import com.danielanazodo.proofledger.data.local.entity.LocalSyncEventEntity
 import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.dto.InstallmentDto
+import com.danielanazodo.proofledger.data.remote.dto.ScheduleDuplicateCandidateDto
+import com.danielanazodo.proofledger.data.remote.dto.ScheduleDuplicateRequestDto
 import com.danielanazodo.proofledger.data.remote.dto.ScheduleVersionCreateDto
 import com.danielanazodo.proofledger.data.remote.dto.ScheduleVersionDto
 import com.danielanazodo.proofledger.data.sync.SyncEventLogger
@@ -105,6 +107,62 @@ class ScheduleRepositoryTest {
         assertEquals(LocalDate.of(2026, 1, 31), domain.first().dueDate)
     }
 
+    @Test
+    fun `findDuplicateScheduleCandidates maps backend candidates and request`() = runBlocking {
+        val dto = ScheduleDuplicateCandidateDto(
+            unitId = "unit-9",
+            projectId = "proj-1",
+            unitLabel = "House 4",
+            buyerName = "Ada Obi",
+            scheduleVersionId = "ver-1",
+            versionNo = 1,
+            installmentCount = 3,
+            totalMinor = 400000000,
+            reasons = listOf("same_buyer_and_schedule", "same_proof"),
+            score = 175,
+        )
+        val api = FakeApi(duplicateResponse = listOf(dto))
+        val repo = ScheduleRepository(api.service, FakeVersionDao(), FakeInstallmentDao(), SyncEventLogger(FakeEvents()))
+
+        val result = repo.findDuplicateScheduleCandidates(
+            businessId = businessId,
+            buyerName = "Ada Obi",
+            lines = listOf(line(1, 200000000, "2026-07-01")),
+            screenshotId = "shot-1",
+            excludeUnitId = unitId,
+        )
+
+        assertEquals(1, result.size)
+        val candidate = result.first()
+        assertEquals("unit-9", candidate.unitId)
+        assertEquals("House 4", candidate.unitLabel)
+        assertEquals(175, candidate.score)
+        assertEquals(
+            listOf(ScheduleDuplicateReason.SAME_BUYER_AND_SCHEDULE, ScheduleDuplicateReason.SAME_PROOF),
+            candidate.reasons,
+        )
+        // The request carried the exclude-unit and mapped lines → ISO-dated installments.
+        assertEquals(unitId, api.lastDuplicateRequest?.excludeUnitId)
+        assertEquals("2026-07-01", api.lastDuplicateRequest?.installments?.first()?.dueDate)
+        assertEquals(200000000L, api.lastDuplicateRequest?.installments?.first()?.amountMinor)
+    }
+
+    @Test
+    fun `findDuplicateScheduleCandidates returns empty when the check fails`() = runBlocking {
+        val api = FakeApi(duplicateFailure = RuntimeException("offline"))
+        val repo = ScheduleRepository(api.service, FakeVersionDao(), FakeInstallmentDao(), SyncEventLogger(FakeEvents()))
+
+        val result = repo.findDuplicateScheduleCandidates(
+            businessId = businessId,
+            buyerName = "Ada Obi",
+            lines = listOf(line(1, 200000000, "2026-07-01")),
+            screenshotId = null,
+            excludeUnitId = unitId,
+        )
+
+        assertTrue(result.isEmpty())
+    }
+
     private fun version(
         id: String = "v1",
         syncStatus: SyncStatus,
@@ -145,11 +203,25 @@ class ScheduleRepositoryTest {
 
     /** ApiService via delegation to a Mockito mock; only the schedule endpoints
      * are overridden. */
-    private class FakeApi(private val createFailure: Throwable? = null) {
+    private class FakeApi(
+        private val createFailure: Throwable? = null,
+        private val duplicateResponse: List<ScheduleDuplicateCandidateDto> = emptyList(),
+        private val duplicateFailure: Throwable? = null,
+    ) {
         var createCalls = 0
+        var lastDuplicateRequest: ScheduleDuplicateRequestDto? = null
         private var versionCounter = 0
         private val base = Mockito.mock(ApiService::class.java)
         val service: ApiService = object : ApiService by base {
+            override suspend fun scheduleDuplicateCandidates(
+                businessId: String,
+                body: ScheduleDuplicateRequestDto,
+            ): List<ScheduleDuplicateCandidateDto> {
+                lastDuplicateRequest = body
+                duplicateFailure?.let { throw it }
+                return duplicateResponse
+            }
+
             override suspend fun listScheduleVersions(
                 businessId: String,
                 unitId: String,
