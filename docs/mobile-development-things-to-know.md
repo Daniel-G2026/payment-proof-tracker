@@ -340,6 +340,41 @@ Before the first real release:
 - Confirm `isDebuggable = false` on the release build type (it already is).
 - Upload the `mapping.txt` for that build to Play Console so future crash reports come back de-obfuscated.
 
+### Getting an update into users' hands — rebuild the bundle every time
+
+Merging code to `main` does **not** update the app on anyone's phone. The app a
+user has is a fixed AAB you uploaded to Play; it has no link back to the repo and
+never pulls new code on its own. **Every time** you want users to receive a
+change — a bug fix, or a new feature like PDF offer-letter scanning — you must cut
+and upload a fresh release bundle:
+
+```powershell
+cd android
+./gradlew :app:bundleRelease
+# -> app/build/outputs/bundle/release/app-release.aab  (upload this to Play Console)
+```
+
+Note this is `:app:bundleRelease` (an **AAB**, what Play wants), not
+`:app:assembleRelease` (an APK, for sideload testing only).
+
+Each release must:
+
+- **Bump `versionCode`** (an integer in `build.gradle`) — Play rejects an AAB
+  whose `versionCode` already exists. Bump `versionName` too when the change is
+  user-visible.
+- **Be built with `API_BASE_URL` pointed at the Render production URL** in
+  `android/local.properties`. A debug/default build points at `10.0.2.2` (the
+  emulator's alias for your dev machine) and is broken for real users.
+- **Be signed with the real upload keystore** (`keystore.properties`), not the
+  debug key.
+
+Backend vs app cadence differ. If Render auto-deploys on push to `main`, backend
+changes go live without a store release. But anything touching the **Android
+app** needs a new bundle + Play upload. So a feature with both halves (e.g. PDF
+offer-letter scan) is not fully in users' hands until that new AAB ships — even
+after it is merged to `main` and the backend is live. This is exactly how PDF
+scanning could be "merged" yet absent from the installed app.
+
 ## App Startup UX
 
 Avoid remote-first startup when building offline-first apps.

@@ -105,6 +105,21 @@ only when a unit's schedule opens), so the arrears dashboard can read low on a
 fresh device until each unit is opened — a bulk schedule restore is the proper
 fix.
 
+**Offer-letter scanning now accepts PDFs (merged to `main` via PR #43,
+2026-06-09).** The Phase 13 Cut 6 offer-letter scan was originally image-only;
+PR #43 added end-to-end PDF support. The Android picker is now
+`OpenDocument(["image/*", "application/pdf"])`; the backend allows
+`application/pdf` (validated by `%PDF-` magic bytes) **only** when
+`document_type=offer_letter` — the payment-proof and share-sheet paths stay
+strictly image-only — and `vision.py` sends a PDF as an Anthropic `document`
+content block instead of an `image` block. Verified: backend `uv run pytest`
+(222 passed), `:app:testDebugUnitTest`, `:app:assembleDebug`. **Merged is not
+shipped:** the production Android AAB predates this, so PDF scanning reaches
+real users only with the next `:app:bundleRelease` uploaded to Play (the backend
+half may already be live if Render auto-deploys `main`). See
+`docs/phase-13-offer-letter-contract.md` and "Getting an update into users'
+hands" in `docs/mobile-development-things-to-know.md`.
+
 Phase 11 (Reports and Exports) is complete. The Android app has a
 "Reports & export" entry on the Home dashboard that opens a dedicated Summary
 screen with a Month/Week period picker (whole periods only; previous/next
