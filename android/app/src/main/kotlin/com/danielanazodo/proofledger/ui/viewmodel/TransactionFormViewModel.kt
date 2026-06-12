@@ -5,6 +5,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import java.util.UUID
+import com.danielanazodo.proofledger.data.analytics.Analytics
+import com.danielanazodo.proofledger.data.analytics.AnalyticsEvents
 import com.danielanazodo.proofledger.data.balance.Installment
 import com.danielanazodo.proofledger.data.local.dao.LocalScreenshotDao
 import com.danielanazodo.proofledger.data.local.entity.LocalCategoryEntity
@@ -143,6 +145,7 @@ class TransactionFormViewModel @Inject constructor(
     private val ocrDraftParser: OcrDraftParser,
     private val serverDraftPoller: ServerDraftPoller,
     private val screenshotDao: LocalScreenshotDao,
+    private val analytics: Analytics,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val transactionId: String? = savedStateHandle["transactionId"]
@@ -708,6 +711,9 @@ class TransactionFormViewModel @Inject constructor(
                         draftId = draftId,
                         transactionId = savedTransaction.id,
                     )
+                    // The user kept (confirmed) at least one AI-drafted field by
+                    // saving a transaction backed by a server extraction draft.
+                    analytics.track(AnalyticsEvents.DRAFT_CONFIRMED)
                 }
                 // Phase 8.1 proof handling branches three ways:
                 //
@@ -896,6 +902,9 @@ class TransactionFormViewModel @Inject constructor(
                 return@launch
             }
             pendingOrphan = upload
+            // The proof bytes are now on the backend (orphan screenshot row
+            // created server-side). Fires once per successful upload.
+            analytics.track(AnalyticsEvents.SCREENSHOT_UPLOADED)
             _state.update {
                 it.copy(
                     pendingScreenshotId = upload.screenshot.id,
