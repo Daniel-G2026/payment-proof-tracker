@@ -3,21 +3,24 @@ package com.danielanazodo.proofledger.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,12 +40,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danielanazodo.proofledger.ui.components.ActionRow
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
 import com.danielanazodo.proofledger.ui.components.MetricLine
+import com.danielanazodo.proofledger.ui.components.PanelEmptyState
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.ProofLedgerMainScaffold
 import com.danielanazodo.proofledger.ui.components.RecordListRow
-import com.danielanazodo.proofledger.ui.components.SectionLabel
+import com.danielanazodo.proofledger.ui.components.SectionHeader
 import com.danielanazodo.proofledger.ui.components.StatusDot
 import com.danielanazodo.proofledger.ui.components.SummaryPanel
 import com.danielanazodo.proofledger.ui.components.VerticalSpacer
@@ -52,8 +57,11 @@ import com.danielanazodo.proofledger.ui.navigation.MainTab
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.NeutralPaper
+import com.danielanazodo.proofledger.ui.theme.ProofBorder
 import com.danielanazodo.proofledger.ui.theme.ProofGrayDot
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
+import com.danielanazodo.proofledger.ui.theme.ProofAmberDeep
+import com.danielanazodo.proofledger.ui.theme.ProofIcons
 import com.danielanazodo.proofledger.ui.theme.ProofLime
 import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
 import com.danielanazodo.proofledger.ui.theme.SurfaceCard
@@ -174,19 +182,50 @@ fun EmptyDashboardScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(range.headerLabel, color = NeutralMuted, style = MaterialTheme.typography.bodySmall)
-                            Text(
-                                range.toggleLabel,
-                                color = NeutralInk,
-                                style = MaterialTheme.typography.labelMedium,
+                            // Chip styling + unfold icon so the period switcher reads as
+                            // a control, not a static label; outer box keeps the 48dp
+                            // touch target without fattening the visible chip.
+                            Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable { range = range.next() }
-                                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                            )
+                                    .heightIn(min = ProofLedgerDimens.iconTouchTarget)
+                                    .clickable { range = range.next() },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(ProofLedgerDimens.chipRadius))
+                                        .background(SurfaceCard)
+                                        .border(
+                                            1.dp,
+                                            ProofBorder,
+                                            RoundedCornerShape(ProofLedgerDimens.chipRadius),
+                                        )
+                                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                ) {
+                                    Text(
+                                        range.toggleLabel,
+                                        color = NeutralInk,
+                                        style = MaterialTheme.typography.labelMedium,
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Filled.UnfoldMore,
+                                        contentDescription = "Change period",
+                                        tint = NeutralMuted,
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                }
+                            }
                         }
                         MetricLine("In", formatNaira(moneyIn), ProofLime)
                         MetricLine("Out", formatNaira(moneyOut), ProofGrayDot)
-                        MetricLine("Net", formatNaira(moneyIn - moneyOut), ProofGrayDot)
+                        // A loss month is the one thing an owner must not miss.
+                        MetricLine(
+                            "Net",
+                            formatNaira(moneyIn - moneyOut),
+                            if (moneyIn - moneyOut < 0) ProofAmber else ProofGrayDot,
+                        )
                         Spacer(
                             Modifier
                                 .fillMaxWidth()
@@ -200,7 +239,12 @@ fun EmptyDashboardScreen(
                         )
                     }
 
-                    ReportsCard(onClick = viewReports)
+                    ActionRow(
+                        label = "Reports & export",
+                        icon = ProofIcons.Reports,
+                        onClick = viewReports,
+                        supportingText = "See totals by month and export a CSV or PDF.",
+                    )
 
                     if (state.syncIssueCount > 0) {
                         GroupedPanel {
@@ -281,85 +325,36 @@ fun EmptyDashboardScreen(
                         ),
                     verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.sectionGap),
                 ) {
-                    SectionLabel("Recent records")
-                    if (state.recentTransactions.isEmpty()) {
-                        GroupedPanel {
-                            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("No records yet.", color = NeutralInk, style = MaterialTheme.typography.titleMedium)
-                                Text(
-                                    "Add money in or money out, then attach proof when you have it.",
-                                    color = NeutralMuted,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
+                    Column(verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap)) {
+                        SectionHeader(
+                            title = "Recent records",
+                            actionText = "View all",
+                            actionContentDescription = "View all records",
+                            onAction = viewRecords,
+                        )
+                        if (state.recentTransactions.isEmpty()) {
+                            PanelEmptyState(
+                                title = "No records yet",
+                                message = "Add money in or money out, then attach proof when you have it.",
+                                icon = ProofIcons.Records,
+                            )
+                        } else {
+                            GroupedPanel {
+                                state.recentTransactions.forEachIndexed { index, transaction ->
+                                    RecordListRow(
+                                        transaction = transaction,
+                                        onClick = transactionClick,
+                                        showDivider = index != state.recentTransactions.lastIndex,
+                                    )
+                                }
                             }
                         }
-                    } else {
-                        GroupedPanel {
-                            state.recentTransactions.forEachIndexed { index, transaction ->
-                                RecordListRow(
-                                    transaction = transaction,
-                                    onClick = transactionClick,
-                                    showDivider = index != state.recentTransactions.lastIndex,
-                                )
-                            }
-                        }
-                    }
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Start,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            TextButton(onClick = viewRecords) {
-                                Text("View all records", color = NeutralMuted, fontWeight = FontWeight.Medium)
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
                         PrimaryActionButton(text = "Add record", onClick = addMoneyIn, icon = Icons.Filled.Add)
                     }
                     VerticalSpacer(12)
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun ReportsCard(onClick: () -> Unit) {
-    val open = rememberDebouncedClick(onClick = onClick)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(ProofLedgerDimens.panelRadius))
-            .background(SurfaceCard)
-            .border(
-                width = 1.dp,
-                color = NeutralInk.copy(alpha = 0.18f),
-                shape = RoundedCornerShape(ProofLedgerDimens.panelRadius),
-            )
-            .clickable(onClick = open)
-            .padding(ProofLedgerDimens.panelPadding),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(
-                "Reports & export",
-                color = NeutralInk,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Medium,
-            )
-            Text(
-                "See totals by month and export a CSV or PDF.",
-                color = NeutralMuted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        Icon(
-            imageVector = Icons.Filled.ChevronRight,
-            contentDescription = "Open reports",
-            tint = NeutralMuted,
-        )
     }
 }
 
@@ -393,7 +388,7 @@ private fun ProofSummaryFooter(
             StatusDot(color = ProofAmber)
             Text(
                 "${formatCompactCount(missingProofCount)} missing",
-                color = ProofAmber,
+                color = ProofAmberDeep,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

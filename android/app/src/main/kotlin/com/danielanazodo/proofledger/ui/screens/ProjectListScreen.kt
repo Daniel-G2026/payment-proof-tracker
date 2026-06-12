@@ -35,18 +35,25 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.data.balance.ArrearsDashboard
 import com.danielanazodo.proofledger.data.local.entity.LocalProjectEntity
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
+import com.danielanazodo.proofledger.ui.components.InfoCallout
+import com.danielanazodo.proofledger.ui.components.KeyFigure
+import com.danielanazodo.proofledger.ui.components.LeadingIconBox
 import com.danielanazodo.proofledger.ui.components.PageHeader
+import com.danielanazodo.proofledger.ui.components.PanelEmptyState
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.ProofLedgerConfirmDialog
 import com.danielanazodo.proofledger.ui.components.ProofLedgerMainScaffold
 import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
-import com.danielanazodo.proofledger.ui.components.SectionLabel
+import com.danielanazodo.proofledger.ui.components.SectionHeader
+import com.danielanazodo.proofledger.ui.components.StatusDot
 import com.danielanazodo.proofledger.ui.format.formatNaira
 import com.danielanazodo.proofledger.ui.navigation.MainTab
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
-import com.danielanazodo.proofledger.ui.theme.ProofBorder
+import com.danielanazodo.proofledger.ui.theme.ProofAmberDeep
+import com.danielanazodo.proofledger.ui.theme.ProofIcons
+import com.danielanazodo.proofledger.ui.theme.ProofLime
 import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
 import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
@@ -72,11 +79,11 @@ fun ProjectListScreen(
     ProofLedgerMainScaffold(
         selectedTab = MainTab.Projects,
         onTabSelected = onTabSelected,
-        topBar = { PageHeader(title = "Projects") },
+        topBar = { PageHeader(title = "Projects", subtitle = "Houses, buyers, and spending per project") },
     ) { modifier ->
         Column(
             modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).proofLedgerScreenPadding(),
-            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
+            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.sectionGap),
         ) {
             val arrears = state.arrears
             if (arrears != null) {
@@ -84,70 +91,91 @@ fun ProjectListScreen(
             } else {
                 ArrearsEntryRow(onClick = viewArrears)
             }
-            Text(
-                "A project is a development or estate — or a single house. " +
-                    "Money in and money out can be tracked against it. Open one to add its houses.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = NeutralMuted,
-            )
-            ProofLedgerTextField(
-                value = state.newProject,
-                onValueChange = viewModel::onNewProjectChange,
-                label = "New project",
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            PrimaryActionButton(text = "Add project", onClick = addProject, icon = Icons.Filled.Add)
 
-            SectionLabel("Your projects")
-            if (state.total == 0) {
-                Text(
-                    "No projects yet. Add one above.",
-                    color = NeutralMuted,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            } else {
-                // Search is for when the user remembers the project; it only earns
-                // its space once there are more than fit the scroll window.
-                if (state.total > PROJECT_FEED_VISIBLE_ROWS || state.query.isNotBlank()) {
-                    ProofLedgerTextField(
-                        value = state.query,
-                        onValueChange = viewModel::onQueryChange,
-                        label = "Search projects",
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
+            Column(verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap)) {
+                // Teach only while there's nothing to show: once projects exist the
+                // explainer would just be a permanent banner pushing them down.
+                if (state.total == 0) {
+                    InfoCallout(
+                        "A project is a development, an estate, or a single house. " +
+                            "Track money in and out against it; open one to add its houses.",
                     )
                 }
-                if (state.projects.isEmpty()) {
-                    Text(
-                        "No projects match \"${state.query.trim()}\".",
-                        color = NeutralMuted,
-                        style = MaterialTheme.typography.bodyMedium,
+                GroupedPanel {
+                    Column(
+                        modifier = Modifier.padding(ProofLedgerDimens.panelPadding),
+                        verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
+                    ) {
+                        Text(
+                            "Add a project",
+                            color = NeutralInk,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        ProofLedgerTextField(
+                            value = state.newProject,
+                            onValueChange = viewModel::onNewProjectChange,
+                            label = "Project name",
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        PrimaryActionButton(text = "Add project", onClick = addProject, icon = Icons.Filled.Add)
+                    }
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap)) {
+                SectionHeader(title = "Your projects", count = state.total.takeIf { it > 0 })
+                if (state.total == 0) {
+                    PanelEmptyState(
+                        title = "No projects yet",
+                        message = "Add your first project above to start tracking it.",
+                        icon = ProofIcons.Projects,
                     )
                 } else {
-                    // Self-contained scroll window: flick through every project here
-                    // without the whole page growing. Bounded height → the list
-                    // scrolls inside the panel; short lists just wrap to content.
-                    GroupedPanel {
-                        LazyColumn(modifier = Modifier.heightIn(max = PROJECT_FEED_MAX_HEIGHT)) {
-                            itemsIndexed(state.projects, key = { _, project -> project.id }) { index, project ->
-                                ProjectRow(
-                                    name = project.name,
-                                    onClick = { onProjectClick(project.id) },
-                                    onDelete = { pendingDelete = project },
-                                )
-                                if (index != state.projects.lastIndex) {
-                                    HorizontalDivider()
+                    // Search is for when the user remembers the project; it only earns
+                    // its space once there are more than fit the scroll window.
+                    if (state.total > PROJECT_FEED_VISIBLE_ROWS || state.query.isNotBlank()) {
+                        ProofLedgerTextField(
+                            value = state.query,
+                            onValueChange = viewModel::onQueryChange,
+                            label = "Search projects",
+                            leadingIcon = ProofIcons.Search,
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    if (state.projects.isEmpty()) {
+                        PanelEmptyState(
+                            title = "No matching projects",
+                            message = "No projects match \"${state.query.trim()}\".",
+                            icon = ProofIcons.Search,
+                        )
+                    } else {
+                        // Self-contained scroll window: flick through every project here
+                        // without the whole page growing. Bounded height → the list
+                        // scrolls inside the panel; short lists just wrap to content.
+                        GroupedPanel {
+                            LazyColumn(modifier = Modifier.heightIn(max = PROJECT_FEED_MAX_HEIGHT)) {
+                                itemsIndexed(state.projects, key = { _, project -> project.id }) { index, project ->
+                                    ProjectRow(
+                                        name = project.name,
+                                        onClick = { onProjectClick(project.id) },
+                                        onDelete = { pendingDelete = project },
+                                    )
+                                    if (index != state.projects.lastIndex) {
+                                        HorizontalDivider()
+                                    }
                                 }
                             }
                         }
-                    }
-                    if (state.query.isBlank() && state.total > PROJECT_FEED_VISIBLE_ROWS) {
-                        Text(
-                            "Scroll to see all ${state.total} projects.",
-                            color = NeutralMuted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                        if (state.query.isBlank() && state.total > PROJECT_FEED_VISIBLE_ROWS) {
+                            Text(
+                                "Scroll to see all ${state.total} projects.",
+                                color = NeutralMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     }
                 }
             }
@@ -171,9 +199,10 @@ fun ProjectListScreen(
 }
 
 /**
- * Rich monthly arrears summary at the top of the Projects tab: due / fulfilled
- * counts and the combined outstanding balance, tappable to open the full
- * arrears dashboard. (Same summary the Home dashboard used to carry.)
+ * Rich monthly arrears summary at the top of the Projects tab: the combined
+ * outstanding balance as the headline figure with due / fulfilled counts under
+ * it, tappable to open the full arrears dashboard. (Same summary the Home
+ * dashboard used to carry.)
  */
 @Composable
 private fun ArrearsHeroCard(arrears: ArrearsDashboard, onClick: () -> Unit) {
@@ -187,52 +216,57 @@ private fun ArrearsHeroCard(arrears: ArrearsDashboard, onClick: () -> Unit) {
                 .fillMaxWidth()
                 .clickable(onClick = open)
                 .padding(ProofLedgerDimens.panelPadding),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(
-                "This month · $monthLabel",
-                color = NeutralMuted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                "${arrears.peopleDueThisMonth} due · ${arrears.peopleFulfilledThisMonth} fulfilled",
-                color = NeutralInk,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium,
-            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        "Outstanding",
-                        color = NeutralMuted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Text(
-                        formatNaira(arrears.combinedOutstandingMinor),
-                        color = if (arrears.combinedOutstandingMinor > 0) ProofAmber else NeutralInk,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
+                Text(
+                    "This month · $monthLabel",
+                    color = NeutralMuted,
+                    style = MaterialTheme.typography.labelMedium,
+                )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     Text(
                         "Details",
-                        color = NeutralMuted,
-                        style = MaterialTheme.typography.labelMedium,
+                        color = NeutralInk,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium,
                     )
                     Icon(
                         imageVector = Icons.Filled.ChevronRight,
                         contentDescription = "Open arrears dashboard",
-                        tint = NeutralMuted,
+                        tint = NeutralInk,
+                        modifier = Modifier.padding(top = 1.dp),
                     )
                 }
+            }
+            KeyFigure(
+                label = "Outstanding",
+                amountText = formatNaira(arrears.combinedOutstandingMinor),
+                color = if (arrears.combinedOutstandingMinor > 0) ProofAmberDeep else NeutralInk,
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                StatusDot(color = ProofAmber)
+                Text(
+                    "${arrears.peopleDueThisMonth} due",
+                    color = NeutralMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                StatusDot(color = ProofLime)
+                Text(
+                    "${arrears.peopleFulfilledThisMonth} fulfilled",
+                    color = NeutralMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
     }
@@ -246,10 +280,11 @@ private fun ArrearsEntryRow(onClick: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = open)
-                .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            LeadingIconBox(icon = ProofIcons.Reports)
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
                     "Who's due this month",
@@ -266,7 +301,7 @@ private fun ArrearsEntryRow(onClick: () -> Unit) {
             Icon(
                 imageVector = Icons.Filled.ChevronRight,
                 contentDescription = "Open arrears dashboard",
-                tint = ProofBorder,
+                tint = NeutralMuted,
             )
         }
     }
@@ -284,13 +319,14 @@ private fun ProjectRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = open)
-            .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        LeadingIconBox(icon = ProofIcons.Projects)
         Text(
             name,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.titleSmall,
             color = NeutralInk,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f),
@@ -305,7 +341,7 @@ private fun ProjectRow(
         Icon(
             imageVector = Icons.Filled.ChevronRight,
             contentDescription = null,
-            tint = ProofBorder,
+            tint = NeutralMuted,
         )
     }
 }

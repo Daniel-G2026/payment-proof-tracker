@@ -25,6 +25,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -44,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -362,6 +365,343 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
         fontWeight = FontWeight.SemiBold,
         letterSpacing = 1.2.sp,
     )
+}
+
+/**
+ * Real section heading: an ink title with an optional count badge and an
+ * optional trailing navigation action in the same row, so section actions read
+ * as part of the section instead of stray grey text elsewhere on the page.
+ */
+@Composable
+fun SectionHeader(
+    title: String,
+    modifier: Modifier = Modifier,
+    count: Int? = null,
+    actionText: String? = null,
+    actionContentDescription: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth().heightIn(min = 32.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                title,
+                color = NeutralInk,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            count?.let {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(ProofLedgerDimens.chipRadius))
+                        .background(SurfacePanel)
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                ) {
+                    Text(it.toString(), color = NeutralMuted, style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+        if (actionText != null && onAction != null) {
+            val act = rememberDebouncedClick(onClick = onAction)
+            Row(
+                modifier = Modifier
+                    .heightIn(min = ProofLedgerDimens.iconTouchTarget)
+                    .clip(RoundedCornerShape(ProofLedgerDimens.chipRadius))
+                    .clickable(onClick = act)
+                    .padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    actionText,
+                    color = NeutralInk,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                )
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = actionContentDescription,
+                    tint = NeutralInk,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Initials avatar for people rows. Circle = person, rounded square
+ * ([LeadingIconBox]) = thing, so lists stay scannable by shape alone.
+ */
+@Composable
+fun InitialsBox(name: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(SurfacePanel),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            nameInitials(name),
+            color = NeutralInk,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+private fun nameInitials(name: String): String =
+    name.trim()
+        .split(Regex("\\s+"))
+        .mapNotNull { word -> word.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() }
+        .take(2)
+        .joinToString("")
+        .ifEmpty { "?" }
+
+/** Small soft-surface container that gives list and action rows a leading identity. */
+@Composable
+fun LeadingIconBox(
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null,
+    tint: Color = NeutralInk,
+) {
+    Box(
+        modifier = modifier
+            .size(34.dp)
+            .clip(RoundedCornerShape(ProofLedgerDimens.chipRadius))
+            .background(SurfacePanel),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+/**
+ * Settings-style navigation row for secondary actions: leading icon in a soft
+ * container, ink label, optional supporting line, trailing chevron. Use where
+ * a bare TextButton would read as muted explanatory text instead of an action.
+ */
+@Composable
+fun ActionRow(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    supportingText: String? = null,
+) {
+    val click = rememberDebouncedClick(onClick = onClick)
+    val shape = RoundedCornerShape(ProofLedgerDimens.controlRadius)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = ProofLedgerDimens.controlHeight)
+            .clip(shape)
+            .background(SurfaceCard)
+            .border(1.dp, ProofBorder, shape)
+            .clickable(onClick = click)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        LeadingIconBox(icon = icon)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                label,
+                color = NeutralInk,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+            )
+            supportingText?.let {
+                Text(it, color = NeutralMuted, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = NeutralMuted,
+        )
+    }
+}
+
+/**
+ * Compact contextual helper: short explanatory copy in a quiet panel with a
+ * leading icon, instead of a bare grey paragraph floating on the page.
+ */
+@Composable
+fun InfoCallout(
+    text: String,
+    modifier: Modifier = Modifier,
+    icon: ImageVector = Icons.Outlined.Info,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(ProofLedgerDimens.controlRadius))
+            .background(SurfacePanel)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = NeutralMuted,
+            modifier = Modifier.padding(top = 1.dp).size(15.dp),
+        )
+        Text(
+            text,
+            color = NeutralMuted,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/**
+ * Empty state for an inline section (inside the page flow, not full-screen):
+ * a quiet panel with an icon, a short ink title, and one supporting line.
+ */
+@Composable
+fun PanelEmptyState(
+    title: String,
+    message: String,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+) {
+    GroupedPanel(modifier = modifier) {
+        Row(
+            modifier = Modifier.padding(ProofLedgerDimens.panelPadding),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            icon?.let { LeadingIconBox(icon = it, tint = NeutralMuted) }
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    title,
+                    color = NeutralInk,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(message, color = NeutralMuted, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+/**
+ * Small static status badge. Emphasized badges reuse the selected filter
+ * chip's restrained lime recipe so accent usage stays consistent app-wide.
+ */
+@Composable
+fun TagBadge(
+    text: String,
+    modifier: Modifier = Modifier,
+    emphasized: Boolean = false,
+    icon: ImageVector? = null,
+) {
+    val shape = RoundedCornerShape(ProofLedgerDimens.chipRadius)
+    val background = if (emphasized) ProofLime.copy(alpha = 0.28f) else SurfacePanel
+    val borderColor = if (emphasized) NeutralInk.copy(alpha = 0.22f) else ProofBorder
+    val textColor = if (emphasized) NeutralInk else NeutralMuted
+    Row(
+        modifier = modifier
+            .clip(shape)
+            .background(background)
+            .border(1.dp, borderColor, shape)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        icon?.let {
+            Icon(
+                imageVector = it,
+                contentDescription = null,
+                tint = textColor,
+                modifier = Modifier.size(12.dp),
+            )
+        }
+        Text(
+            text,
+            color = textColor,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * Thin bar showing one amount's share of a total already on screen (e.g. a
+ * category's share of total spend). Visual aid only — no new statistics.
+ */
+@Composable
+fun ProportionBar(
+    fraction: Float,
+    modifier: Modifier = Modifier,
+    fillColor: Color = NeutralInk.copy(alpha = 0.72f),
+) {
+    val clamped = fraction.coerceIn(0f, 1f)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(4.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(SurfacePanel),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(clamped)
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(fillColor),
+        )
+    }
+}
+
+/**
+ * Prominent financial figure with an eyebrow label, for summary panels where
+ * one number is the headline (e.g. total spent on a project).
+ */
+@Composable
+fun KeyFigure(
+    label: String,
+    amountText: String,
+    modifier: Modifier = Modifier,
+    color: Color = NeutralInk,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            label.uppercase(),
+            color = NeutralMuted,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.2.sp,
+        )
+        MoneyAmount(
+            text = amountText,
+            color = color,
+            preferredSize = 26.sp,
+            minimumSize = 16.sp,
+            textAlign = TextAlign.Start,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }
 
 @Composable

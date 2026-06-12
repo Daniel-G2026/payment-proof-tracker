@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -16,8 +17,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,14 +43,23 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.data.local.entity.LocalCounterpartyEntity
 import com.danielanazodo.proofledger.data.local.entity.LocalUnitEntity
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
+import com.danielanazodo.proofledger.ui.components.InfoCallout
+import com.danielanazodo.proofledger.ui.components.InitialsBox
+import com.danielanazodo.proofledger.ui.components.KeyFigure
+import com.danielanazodo.proofledger.ui.components.LeadingIconBox
+import com.danielanazodo.proofledger.ui.components.MoneyAmount
+import com.danielanazodo.proofledger.ui.components.PanelEmptyState
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.ProofLedgerConfirmDialog
 import com.danielanazodo.proofledger.ui.components.ProofLedgerScreen
 import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
-import com.danielanazodo.proofledger.ui.components.SectionLabel
+import com.danielanazodo.proofledger.ui.components.ProportionBar
+import com.danielanazodo.proofledger.ui.components.SectionHeader
+import com.danielanazodo.proofledger.ui.components.TagBadge
 import com.danielanazodo.proofledger.ui.format.formatNaira
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
+import com.danielanazodo.proofledger.ui.theme.ProofIcons
 import com.danielanazodo.proofledger.ui.theme.ProofLime
 import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
 import com.danielanazodo.proofledger.ui.theme.SurfaceCard
@@ -79,109 +91,134 @@ fun ProjectDetailScreen(
     ) { modifier ->
         Column(
             modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).proofLedgerScreenPadding(),
-            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
+            verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.sectionGap),
         ) {
-            Text(
-                "Houses (units) in this project. Each can have a buyer. " +
-                    "A standalone house is just a project with one unit.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = NeutralMuted,
-            )
-            ProofLedgerTextField(
-                value = state.newUnitLabel,
-                onValueChange = viewModel::onNewUnitLabelChange,
-                label = "New house / unit (e.g. Plot 12)",
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            PrimaryActionButton(text = "Add house", onClick = addUnit, icon = Icons.Filled.Add)
-
-            SectionLabel("Houses")
-            if (state.unitsTotal == 0) {
-                Text(
-                    "No houses yet. Add one above.",
-                    color = NeutralMuted,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            } else {
-                // Search is for when the user remembers the house; it only earns its
-                // space once there are more houses than fit the scroll window.
-                if (state.unitsTotal > UNIT_FEED_VISIBLE_ROWS || state.unitQuery.isNotBlank()) {
-                    ProofLedgerTextField(
-                        value = state.unitQuery,
-                        onValueChange = viewModel::onUnitQueryChange,
-                        label = "Search houses",
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
+            Column(verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap)) {
+                // Teach only while there's nothing to show: once houses exist the
+                // explainer would just be a permanent banner pushing them down.
+                if (state.unitsTotal == 0) {
+                    InfoCallout(
+                        "Each house (unit) can have a buyer and a payment schedule. " +
+                            "A standalone house is just a project with one unit.",
                     )
                 }
-                if (state.units.isEmpty()) {
-                    Text(
-                        "No houses match \"${state.unitQuery.trim()}\".",
-                        color = NeutralMuted,
-                        style = MaterialTheme.typography.bodyMedium,
+                GroupedPanel {
+                    Column(
+                        modifier = Modifier.padding(ProofLedgerDimens.panelPadding),
+                        verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
+                    ) {
+                        Text(
+                            "Add a house",
+                            color = NeutralInk,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        ProofLedgerTextField(
+                            value = state.newUnitLabel,
+                            onValueChange = viewModel::onNewUnitLabelChange,
+                            label = "House / unit name (e.g. Plot 12)",
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        PrimaryActionButton(text = "Add house", onClick = addUnit, icon = Icons.Filled.Add)
+                    }
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap)) {
+                SectionHeader(title = "Houses", count = state.unitsTotal.takeIf { it > 0 })
+                if (state.unitsTotal == 0) {
+                    PanelEmptyState(
+                        title = "No houses yet",
+                        message = "Add the first house above. Each one gets its own schedule.",
+                        icon = ProofIcons.Home,
                     )
                 } else {
-                    // Self-contained scroll window: flick through every house here
-                    // without the whole page growing. Bounded height → the list
-                    // scrolls inside the panel; short lists just wrap to content.
-                    GroupedPanel {
-                        LazyColumn(modifier = Modifier.heightIn(max = UNIT_FEED_MAX_HEIGHT)) {
-                            itemsIndexed(state.units, key = { _, unit -> unit.id }) { index, unit ->
-                                UnitRow(
-                                    label = unit.label,
-                                    buyerName = unit.buyerCounterpartyId?.let { buyerNamesById[it] },
-                                    onOpenSchedule = { onUnitSchedule(unit.id) },
-                                    onAssignBuyer = { assigningBuyerFor = unit },
-                                    onDelete = { pendingDelete = unit },
-                                )
-                                if (index != state.units.lastIndex) {
-                                    HorizontalDivider()
+                    // Search is for when the user remembers the house; it only earns its
+                    // space once there are more houses than fit the scroll window.
+                    if (state.unitsTotal > UNIT_FEED_VISIBLE_ROWS || state.unitQuery.isNotBlank()) {
+                        ProofLedgerTextField(
+                            value = state.unitQuery,
+                            onValueChange = viewModel::onUnitQueryChange,
+                            label = "Search houses",
+                            leadingIcon = ProofIcons.Search,
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    if (state.units.isEmpty()) {
+                        PanelEmptyState(
+                            title = "No matching houses",
+                            message = "No houses match \"${state.unitQuery.trim()}\".",
+                            icon = ProofIcons.Search,
+                        )
+                    } else {
+                        // Self-contained scroll window: flick through every house here
+                        // without the whole page growing. Bounded height → the list
+                        // scrolls inside the panel; short lists just wrap to content.
+                        GroupedPanel {
+                            LazyColumn(modifier = Modifier.heightIn(max = UNIT_FEED_MAX_HEIGHT)) {
+                                itemsIndexed(state.units, key = { _, unit -> unit.id }) { index, unit ->
+                                    UnitRow(
+                                        label = unit.label,
+                                        buyerName = unit.buyerCounterpartyId?.let { buyerNamesById[it] },
+                                        onOpenSchedule = { onUnitSchedule(unit.id) },
+                                        onAssignBuyer = { assigningBuyerFor = unit },
+                                        onDelete = { pendingDelete = unit },
+                                    )
+                                    if (index != state.units.lastIndex) {
+                                        HorizontalDivider()
+                                    }
                                 }
                             }
                         }
-                    }
-                    if (state.unitQuery.isBlank() && state.unitsTotal > UNIT_FEED_VISIBLE_ROWS) {
-                        Text(
-                            "Scroll to see all ${state.unitsTotal} houses.",
-                            color = NeutralMuted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                        if (state.unitQuery.isBlank() && state.unitsTotal > UNIT_FEED_VISIBLE_ROWS) {
+                            Text(
+                                "Scroll to see all ${state.unitsTotal} houses.",
+                                color = NeutralMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     }
                 }
             }
 
             // Phase 13 Cut 5: actual money-out tagged to this project, by category.
-            SectionLabel("Spending on this project")
-            val spend = state.spend
-            if (spend.totalMinor == 0L) {
-                Text(
-                    "No money-out tagged to this project yet. Tag spending when you " +
-                        "record money out.",
-                    color = NeutralMuted,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            } else {
-                GroupedPanel {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text("Total spent", color = NeutralInk, fontWeight = FontWeight.Medium)
-                        Text(
-                            formatNaira(spend.totalMinor),
-                            color = NeutralInk,
-                            fontWeight = FontWeight.SemiBold,
+            Column(verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap)) {
+                SectionHeader(title = "Spending on this project")
+                val spend = state.spend
+                if (spend.totalMinor == 0L) {
+                    PanelEmptyState(
+                        title = "No spending yet",
+                        message = "Tag money out to this project when you record it.",
+                        icon = ProofIcons.Tag,
+                    )
+                } else {
+                    GroupedPanel {
+                        KeyFigure(
+                            label = "Total spent",
+                            amountText = formatNaira(spend.totalMinor),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(ProofLedgerDimens.panelPadding),
                         )
-                    }
-                    spend.byCategory.forEach { line ->
-                        HorizontalDivider()
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(line.category, color = NeutralMuted)
-                            Text(formatNaira(line.totalMinor), color = NeutralInk)
+                        if (spend.byCategory.isNotEmpty()) {
+                            HorizontalDivider()
+                            Column(
+                                modifier = Modifier.padding(
+                                    horizontal = ProofLedgerDimens.panelPadding,
+                                    vertical = 14.dp,
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(14.dp),
+                            ) {
+                                spend.byCategory.forEach { line ->
+                                    SpendCategoryLine(
+                                        category = line.category,
+                                        amountMinor = line.totalMinor,
+                                        totalMinor = spend.totalMinor,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -220,6 +257,42 @@ fun ProjectDetailScreen(
     }
 }
 
+/**
+ * One category's share of the project's spend: ink label, right-aligned mono
+ * amount, and a thin bar showing its share of the total already on screen.
+ */
+@Composable
+private fun SpendCategoryLine(
+    category: String,
+    amountMinor: Long,
+    totalMinor: Long,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                category,
+                color = NeutralInk,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            MoneyAmount(
+                text = formatNaira(amountMinor),
+                color = NeutralInk,
+                preferredSize = MaterialTheme.typography.titleSmall.fontSize,
+                minimumSize = MaterialTheme.typography.labelSmall.fontSize,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.width(130.dp),
+            )
+        }
+        ProportionBar(fraction = if (totalMinor > 0) amountMinor.toFloat() / totalMinor else 0f)
+    }
+}
+
 @Composable
 private fun UnitRow(
     label: String,
@@ -235,28 +308,35 @@ private fun UnitRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = openSchedule)
-            .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        LeadingIconBox(icon = ProofIcons.Home)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(
                 label,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.titleSmall,
                 color = NeutralInk,
                 fontWeight = FontWeight.Medium,
             )
-            Text(
-                buyerName?.let { "Buyer: $it · tap for schedule" } ?: "Tap for schedule",
-                style = MaterialTheme.typography.bodySmall,
-                color = NeutralMuted,
-            )
+            if (buyerName != null) {
+                TagBadge(text = buyerName, emphasized = true, icon = Icons.Filled.Person)
+            } else {
+                TagBadge(text = "No buyer yet")
+            }
         }
+        // Unassigned units surface the "add" affordance in ink so the open loop
+        // is visible at a glance; once assigned, the action recedes to muted.
         IconButton(onClick = assign) {
             Icon(
-                imageVector = Icons.Filled.Person,
-                contentDescription = "Assign buyer to $label",
-                tint = NeutralMuted,
+                imageVector = if (buyerName == null) Icons.Filled.PersonAdd else Icons.Filled.Person,
+                contentDescription = if (buyerName == null) {
+                    "Assign buyer to $label"
+                } else {
+                    "Change buyer for $label"
+                },
+                tint = if (buyerName == null) NeutralInk else NeutralMuted,
             )
         }
         IconButton(onClick = delete) {
@@ -266,6 +346,11 @@ private fun UnitRow(
                 tint = NeutralMuted,
             )
         }
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = "Open schedule for $label",
+            tint = NeutralMuted,
+        )
     }
 }
 
@@ -309,13 +394,14 @@ private fun BuyerPickerDialog(
                 Text(
                     "Assign a buyer",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.SemiBold,
                     color = NeutralInk,
                 )
                 ProofLedgerTextField(
                     value = query,
                     onValueChange = { query = it },
                     label = "Search people",
+                    leadingIcon = ProofIcons.Search,
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -372,10 +458,11 @@ private fun BuyerResultRow(
 ) {
     val click = rememberDebouncedClick(onClick = onClick)
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = click).padding(16.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = click).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        InitialsBox(name = name)
         Column(modifier = Modifier.weight(1f)) {
             Text(name, color = NeutralInk, fontWeight = FontWeight.Medium)
             Text(typeLabel, color = NeutralMuted, style = MaterialTheme.typography.bodySmall)

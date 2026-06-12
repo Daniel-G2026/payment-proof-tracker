@@ -47,11 +47,11 @@ import com.danielanazodo.proofledger.data.balance.InstallmentState
 import com.danielanazodo.proofledger.data.repository.ScheduleDuplicateCandidate
 import com.danielanazodo.proofledger.ui.format.formatNaira
 import com.danielanazodo.proofledger.ui.format.todayIsoDate
+import com.danielanazodo.proofledger.ui.theme.MoneyInGreen
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
-import com.danielanazodo.proofledger.ui.theme.ProofAmber
+import com.danielanazodo.proofledger.ui.theme.ProofAmberDeep
 import com.danielanazodo.proofledger.ui.theme.ProofBorder
-import com.danielanazodo.proofledger.ui.theme.ProofLime
 import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
 import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
@@ -127,7 +127,7 @@ fun UnitScheduleScreen(
                 Text(
                     "$name is now this unit's buyer.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ProofLime,
+                    color = MoneyInGreen,
                 )
             }
 
@@ -175,7 +175,7 @@ fun UnitScheduleScreen(
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
-                    color = if (state.arrearsMinor > 0) ProofAmber else NeutralInk,
+                    color = if (state.arrearsMinor > 0) ProofAmberDeep else NeutralInk,
                 )
             } else if (!state.showEditor) {
                 Text(
@@ -208,14 +208,14 @@ fun UnitScheduleScreen(
                 )
             }
             state.offerLetterError?.let {
-                Text(it, color = ProofAmber, style = MaterialTheme.typography.bodySmall)
+                Text(it, color = ProofAmberDeep, style = MaterialTheme.typography.bodySmall)
             }
             state.offerLetterBuyerName?.let { buyer ->
                 if (state.offerLetterBuyerMismatch) {
                     Text(
                         "This letter names \"$buyer\", which doesn't match this unit's buyer. " +
                             "Make sure you're scanning the right unit.",
-                        color = ProofAmber,
+                        color = ProofAmberDeep,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 } else {
@@ -277,7 +277,7 @@ fun UnitScheduleScreen(
                     Text("  Add installment", color = NeutralInk)
                 }
 
-                state.error?.let { Text(it, color = ProofAmber, style = MaterialTheme.typography.bodySmall) }
+                state.error?.let { Text(it, color = ProofAmberDeep, style = MaterialTheme.typography.bodySmall) }
 
                 if (state.duplicateWarnings.isNotEmpty()) {
                     DuplicateWarningPanel(
@@ -393,10 +393,12 @@ private fun stateLabel(fill: InstallmentFill): String = when (fill.state) {
     InstallmentState.FILLED_AHEAD -> "Paid ahead"
 }
 
+// Status text needs readable colors: deep amber for caution, money-in green
+// for paid. (Bright ProofAmber/ProofLime are dot/strip colors, ~2:1 as text.)
 private fun stateColor(state: InstallmentState): Color = when (state) {
     InstallmentState.UNPAID -> NeutralMuted
-    InstallmentState.PARTIAL -> ProofAmber
-    InstallmentState.FILLED -> ProofLime
-    InstallmentState.FILLED_LATE -> ProofAmber
-    InstallmentState.FILLED_AHEAD -> ProofLime
+    InstallmentState.PARTIAL -> ProofAmberDeep
+    InstallmentState.FILLED -> MoneyInGreen
+    InstallmentState.FILLED_LATE -> ProofAmberDeep
+    InstallmentState.FILLED_AHEAD -> MoneyInGreen
 }
