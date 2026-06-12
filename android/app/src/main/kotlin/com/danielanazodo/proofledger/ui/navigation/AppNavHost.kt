@@ -151,8 +151,20 @@ private fun ResolvedGraph(
         composable(Route.ProfileSetup.path) {
             ProfileSetupScreen(onSaved = onResolveAgain)
         }
+        composable(Route.ProfileEdit.path) {
+            // Pushed from later setup steps to fix a mistyped name. Saving (or
+            // backing out) pops to where the user was; re-running startup
+            // resolution here would resolve to the same route and strand them.
+            ProfileSetupScreen(
+                onSaved = { navController.popBackStack() },
+                onBack = { navController.popBackStack() },
+            )
+        }
         composable(Route.CreateBusiness.path) {
-            CreateBusinessScreen(onCreated = onResolveAgain)
+            CreateBusinessScreen(
+                onCreated = onResolveAgain,
+                onBack = { navController.navigateOnce(Route.ProfileEdit.path) },
+            )
         }
         composable(Route.BusinessSelect.path) {
             BusinessSelectScreen(onSelected = { onResolveAgain() })
@@ -207,6 +219,7 @@ private fun ResolvedGraph(
                 onProofBackup = { navController.navigateOnce(Route.ProofBackup.path) },
                 onSyncIssues = { navController.navigateOnce(Route.SyncIssues.path) },
                 onSwitchBusiness = { navController.navigateOnce(Route.BusinessSwitch.path) },
+                onEditProfile = { navController.navigateOnce(Route.ProfileEdit.path) },
                 onSignedOut = onResolveAgain,
                 onTabSelected = onTabSelected,
             )

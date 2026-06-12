@@ -7,7 +7,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -21,6 +26,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
+import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
 import com.danielanazodo.proofledger.ui.util.rememberDebouncedClick
 import com.danielanazodo.proofledger.ui.viewmodel.ProfileSetupViewModel
@@ -28,6 +34,9 @@ import com.danielanazodo.proofledger.ui.viewmodel.ProfileSetupViewModel
 @Composable
 fun ProfileSetupScreen(
     onSaved: () -> Unit,
+    // Present when this screen is opened from a later setup step to fix a
+    // typo; first-run setup has nowhere to go back to.
+    onBack: (() -> Unit)? = null,
     viewModel: ProfileSetupViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -42,7 +51,21 @@ fun ProfileSetupScreen(
                 .padding(horizontal = ProofLedgerDimens.screenHorizontal),
             verticalArrangement = Arrangement.Top,
         ) {
-            Spacer(Modifier.height(48.dp))
+            if (onBack != null) {
+                val back = rememberDebouncedClick(onClick = onBack)
+                Spacer(Modifier.height(8.dp))
+                IconButton(onClick = back) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = NeutralMuted,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+            } else {
+                Spacer(Modifier.height(48.dp))
+            }
             Text("Your name", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(8.dp))
             Text(
@@ -71,7 +94,11 @@ fun ProfileSetupScreen(
 
             Spacer(Modifier.height(24.dp))
             PrimaryActionButton(
-                text = if (state.loading) "Saving..." else "Continue",
+                text = when {
+                    state.loading -> "Saving..."
+                    onBack != null -> "Save"
+                    else -> "Continue"
+                },
                 onClick = save,
                 enabled = !state.loading,
                 modifier = Modifier.fillMaxWidth(),

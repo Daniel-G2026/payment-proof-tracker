@@ -14,7 +14,6 @@ import javax.inject.Inject
 
 data class CreateBusinessUiState(
     val name: String = "",
-    val businessType: String? = null,
     val loading: Boolean = false,
     val error: String? = null,
     val createdId: String? = null,
@@ -29,15 +28,7 @@ class CreateBusinessViewModel @Inject constructor(
     private val _state = MutableStateFlow(CreateBusinessUiState())
     val state: StateFlow<CreateBusinessUiState> = _state.asStateFlow()
 
-    val businessTypes: List<String> = listOf(
-        "contractor",
-        "supplier",
-        "subcontractor",
-        "other",
-    )
-
     fun onNameChange(v: String) = _state.update { it.copy(name = v, error = null) }
-    fun onTypeChange(v: String?) = _state.update { it.copy(businessType = v) }
 
     fun save() {
         val s = _state.value
@@ -54,10 +45,12 @@ class CreateBusinessViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             runCatching {
+                // The setup form no longer asks for a type; the field stays
+                // nullable end-to-end, so existing businesses keep theirs.
                 businessRepository.createBusiness(
                     ownerId = ownerId,
                     name = name,
-                    businessType = s.businessType,
+                    businessType = null,
                 )
             }
                 .onSuccess { entity ->

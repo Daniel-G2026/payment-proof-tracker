@@ -56,6 +56,7 @@ fun SettingsScreen(
     onProofBackup: () -> Unit,
     onSyncIssues: () -> Unit,
     onSwitchBusiness: () -> Unit,
+    onEditProfile: () -> Unit,
     onSignedOut: () -> Unit,
     onTabSelected: (MainTab) -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -123,10 +124,12 @@ fun SettingsScreen(
             }
 
             SettingsSection(title = "Account") {
+                // Closes the loop on setup's "You can change this later":
+                // opens the same name/phone screen the setup flow uses.
                 SettingsRow(
                     label = "Name",
                     value = state.profile?.fullName?.takeIf { it.isNotBlank() } ?: "Not set",
-                    enabled = false,
+                    onClick = onEditProfile,
                 )
                 SettingsRow(
                     label = "Email",

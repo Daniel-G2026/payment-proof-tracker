@@ -5,6 +5,11 @@ import android.net.Uri
 sealed class Route(val path: String) {
     data object SignIn : Route("sign_in")
     data object ProfileSetup : Route("profile_setup")
+
+    // Same screen as ProfileSetup, but pushed onto the back stack from setup's
+    // later steps so a mistyped name can be fixed; save/back pop instead of
+    // re-running startup resolution.
+    data object ProfileEdit : Route("profile_edit")
     data object CreateBusiness : Route("create_business")
     data object BusinessSelect : Route("business_select")
     data object BusinessSwitch : Route("business_switch")

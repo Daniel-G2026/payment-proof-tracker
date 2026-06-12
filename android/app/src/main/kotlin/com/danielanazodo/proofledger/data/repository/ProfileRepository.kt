@@ -9,6 +9,7 @@ import com.danielanazodo.proofledger.data.remote.dto.ProfileUpdateDto
 import com.danielanazodo.proofledger.util.DebugLog
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
 
 private const val TAG = "proofledger.profile"
 
@@ -23,6 +24,9 @@ class ProfileRepository @Inject constructor(
         return runCatching { api.getMe() }.getOrNull()?.also { cache(it) }
             ?.let { localDao.getFirst() }
     }
+
+    /** Live local mirror; emits again whenever the profile is saved. */
+    fun observeProfile(): Flow<LocalProfileEntity?> = localDao.observeFirst()
 
     suspend fun refreshFromRemote(): LocalProfileEntity? {
         DebugLog.d(TAG) { "refreshFromRemote: calling GET /me" }
