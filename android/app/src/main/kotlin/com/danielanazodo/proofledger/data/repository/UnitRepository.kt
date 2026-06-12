@@ -244,6 +244,42 @@ class UnitRepository @Inject constructor(
             )
     }
 
+    /**
+     * Remove a unit's buyer. Distinct from [updateUnit] (where a null buyer
+     * means "leave unchanged"): this sets the buyer to null and pushes it.
+     * [UnitUpdateDto] serializes the explicit null, so the backend clears the
+     * column and the removal survives a fresh-device restore. No-op (and no
+     * sync churn) if there's no buyer to remove.
+     */
+    suspend fun clearBuyer(unitId: String): LocalUnitEntity? {
+        val current = localDao.getById(unitId) ?: return null
+        if (current.buyerCounterpartyId == null) return current
+        val now = System.currentTimeMillis()
+        val updated = current.copy(
+            buyerCounterpartyId = null,
+            updatedAt = now,
+            syncStatus = SyncStatus.PENDING_UPDATE,
+            lastSyncAttemptAt = now,
+            lastSyncError = null,
+        )
+        localDao.upsert(updated)
+        return runCatching { api.updateUnit(updated.businessId, updated.id, updated.toUpdateDto()) }
+            .fold(
+                onSuccess = { remote ->
+                    val synced = remote.toEntity(SyncStatus.SYNCED)
+                    localDao.upsert(synced)
+                    logSync(updated, "update", "success")
+                    synced
+                },
+                onFailure = { t ->
+                    val failed = updated.toFailed(t)
+                    localDao.upsert(failed)
+                    logSync(updated, "update", "failure", t)
+                    failed
+                },
+            )
+    }
+
     suspend fun deleteUnit(unitId: String) {
         val current = localDao.getById(unitId) ?: return
         if (current.syncStatus == SyncStatus.PENDING_UPLOAD) {

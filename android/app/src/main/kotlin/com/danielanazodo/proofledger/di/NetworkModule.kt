@@ -3,6 +3,7 @@ package com.danielanazodo.proofledger.di
 import com.danielanazodo.proofledger.BuildConfig
 import com.danielanazodo.proofledger.data.remote.ApiService
 import com.danielanazodo.proofledger.data.remote.AuthInterceptor
+import com.danielanazodo.proofledger.data.remote.UnitUpdateNullSerializationFactory
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Module
@@ -22,7 +23,12 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideMoshi(): Moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+    fun provideMoshi(): Moshi = Moshi.Builder()
+        // Registered before the Kotlin factory so it can wrap that delegate and
+        // flip null serialization for UnitUpdateDto only (see the factory's doc).
+        .add(UnitUpdateNullSerializationFactory)
+        .add(KotlinJsonAdapterFactory())
+        .build()
 
     @Provides
     @Singleton

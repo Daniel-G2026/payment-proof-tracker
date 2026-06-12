@@ -100,6 +100,39 @@ def _versions_url(business_id, unit_id) -> str:
     return f"/businesses/{business_id}/units/{unit_id}/schedule-versions"
 
 
+def test_clear_unit_buyer_via_explicit_null(client_for):
+    """A PATCH carrying buyer_counterparty_id: null removes the buyer; omitting
+    the key leaves it unchanged. (The Android client serializes the null
+    explicitly for unit updates so a removed buyer survives a fresh-device
+    restore.)"""
+    client = client_for(uuid.uuid4(), "alice@example.com")
+    business_id, unit_id = _setup_unit(client)
+
+    buyer_id = uuid.uuid4()
+    assert client.post(
+        f"/businesses/{business_id}/counterparties",
+        json={"id": str(buyer_id), "name": "Chioma B.", "type": "customer"},
+    ).status_code == 200
+    assert client.patch(
+        f"/businesses/{business_id}/units/{unit_id}",
+        json={"buyer_counterparty_id": str(buyer_id)},
+    ).json()["buyer_counterparty_id"] == str(buyer_id)
+
+    # Omitting the key keeps the buyer.
+    kept = client.patch(
+        f"/businesses/{business_id}/units/{unit_id}", json={"label": "Plot 12A"}
+    )
+    assert kept.json()["buyer_counterparty_id"] == str(buyer_id)
+
+    # Explicit null clears it.
+    cleared = client.patch(
+        f"/businesses/{business_id}/units/{unit_id}",
+        json={"buyer_counterparty_id": None},
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["buyer_counterparty_id"] is None
+
+
 def test_create_schedule_version_with_installments(client_for):
     client = client_for(uuid.uuid4(), "alice@example.com")
     business_id, unit_id = _setup_unit(client)
