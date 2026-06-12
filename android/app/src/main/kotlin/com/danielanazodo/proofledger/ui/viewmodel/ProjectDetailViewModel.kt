@@ -121,13 +121,15 @@ class ProjectDetailViewModel @Inject constructor(
         }
     }
 
-    fun onAssignBuyer(unitId: String, buyerCounterpartyId: String?) {
+    fun onAssignBuyer(unitId: String, buyerCounterpartyId: String) {
         viewModelScope.launch {
-            // Pass-through null leaves the buyer unchanged in updateUnit, so to
-            // truly clear a buyer here we re-create the row with null buyer.
-            // The picker only assigns/reassigns to a real buyer.
             unitRepository.updateUnit(unitId = unitId, buyerCounterpartyId = buyerCounterpartyId)
         }
+    }
+
+    /** Remove the buyer assigned to a unit (see [UnitRepository.clearBuyer]). */
+    fun onRemoveBuyer(unitId: String) {
+        viewModelScope.launch { unitRepository.clearBuyer(unitId) }
     }
 
     /** Create a new person from the buyer picker and assign them in one step —

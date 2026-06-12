@@ -57,6 +57,7 @@ import com.danielanazodo.proofledger.ui.components.ProportionBar
 import com.danielanazodo.proofledger.ui.components.SectionHeader
 import com.danielanazodo.proofledger.ui.components.TagBadge
 import com.danielanazodo.proofledger.ui.format.formatNaira
+import com.danielanazodo.proofledger.ui.theme.MoneyOutRed
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofIcons
@@ -254,6 +255,10 @@ fun ProjectDetailScreen(
                 viewModel.onCreateAndAssignBuyer(unit.id, name)
                 assigningBuyerFor = null
             },
+            onRemove = {
+                viewModel.onRemoveBuyer(unit.id)
+                assigningBuyerFor = null
+            },
             onDismiss = { assigningBuyerFor = null },
         )
     }
@@ -368,6 +373,7 @@ private fun BuyerPickerDialog(
     selectedBuyerId: String?,
     onSelect: (String) -> Unit,
     onCreate: (String) -> Unit,
+    onRemove: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
@@ -394,7 +400,7 @@ private fun BuyerPickerDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    "Assign a buyer",
+                    if (selectedBuyerId != null) "Change buyer" else "Assign a buyer",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = NeutralInk,
@@ -441,7 +447,21 @@ private fun BuyerPickerDialog(
                     }
                 }
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (selectedBuyerId != null) {
+                        Arrangement.SpaceBetween
+                    } else {
+                        Arrangement.End
+                    },
+                ) {
+                    // Removing a buyer is reversible (re-assign anytime), so no
+                    // confirm step — but it's a real change, hence the red label.
+                    if (selectedBuyerId != null) {
+                        TextButton(onClick = onRemove) {
+                            Text("Remove buyer", color = MoneyOutRed, fontWeight = FontWeight.Medium)
+                        }
+                    }
                     TextButton(onClick = onDismiss) { Text("Close", color = NeutralMuted) }
                 }
             }
