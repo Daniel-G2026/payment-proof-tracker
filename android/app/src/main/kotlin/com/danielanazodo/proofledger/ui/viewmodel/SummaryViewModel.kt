@@ -3,6 +3,8 @@ package com.danielanazodo.proofledger.ui.viewmodel
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.danielanazodo.proofledger.data.analytics.Analytics
+import com.danielanazodo.proofledger.data.analytics.AnalyticsEvents
 import com.danielanazodo.proofledger.data.local.entity.LocalTransactionEntity
 import com.danielanazodo.proofledger.data.repository.BusinessRepository
 import com.danielanazodo.proofledger.data.repository.ReportRepository
@@ -51,6 +53,7 @@ class SummaryViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val reportRepository: ReportRepository,
     private val syncEventLogger: SyncEventLogger,
+    private val analytics: Analytics,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SummaryUiState())
@@ -111,6 +114,7 @@ class SummaryViewModel @Inject constructor(
                     action = "export_created",
                     status = "success",
                 )
+                analytics.track(AnalyticsEvents.EXPORT_CREATED, mapOf("format" to "csv"))
                 _state.update { it.copy(shareUri = uri, shareMimeType = "text/csv") }
             } catch (t: Throwable) {
                 _state.update { it.copy(message = "Couldn't create the file. Try again.") }
@@ -139,6 +143,7 @@ class SummaryViewModel @Inject constructor(
                     action = "export_created",
                     status = "success",
                 )
+                analytics.track(AnalyticsEvents.EXPORT_CREATED, mapOf("format" to "pdf"))
                 _state.update { it.copy(shareUri = uri, shareMimeType = "application/pdf") }
             } catch (t: Throwable) {
                 _state.update {

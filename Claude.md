@@ -47,10 +47,18 @@ polish pass (Reports promoted to a top-level tab; "Manage categories" moved into
 the Records header; reusable loading/empty/error composables; a first-run
 onboarding tip); and the server-side `sync_events` table with on-device flush.
 Verified on `main` 2026-06-05: backend `uv run pytest` (147 passed),
-`:app:testDebugUnitTest`, and `:app:assembleDebug`. Deferred follow-ups: three
-unwired PostHog events (`screenshot_uploaded`, `draft_confirmed`,
-`export_created`), broader reusable-state-composable adoption, and on-device
-cold-start / low-end-device profiling (see `docs/performance-notes.md`).
+`:app:testDebugUnitTest`, and `:app:assembleDebug`. **Update (2026-06-11):
+observability is now ON for the v1 launch** — the three previously-deferred
+PostHog events are wired (`screenshot_uploaded` fires on a successful eager
+proof upload and `draft_confirmed` on saving an AI-draft-backed transaction,
+both in `TransactionFormViewModel`; `export_created` alongside the existing
+`SyncEventLogger` log in `SummaryViewModel`), so Sentry (crash reporting) +
+PostHog (product analytics) are both enabled (they stay no-op only in builds
+without keys; keys live in `local.properties`). Privacy policy +
+Play Data Safety draft updated to reflect collected diagnostics/analytics.
+Remaining deferred follow-ups: broader reusable-state-composable adoption, and
+on-device cold-start / low-end-device profiling (see
+`docs/performance-notes.md`).
 
 The next major direction is **Phase 13: Projects, Offer-Letter Intake, and
 Installment Balances** — reframing the money-in side around projects (houses):

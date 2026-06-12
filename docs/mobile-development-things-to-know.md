@@ -2,6 +2,11 @@
 
 This is a practical reference for building and testing this Android app, plus general lessons that apply to many mobile projects.
 
+> **Shipping to the Play Store?** This doc covers development/runtime gotchas. The
+> release → signing → Play Console compliance process (account verification, store
+> listing, Data Safety, App access for OTP apps, deletion URLs, observability,
+> closed testing) is its own reusable guide: [`play-store-launch-playbook.md`](play-store-launch-playbook.md).
+
 ## Local Backend Setup
 
 Docker and Alembic are not required for every mobile app. They are needed here because the Android app talks to a local FastAPI backend, and that backend needs a local Postgres database.

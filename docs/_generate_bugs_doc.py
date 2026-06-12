@@ -10,9 +10,14 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Pt, RGBColor
+# python-docx is only needed for the .docx output. Import Pt/RGBColor (used by
+# the module-level docx helpers) defensively so markdown generation still works
+# even if python-docx isn't installed in the active interpreter. Document and the
+# enum are imported lazily inside build_document().
+try:
+    from docx.shared import Pt, RGBColor
+except ImportError:  # pragma: no cover - markdown path doesn't need docx
+    Pt = RGBColor = None  # type: ignore
 
 
 @dataclass
@@ -753,6 +758,9 @@ def add_code_block(doc, code):
 
 
 def build_document(out_path: str) -> None:
+    from docx import Document
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
     doc = Document()
 
     # set base font to Arial-ish
@@ -833,10 +841,66 @@ def build_document(out_path: str) -> None:
     doc.save(out_path)
 
 
+def build_markdown(out_path: str) -> None:
+    """Render the same CATEGORIES data as Markdown (agent-readable, greppable)."""
+    lines: list[str] = [
+        "# Android Development — Bug Reference",
+        "",
+        "_Phases 1 & 2 of the Payment Proof Tracker (ProofLedger) build._",
+        "",
+        (
+            "Every bug we hit while scaffolding the FastAPI backend, the Kotlin + "
+            "Jetpack Compose Android client, and the Supabase auth integration. Use "
+            "this as a checklist when starting the next Android project — most of "
+            "these are recurring traps in the stack rather than mistakes specific to "
+            "this codebase."
+        ),
+        "",
+        (
+            "Format for each bug: **What it was → What it affected → Root cause → "
+            "Fix** (with code where relevant)."
+        ),
+        "",
+    ]
+    for cat_idx, category in enumerate(CATEGORIES, start=1):
+        lines += [f"## {cat_idx}. {category.name}", "", f"_{category.blurb}_", ""]
+        for bug_idx, bug in enumerate(category.bugs, start=1):
+            lines += [
+                f"### {cat_idx}.{bug_idx}  {bug.title}",
+                "",
+                f"- **What it was:** {bug.what}",
+                f"- **What it affected:** {bug.affected}",
+                f"- **Root cause:** {bug.root_cause}",
+                f"- **Fix:** {bug.fix}",
+                "",
+            ]
+            if bug.code:
+                lines += ["```", bug.code, "```", ""]
+    lines += [
+        "---",
+        "",
+        (
+            "_Generated from `docs/_generate_bugs_doc.py` — edit `CATEGORIES` there "
+            "and re-run to refresh both this file and the .docx._"
+        ),
+        "",
+    ]
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+
 if __name__ == "__main__":
-    out = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "android-bugs-reference.docx",
-    )
-    build_document(out)
-    print(f"Wrote {out}")
+    here = os.path.dirname(os.path.abspath(__file__))
+
+    md_out = os.path.join(here, "android-bugs-reference.md")
+    build_markdown(md_out)
+    print(f"Wrote {md_out}")
+
+    docx_out = os.path.join(here, "android-bugs-reference.docx")
+    try:
+        build_document(docx_out)
+        print(f"Wrote {docx_out}")
+    except ImportError:
+        print("Skipped .docx (python-docx not installed); markdown written.")
+    except PermissionError:
+        print(f"Skipped {docx_out} (open/locked — close Word and re-run to refresh it).")

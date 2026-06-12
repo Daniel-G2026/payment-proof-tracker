@@ -1,6 +1,6 @@
 # Privacy Policy — ProofLedger
 
-**Last updated: 8 June 2026**
+**Last updated: 11 June 2026**
 
 ProofLedger ("the app", "we", "us") is provided by **Daniel Anazodo**, based in
 Canada. This policy explains what the app collects, why, and the choices you
@@ -28,9 +28,10 @@ We collect only what's needed to run the app:
   buyers, and the installment schedules you set up.
 - **Proof images** — the payment screenshots you choose to attach. These may
   themselves contain financial or personal details, depending on what you upload.
-- **Limited diagnostic data** — if crash reporting or analytics are enabled in a
-  future version, we may collect anonymous crash logs and usage events to fix
-  bugs and improve the app.
+- **Limited diagnostic data** — we collect anonymous crash logs (through Sentry)
+  and product usage events such as which screens and actions you use (through
+  PostHog) to fix bugs and improve the app. This data is not used to identify you
+  and is not sold.
 
 We do **not** collect your contacts, precise location, or advertising
 identifiers, and we do **not** sell your data.
@@ -60,6 +61,8 @@ their own terms and privacy policies:
 - **Render** — server and database hosting.
 - **Cloudflare R2** — storage of proof images.
 - **Anthropic** — AI extraction of attached screenshots (see above).
+- **PostHog** — product analytics (anonymous usage events).
+- **Sentry** — crash reporting (diagnostic crash logs).
 
 We do not share your data with advertisers or data brokers.
 
