@@ -42,7 +42,7 @@ import com.danielanazodo.proofledger.ui.format.formatCompactCount
 import com.danielanazodo.proofledger.ui.navigation.MainTab
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
-import com.danielanazodo.proofledger.ui.theme.ProofAmber
+import com.danielanazodo.proofledger.ui.theme.ProofAmberDeep
 import com.danielanazodo.proofledger.ui.theme.ProofBorder
 import com.danielanazodo.proofledger.ui.theme.ProofLime
 import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
@@ -56,6 +56,7 @@ fun SettingsScreen(
     onProofBackup: () -> Unit,
     onSyncIssues: () -> Unit,
     onSwitchBusiness: () -> Unit,
+    onEditProfile: () -> Unit,
     onSignedOut: () -> Unit,
     onTabSelected: (MainTab) -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -105,13 +106,13 @@ fun SettingsScreen(
                     } else {
                         "None"
                     },
-                    valueColor = if (state.syncIssueCount > 0) ProofAmber else NeutralMuted,
+                    valueColor = if (state.syncIssueCount > 0) ProofAmberDeep else NeutralMuted,
                     onClick = onSyncIssues,
                 )
                 SettingsRow(
                     label = "Proof backup",
                     value = proofBackupValue(state.pendingProofCount, state.estimatedProofBytes),
-                    valueColor = if (state.pendingProofCount > 0) ProofAmber else NeutralMuted,
+                    valueColor = if (state.pendingProofCount > 0) ProofAmberDeep else NeutralMuted,
                     onClick = onProofBackup,
                 )
                 SettingsRow(
@@ -123,10 +124,12 @@ fun SettingsScreen(
             }
 
             SettingsSection(title = "Account") {
+                // Closes the loop on setup's "You can change this later":
+                // opens the same name/phone screen the setup flow uses.
                 SettingsRow(
                     label = "Name",
                     value = state.profile?.fullName?.takeIf { it.isNotBlank() } ?: "Not set",
-                    enabled = false,
+                    onClick = onEditProfile,
                 )
                 SettingsRow(
                     label = "Email",

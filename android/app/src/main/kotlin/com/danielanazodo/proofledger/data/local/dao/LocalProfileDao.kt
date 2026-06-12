@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.danielanazodo.proofledger.data.local.entity.LocalProfileEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface LocalProfileDao {
@@ -16,6 +17,10 @@ interface LocalProfileDao {
 
     @Query("SELECT * FROM local_profile LIMIT 1")
     suspend fun getFirst(): LocalProfileEntity?
+
+    /** Live mirror, so screens showing the profile update when it's edited. */
+    @Query("SELECT * FROM local_profile LIMIT 1")
+    fun observeFirst(): Flow<LocalProfileEntity?>
 
     @Query("DELETE FROM local_profile")
     suspend fun clear()

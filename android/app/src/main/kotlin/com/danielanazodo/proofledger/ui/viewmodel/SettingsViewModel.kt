@@ -42,14 +42,22 @@ class SettingsViewModel @Inject constructor(
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
 
     init {
+        // Observe the live profile mirror (not a one-shot read) so a name
+        // edited via Settings -> Name shows as soon as the user pops back.
         viewModelScope.launch {
+            profileRepository.observeProfile().collect { profile ->
+                _state.update { it.copy(profile = profile) }
+            }
+        }
+        viewModelScope.launch {
+            // Ensures the mirror is populated on first open; the collector
+            // above renders whatever lands in it.
+            profileRepository.getCurrentProfile()
             val business = businessRepository.getSelectedBusiness()
-            val profile = profileRepository.getCurrentProfile()
             val preference = proofRepository.getBackupPreference()
             _state.update {
                 it.copy(
                     business = business,
-                    profile = profile,
                     backupPreference = preference,
                 )
             }

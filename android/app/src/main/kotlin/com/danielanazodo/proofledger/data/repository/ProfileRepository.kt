@@ -9,6 +9,7 @@ import com.danielanazodo.proofledger.data.remote.dto.ProfileUpdateDto
 import com.danielanazodo.proofledger.util.DebugLog
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
 
 private const val TAG = "proofledger.profile"
 
@@ -24,7 +25,30 @@ class ProfileRepository @Inject constructor(
             ?.let { localDao.getFirst() }
     }
 
+    /** Live local mirror; emits again whenever the profile is saved. */
+    fun observeProfile(): Flow<LocalProfileEntity?> = localDao.observeFirst()
+
     suspend fun refreshFromRemote(): LocalProfileEntity? {
+        // A local edit that never reached the server must not be clobbered by
+        // the stale remote copy — nothing else retries pending profile
+        // uploads. Push it instead; on failure keep the local row as-is.
+        val pending = localDao.getFirst()?.takeIf { it.syncStatus == SyncStatus.PENDING_UPLOAD }
+        if (pending != null) {
+            DebugLog.d(TAG) { "refreshFromRemote: pushing pending local profile edit" }
+            val pushed = runCatching {
+                api.updateMe(
+                    ProfileUpdateDto(
+                        fullName = pending.fullName,
+                        // "" is the wire form of "clear" — a null field is
+                        // omitted by Moshi and the backend would keep its value.
+                        phone = pending.phone ?: "",
+                    ),
+                )
+            }.getOrNull() ?: return pending
+            cache(pushed)
+            return localDao.getById(pushed.id)
+        }
+
         DebugLog.d(TAG) { "refreshFromRemote: calling GET /me" }
         val result = runCatching { api.getMe() }
         val dto = result.getOrNull()
@@ -41,7 +65,11 @@ class ProfileRepository @Inject constructor(
         return localDao.getById(dto.id)
     }
 
-    /** Save locally first, then attempt remote. Phase 10 wires retry on failure. */
+    /**
+     * Save locally first, then attempt remote; a failed remote call leaves the
+     * row PENDING_UPLOAD and [refreshFromRemote] pushes it on the next open.
+     * Null means "leave unchanged"; a blank [phone] clears it.
+     */
     suspend fun updateProfile(fullName: String?, phone: String?): LocalProfileEntity {
         val current = localDao.getFirst()
             ?: refreshFromRemote()
@@ -49,7 +77,11 @@ class ProfileRepository @Inject constructor(
         val now = System.currentTimeMillis()
         val updated = current.copy(
             fullName = fullName ?: current.fullName,
-            phone = phone ?: current.phone,
+            phone = when {
+                phone == null -> current.phone
+                phone.isBlank() -> null
+                else -> phone
+            },
             updatedAt = now,
             syncStatus = SyncStatus.PENDING_UPLOAD,
             lastSyncAttemptAt = now,

@@ -69,7 +69,9 @@ import com.danielanazodo.proofledger.ui.viewmodel.ProjectDetailViewModel
 
 // Show search once the house list is taller than the scroll window, and cap the
 // window so the list scrolls inside the panel instead of growing the page.
-private const val UNIT_FEED_VISIBLE_ROWS = 5
+// 4, not 5: the redesigned rows (icon box + buyer badge, ~65dp) fit four in the
+// 320dp window — at five the last row clips with no search or scroll hint.
+private const val UNIT_FEED_VISIBLE_ROWS = 4
 private val UNIT_FEED_MAX_HEIGHT = 320.dp
 
 @Composable
