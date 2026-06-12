@@ -196,3 +196,22 @@ def test_get_me_and_patch_me(client_for):
     resp = client.patch("/me", json={"full_name": "Alice A."})
     assert resp.status_code == 200
     assert resp.json()["full_name"] == "Alice A."
+
+
+def test_patch_me_blank_phone_clears(client_for):
+    user_id = uuid.uuid4()
+    client = client_for(user_id, "alice@example.com")
+
+    resp = client.patch("/me", json={"phone": "+2348012345678"})
+    assert resp.status_code == 200
+    assert resp.json()["phone"] == "+2348012345678"
+
+    # Omitting the key keeps the stored phone (exclude_unset semantics).
+    resp = client.patch("/me", json={"full_name": "Alice A."})
+    assert resp.status_code == 200
+    assert resp.json()["phone"] == "+2348012345678"
+
+    # A blank phone is the wire form of "clear" and lands as null, not "".
+    resp = client.patch("/me", json={"phone": ""})
+    assert resp.status_code == 200
+    assert resp.json()["phone"] is None

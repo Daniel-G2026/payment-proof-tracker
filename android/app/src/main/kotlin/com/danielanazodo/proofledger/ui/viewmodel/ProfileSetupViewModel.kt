@@ -69,9 +69,11 @@ class ProfileSetupViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null, saved = false) }
             runCatching {
+                // Blank phone is sent as-is: it means "clear" (null would mean
+                // "leave unchanged" and a deleted phone would silently survive).
                 profileRepository.updateProfile(
                     fullName = s.fullName.trim(),
-                    phone = s.phone.trim().ifBlank { null },
+                    phone = s.phone.trim(),
                 )
             }
                 .onSuccess { _state.update { it.copy(loading = false, saved = true) } }
