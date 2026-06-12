@@ -4,14 +4,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
@@ -26,16 +22,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danielanazodo.proofledger.ui.components.ActionRow
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
 import com.danielanazodo.proofledger.ui.components.PageHeader
+import com.danielanazodo.proofledger.ui.components.PanelEmptyState
 import com.danielanazodo.proofledger.ui.components.PersonListRow
 import com.danielanazodo.proofledger.ui.components.PrimaryActionButton
 import com.danielanazodo.proofledger.ui.components.ProofLedgerFilterChip
 import com.danielanazodo.proofledger.ui.components.ProofLedgerMainScaffold
 import com.danielanazodo.proofledger.ui.components.ProofLedgerTextField
-import com.danielanazodo.proofledger.ui.components.SectionLabel
+import com.danielanazodo.proofledger.ui.components.SectionHeader
 import com.danielanazodo.proofledger.ui.navigation.MainTab
-import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofIcons
 import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
 import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
@@ -86,15 +83,33 @@ fun CounterpartyListScreen(
                 )
             }
             item {
-                TextButton(onClick = manageTypes) {
-                    Text("Manage person types", color = NeutralMuted)
-                }
+                ActionRow(
+                    label = "Manage person types",
+                    icon = ProofIcons.Tag,
+                    onClick = manageTypes,
+                )
             }
-            item { SectionLabel("Saved people") }
+            item {
+                SectionHeader(
+                    title = "Saved people",
+                    count = state.counterparties.size.takeIf { it > 0 },
+                )
+            }
             if (state.counterparties.isEmpty()) {
                 item {
-                    Spacer(Modifier.height(18.dp))
-                    Text("No matching people.", color = NeutralMuted, style = MaterialTheme.typography.bodyMedium)
+                    if (state.search.isBlank() && state.type == null) {
+                        PanelEmptyState(
+                            title = "No people yet",
+                            message = "Add a person above to track who paid and who you paid.",
+                            icon = ProofIcons.People,
+                        )
+                    } else {
+                        PanelEmptyState(
+                            title = "No matching people",
+                            message = "Try a different search or type filter.",
+                            icon = ProofIcons.Search,
+                        )
+                    }
                 }
             } else {
                 item {

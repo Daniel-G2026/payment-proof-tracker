@@ -26,13 +26,19 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielanazodo.proofledger.data.balance.BuyerArrears
 import com.danielanazodo.proofledger.ui.components.GroupedPanel
-import com.danielanazodo.proofledger.ui.components.SectionLabel
+import com.danielanazodo.proofledger.ui.components.KeyFigure
+import com.danielanazodo.proofledger.ui.components.PanelEmptyState
+import com.danielanazodo.proofledger.ui.components.SectionHeader
+import com.danielanazodo.proofledger.ui.components.StatusDot
+import com.danielanazodo.proofledger.ui.components.TagBadge
 import com.danielanazodo.proofledger.ui.format.formatDueDate
 import com.danielanazodo.proofledger.ui.format.formatNaira
 import com.danielanazodo.proofledger.ui.format.relativeDueLabel
 import com.danielanazodo.proofledger.ui.theme.NeutralInk
 import com.danielanazodo.proofledger.ui.theme.NeutralMuted
 import com.danielanazodo.proofledger.ui.theme.ProofAmber
+import com.danielanazodo.proofledger.ui.theme.ProofAmberDeep
+import com.danielanazodo.proofledger.ui.theme.ProofIcons
 import com.danielanazodo.proofledger.ui.theme.ProofLime
 import com.danielanazodo.proofledger.ui.theme.ProofLedgerDimens
 import com.danielanazodo.proofledger.ui.theme.proofLedgerScreenPadding
@@ -59,11 +65,11 @@ fun ArrearsDashboardScreen(
             verticalArrangement = Arrangement.spacedBy(ProofLedgerDimens.itemGap),
         ) {
             if (dash == null) {
-                Text(
-                    "No schedules yet. Add a project, a house, and an offer-letter " +
-                        "schedule to track who's due.",
-                    color = NeutralMuted,
-                    style = MaterialTheme.typography.bodyMedium,
+                PanelEmptyState(
+                    title = "No schedules yet",
+                    message = "Add a project, a house, and an offer-letter schedule " +
+                        "to track who's due.",
+                    icon = ProofIcons.Projects,
                 )
                 return@Column
             }
@@ -72,30 +78,46 @@ fun ArrearsDashboardScreen(
                 dash.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
             } ${dash.month.year}"
             Text(monthLabel, color = NeutralMuted, style = MaterialTheme.typography.bodySmall)
+            // Same composition as the Projects-tab hero card, so the figure the
+            // user tapped through on keeps its shape here.
             GroupedPanel {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        "${dash.peopleDueThisMonth} due · ${dash.peopleFulfilledThisMonth} fulfilled",
-                        color = NeutralInk,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium,
+                Column(
+                    Modifier.fillMaxWidth().padding(ProofLedgerDimens.panelPadding),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    KeyFigure(
+                        label = "Outstanding",
+                        amountText = formatNaira(dash.combinedOutstandingMinor),
+                        color = if (dash.combinedOutstandingMinor > 0) ProofAmberDeep else NeutralInk,
                     )
-                    Text(
-                        "Outstanding  ${formatNaira(dash.combinedOutstandingMinor)}",
-                        color = if (dash.combinedOutstandingMinor > 0) ProofAmber else ProofLime,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        StatusDot(color = ProofAmber)
+                        Text(
+                            "${dash.peopleDueThisMonth} due",
+                            color = NeutralMuted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        StatusDot(color = ProofLime)
+                        Text(
+                            "${dash.peopleFulfilledThisMonth} fulfilled",
+                            color = NeutralMuted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
             }
 
             // Buyers with something to show: due this month or carrying arrears.
             val relevant = dash.buyers.filter { it.dueThisMonth || it.combinedMinor > 0 }
-            SectionLabel("People")
+            SectionHeader(title = "People", count = relevant.size.takeIf { it > 0 })
             if (relevant.isEmpty()) {
-                Text(
-                    "Everyone is up to date this month.",
-                    color = NeutralMuted,
-                    style = MaterialTheme.typography.bodyMedium,
+                PanelEmptyState(
+                    title = "All caught up",
+                    message = "Everyone is up to date this month.",
+                    icon = ProofIcons.People,
                 )
             } else {
                 GroupedPanel {
@@ -125,7 +147,7 @@ private fun BuyerRow(buyer: BuyerArrears, today: LocalDate, onClick: () -> Unit)
             Text(buyer.buyerName, color = NeutralInk, fontWeight = FontWeight.Medium)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (buyer.fulfilledThisMonth && buyer.behindMinor == 0L) {
-                    Text("Fulfilled ✓", color = ProofLime, style = MaterialTheme.typography.bodySmall)
+                    TagBadge(text = "Fulfilled", emphasized = true)
                 }
                 Icon(
                     imageVector = Icons.Filled.ChevronRight,
@@ -136,7 +158,7 @@ private fun BuyerRow(buyer: BuyerArrears, today: LocalDate, onClick: () -> Unit)
         }
         Text(
             "Behind: ${formatNaira(buyer.behindMinor)}  ·  Due this month: ${formatNaira(buyer.dueThisMonthMinor)}",
-            color = if (buyer.combinedMinor > 0) ProofAmber else NeutralMuted,
+            color = if (buyer.combinedMinor > 0) ProofAmberDeep else NeutralMuted,
             style = MaterialTheme.typography.bodySmall,
         )
         // Each thing they owe: amount + due date + a countdown. Unit label is
@@ -147,7 +169,7 @@ private fun BuyerRow(buyer: BuyerArrears, today: LocalDate, onClick: () -> Unit)
                 Text(
                     "$prefix${formatNaira(item.shortfallMinor)} · due ${formatDueDate(item.dueDate)} · " +
                         relativeDueLabel(item.dueDate, today),
-                    color = if (item.pastDue) ProofAmber else NeutralMuted,
+                    color = if (item.pastDue) ProofAmberDeep else NeutralMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

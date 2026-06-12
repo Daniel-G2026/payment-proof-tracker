@@ -114,6 +114,7 @@ fun PersonListRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            InitialsBox(name = counterparty.name)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     counterparty.name,
