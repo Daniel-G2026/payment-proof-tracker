@@ -190,6 +190,29 @@ class ProofRepository @Inject constructor(
     }
 
     /**
+     * Re-kick Wi-Fi proof downloads that are queued-but-stuck
+     * ([ProofBackupStatus.WAITING_FOR_WIFI_DOWNLOAD], e.g. the worker was lost on
+     * reinstall) or previously failed ([ProofBackupStatus.DOWNLOAD_FAILED], e.g. a
+     * transient error or a bug that's since been fixed). Called on app open so
+     * these self-heal on the next unmetered network without the user re-tapping.
+     *
+     * Statuses are left as-is: the worker acts on any awaiting-download row and
+     * sets the result, and `DOWNLOAD_FAILED` stays visible in the download prompt
+     * until it actually succeeds. Enqueue is per-proof unique + REPLACE, so
+     * calling this every open never piles up duplicate workers. Proofs still
+     * awaiting the user's *first* decision (`PENDING_DOWNLOAD`) are untouched —
+     * image bytes are never pulled until the user opts in.
+     */
+    suspend fun resumeWifiProofDownloads(businessId: String) {
+        screenshotDao.findNeedingDownload(businessId)
+            .filter {
+                it.backupStatus == ProofBackupStatus.WAITING_FOR_WIFI_DOWNLOAD ||
+                    it.backupStatus == ProofBackupStatus.DOWNLOAD_FAILED
+            }
+            .forEach { scheduler.enqueue(it.id, wifiOnly = true) }
+    }
+
+    /**
      * Pull the actual image bytes for one restored proof onto this device.
      * Safe to call repeatedly: only acts on a proof still awaiting download.
      * Throws on failure (so the WorkManager retry/backoff path sees it); the

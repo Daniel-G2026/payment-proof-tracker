@@ -132,15 +132,16 @@ interface LocalScreenshotDao {
     )
     suspend fun findNeedingDownload(businessId: String): List<LocalScreenshotEntity>
 
-    /** Count of proofs still awaiting a download *decision* (not those already
-     *  queued for WiFi). Drives the one-time "download your proofs?" prompt —
-     *  zero on a normal device, non-zero only right after a fresh-device
-     *  restore. */
+    /** Count of proofs the user should act on for download: awaiting the initial
+     *  decision (`PENDING_DOWNLOAD`) or where a download attempt failed
+     *  (`DOWNLOAD_FAILED`), so a failure resurfaces the "download your proofs?"
+     *  prompt instead of going silent. Excludes `WAITING_FOR_WIFI_DOWNLOAD`,
+     *  which is queued and retried automatically. Zero on a normal device. */
     @Query(
         """
         SELECT COUNT(*) FROM local_screenshot
         WHERE businessId = :businessId
-          AND backupStatus = 'PENDING_DOWNLOAD'
+          AND backupStatus IN ('PENDING_DOWNLOAD', 'DOWNLOAD_FAILED')
         """
     )
     fun observePendingDownloadCount(businessId: String): Flow<Int>
