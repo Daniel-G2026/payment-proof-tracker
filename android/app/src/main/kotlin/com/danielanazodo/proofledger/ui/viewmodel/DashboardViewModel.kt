@@ -41,8 +41,9 @@ data class DashboardUiState(
     val syncing: Boolean = false,
     val signedOut: Boolean = false,
     /** Proofs backed up to this account whose images aren't on this device yet
-     *  and are awaiting a download decision. Non-zero only just after a
-     *  fresh-device restore; drives the "download your proofs?" prompt. */
+     *  and need the user's attention — awaiting the initial download decision,
+     *  or where a download failed. Drives the "download your proofs?" prompt;
+     *  normally zero, non-zero after a fresh-device restore or a failed pull. */
     val pendingProofDownloadCount: Int = 0,
     /** True while a "Download now" pass is running, so the prompt can show a
      *  busy state instead of letting the user tap repeatedly. */
@@ -94,6 +95,11 @@ class DashboardViewModel @Inject constructor(
                     // every dashboard open. Metadata only — image bytes are
                     // pulled on the user's terms, never silently on mobile data.
                     proofRepository.refreshFromRemote(businessId)
+                    // Re-kick downloads the user already opted into Wi-Fi for (or
+                    // that failed) so they self-heal on the next unmetered
+                    // network — Wi-Fi-only, and proofs awaiting the first decision
+                    // are left for the prompt.
+                    proofRepository.resumeWifiProofDownloads(businessId)
                 } finally {
                     _state.update { it.copy(syncing = false) }
                 }
