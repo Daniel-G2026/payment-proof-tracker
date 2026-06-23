@@ -76,8 +76,37 @@ AAB differs in ways that bite late:
 - **Category:** for a money/records tool aimed at businesses, **Business** often
   beats **Finance** — the Finance category invites extra financial-app scrutiny
   you may not need (you don't move money).
-- **Required graphics:** 512×512 icon (32-bit, alpha), 1024×500 feature graphic,
-  ≥ 2 phone screenshots (grab real ones from a device).
+- **Required graphics — exact specs (Google rejects on these):**
+  - **App icon:** 512×512, 32-bit PNG **with** alpha, ≤ 1 MB.
+  - **Feature graphic:** 1024×500, JPEG or 24-bit PNG **no alpha**, ≤ 1 MB.
+  - **Phone screenshots:** **2–8**, PNG/JPEG **no alpha**, each side 320–3840 px,
+    **longer side ≤ 2× shorter (max 2:1)**, ≤ 8 MB. 1080×1920 (9:16) is the safe size.
+  - **Tablet (7"/10") screenshots are optional** — leaving them empty does *not*
+    block publishing; it just shows a "not designed for tablets" note + lower
+    large-screen ranking. Fine for a phone-first app.
+- **The 2:1 cap bites:** a raw screenshot from a modern phone is ~20:9 (2.22:1)
+  and is **rejected**. Don't upload raws — frame each onto a 1080×2160 (2:1) canvas.
+- **Screenshots in ~10 min via emulator + adb (no design tool):**
+  1. Run the app on an emulator with seeded data (a debug build pointed at **prod**
+     works) or a real device.
+  2. Clean status bar with SystemUI **demo mode**:
+     `adb shell am broadcast -a com.android.systemui.demo -e command enter`, then
+     `clock -e hhmm 1000`, `battery -e level 100 -e plugged false`,
+     `network -e wifi show -e level 4 -e fully true`, `notifications -e visible false`;
+     `… -e command exit` when done.
+  3. Capture with `adb exec-out screencap -p > shot.png` — use `exec-out`, **not**
+     `shell screencap` (Windows CRLF corrupts the PNG). Navigate with
+     `adb shell input tap X Y` / `keyevent`.
+  4. Frame each onto a branded 1080×2160 canvas + caption with a small Pillow script
+     (reuse `store-assets/frame_screenshots.py`). Output no-alpha RGB, upload-ready.
+  - **Order them as a story; lead with your differentiator** (niche app → niche
+    screens first).
+  - **Scrub sensitive pixels:** a real bank receipt / account number / phone number
+    shown as proof must be **blurred or pixelated** before a public listing — and
+    store only the redacted copy (never commit the original).
+- **Editability:** the **512 icon + listing text/screenshots change anytime** (short
+  review, no new build); the **launcher icon ships in the AAB** (needs a `versionCode`
+  bump + re-upload to reach users).
 
 ## Phase 4 — App content declarations (the gating checklist)
 
@@ -212,7 +241,9 @@ into the consistency triangle:
 - [ ] `applicationId` final; Free/Paid chosen.
 - [ ] Release AAB **signed with the upload key** (signature verified), minified,
       smoke-tested on a real device, pointed at **prod**, `versionCode` bumped.
-- [ ] Store listing: name/short/full/category + icon, feature graphic, ≥2 shots.
+- [ ] Store listing: name/short/full/category + **512 icon (alpha)**, **1024×500
+      feature graphic (no alpha)**, **≥2 screenshots (no alpha, ≤2:1, sensitive
+      pixels blurred)**.
 - [ ] Privacy policy URL live & public (gist is `*.md`).
 - [ ] App access: seeded prod test account; reviewer can actually get in
       (OTP inbox login documented).
