@@ -27,11 +27,13 @@ WHITE = (255, 255, 255)
 
 # filename (in raw/) -> caption shown above the phone. "" = no caption.
 CAPTIONS = {
-    "current.png": "Money in, out and net — at a glance",
-    # "add-record.png": "Add a record in seconds",
-    # "proof.png":      "Keep the payment screenshot as proof",
-    # "projects.png":   "See who has paid, who's due, who's behind",
-    # "records.png":    "Every record, searchable",
+    "1-home.png":    "Money in, out and net — at a glance",
+    "2-arrears.png": "See who's due and who's behind",
+    "3-unit.png":    "Installment plans from your offer letters",
+    "4-houses.png":  "Every house and buyer in one place",
+    "5-proof.png":   "Keep the proof with every record",
+    "6-reports.png": "Totals, top people, CSV & PDF export",
+    "7-add.png":     "Add a payment in seconds",
 }
 
 W, H = 1080, 2160  # exactly 2:1 -> always within Play's <=2:1 cap
@@ -130,8 +132,8 @@ def main():
         else:
             print("No screenshots in", RAW_DIR)
         return
-    for i, f in enumerate(sorted(raw_files), 1):
-        out = os.path.join(OUT_DIR, f"{i:02d}-{os.path.splitext(f)[0]}.png")
+    for f in sorted(raw_files):
+        out = os.path.join(OUT_DIR, os.path.splitext(f)[0] + ".png")
         frame_one(os.path.join(RAW_DIR, f), CAPTIONS.get(f, "")).save(out)
         print("wrote", out)
 

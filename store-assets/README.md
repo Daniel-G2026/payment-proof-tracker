@@ -20,7 +20,7 @@ Scripts:
 |------|------|-----------|--------|
 | **App icon** | 512×512, 32-bit PNG **with** alpha, ≤1 MB | ✅ Yes | ✅ `app-icon-512.png` (variant C monogram) |
 | **Feature graphic** | 1024×500, JPG or 24-bit PNG **no** alpha, ≤1 MB | ✅ Yes | ✅ `feature-graphic.png` |
-| **Phone screenshots** | 2–8 imgs, PNG/JPEG, each side 320–3840 px, **longer side ≤ 2× shorter (max 2:1)**, ≤8 MB. 1080×1920 (9:16) is the sweet spot | ✅ Yes (min 2) | ⚠️ Need ≥2. `screenshots/framed/01-home.png` ready; capture more |
+| **Phone screenshots** | 2–8 imgs, PNG/JPEG, each side 320–3840 px, **longer side ≤ 2× shorter (max 2:1)**, ≤8 MB. 1080×1920 (9:16) is the sweet spot | ✅ Yes (min 2) | ✅ 7 captioned shots in `screenshots/framed/` (1080×2160) |
 | **7-inch tablet** | same rules as phone | ❌ Optional | ⏭️ Skipping (phone-first v1) |
 | **10-inch tablet** | same rules as phone | ❌ Optional | ⏭️ Skipping (phone-first v1) |
 
@@ -36,7 +36,12 @@ Scripts:
   reaches users only via a new build with a **bumped `versionCode`** + upload to Play.
   Verified building: `:app:assembleDebug` (passes).
 
-## Capturing the remaining phone screenshots
-Need at least 2; 4–6 tells the story best. Suggested: Home (done) · Add record ·
-Proof attached · Projects/arrears · Reports & export. Capture at 1080×1920+, drop PNGs
-in `screenshots/raw/`, add captions in `frame_screenshots.py`, run it → `screenshots/framed/`.
+## Screenshots — how they were made / how to redo them
+Captured from the Pixel_7 emulator via adb (`exec-out screencap`), with SystemUI
+demo mode on for a clean status bar:
+`adb shell am broadcast -a com.android.systemui.demo -e command enter` (… clock/battery/
+network/notifications), and `… command exit` when done. Raw 1080×2400 captures live in
+`screenshots/raw/` (N-name.png); `frame_screenshots.py` frames them to 1080×2160 (2:1,
+captioned) in `screenshots/framed/`. To change the set: re-capture into `raw/`, edit the
+`CAPTIONS` map, rerun. The current 7 are construction-forward (home · arrears · unit
+schedule · houses+buyers · proof · reports · add).
