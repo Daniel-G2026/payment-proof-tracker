@@ -1,38 +1,87 @@
-# Payment Proof Tracker
+<p align="center">
+  <img src="store-assets/store-ready/01_ProofLedger_App_Icon_512x512.png" width="96" alt="ProofLedger icon" />
+</p>
 
-Android-native, offline-first payment proof tracker for small businesses.
+<h1 align="center">ProofLedger</h1>
 
-The app helps small businesses organize payment screenshots into a searchable business ledger.
+<p align="center">
+  <strong>Turn payment screenshots into a searchable business ledger.</strong><br/>
+  An offline-first Android app + FastAPI backend for small businesses that track money through WhatsApp screenshots, paper notes and memory.
+</p>
 
-## Core Promise
+<p align="center">
+  Kotlin · Jetpack Compose · Room · WorkManager · FastAPI · PostgreSQL · Redis · Supabase Auth · Claude vision
+</p>
 
-Upload or share payment screenshots, review the AI-drafted details, and keep a clean record of who paid, who was paid, and what money moved.
+<p align="center">
+  <img src="store-assets/store-ready/Screenshots_1080x1920/01_Money_in_out_and_net_at_a_glance.png" width="24%" alt="Money in, out and net at a glance" />
+  <img src="store-assets/store-ready/Screenshots_1080x1920/03_Keep_proof_with_every_record.png" width="24%" alt="Keep proof with every record" />
+  <img src="store-assets/store-ready/Screenshots_1080x1920/04_See_who_owes_and_whats_overdue.png" width="24%" alt="See who owes and what is overdue" />
+  <img src="store-assets/store-ready/Screenshots_1080x1920/06_Track_instalment_plans_and_due_dates.png" width="24%" alt="Track instalment plans and due dates" />
+</p>
 
-## Initial Target Market
+## The problem
 
-Small businesses that **receive digital proof of payment** (transfer screenshots, signed offer letters) and **run work as discrete projects** — money in and money out per project. The beachhead is **installment-based construction / house-sale businesses** that sell on offer-letter payment plans and need to know, without flipping through documents, who is due this month and who is behind. The customer is defined by digital-proof frequency and project structure, not by income or formality; pure-cash businesses with no digital proof are out of scope for v1.
+Many small businesses get paid by bank transfer and keep the "receipt" as a screenshot in a chat thread. When they need to know who has paid, who is behind, or what came in this month, someone scrolls through hundreds of images and adds it up by hand.
 
-## Tech Direction
+The first target is **instalment-based house-sale businesses**: they sell units on offer-letter payment plans and need to know, without flipping through documents, who is due this month and who is behind.
 
-- Android: Kotlin + Jetpack Compose
-- Local storage: Room SQLite
-- Background sync: WorkManager
-- AI extraction: server-side Claude vision drafts, with local OCR code gated off for dogfooding
-- Backend: FastAPI
-- Database: Postgres
-- Storage: S3-compatible or Supabase Storage
+## What it does
 
-## Current Progress
+- **Capture:** share a payment screenshot or PDF offer letter straight into the app from any chat app.
+- **Draft with AI, confirm as a human:** a server-side Claude vision model drafts the amount, date, counterparty and reference. The user always reviews and edits before anything is saved.
+- **Keep the proof:** the original image stays attached to every record and is backed up.
+- **Catch duplicates:** warning-only duplicate detection compares proof hashes, references and amount/date/counterparty signals.
+- **Track projects:** houses, units, buyers, instalment schedules, arrears ("who's due this month") and money out per project.
+- **Report:** weekly/monthly summaries, CSV export offline and PDF export from the backend.
+- **Work offline:** everything is usable with no signal; changes sync when the connection returns.
 
-- Phases 1-6 are implemented: foundation, auth/business setup, manual records, counterparties, screenshot proof attachment, and Android share-sheet intake.
-- Phase 8 and 8.1 are implemented: server-side AI extraction creates editable drafts, and new proofs eagerly upload on attach so drafts can pre-fill during record creation.
-- Phase 9 is implemented: duplicate detection is warning-only, checks local data first, falls back safely if the backend is unavailable, and compares proof hashes, references, and amount/date/counterparty signals.
-- Phase 10 is implemented: background sync drains every locally synced business in dependency order, failed work stays retryable with clear user-facing errors, proof backup/restore is hardened, and audit events record financial create/edit/delete changes.
-- Phase 11 is implemented: Reports & export provides local weekly/monthly summaries, offline CSV export, and online PDF export from the backend.
-- Recent polish: amount entry uses comma-separated numbers, proof file work moved off the UI thread, fresh-device proof restore is available, and report exports are covered by Android/backend tests.
-- Phase 12 (polish, analytics, reliability) is in review: security/validation hardening (upload rate-limiting, currency allowlist, search escaping, CORS), Sentry + PostHog observability, a user-visible edit history, navigation/IA polish (a top-level Reports tab; Manage categories moved into Records), and server-side sync-event reporting.
-- Next direction: **Phase 13** reframes the money-in side around **projects (houses)** — offer-letter installment schedules, computed arrears balances, and money-out per project. See `docs/master-plan.md`.
-- Current phase: wrapping up Phase 12; Phase 13 (project-based tracking) is planned next.
+## How it works
+
+```mermaid
+flowchart LR
+    subgraph Phone["Android app (Kotlin + Compose)"]
+        UI[Compose UI] --> VM[ViewModels]
+        VM --> Repo[Repositories]
+        Repo --> Room[(Room / SQLite)]
+        Repo --> Queue[Sync queue]
+        Queue --> WM[WorkManager]
+    end
+    Repo -->|HTTPS| API[FastAPI]
+    WM -->|HTTPS| API
+    Repo -->|sign-in| Supa[Supabase Auth]
+    API --> PG[(PostgreSQL)]
+    API --> Store[(S3-compatible proof storage)]
+    API --> Redis[(Redis)]
+    Redis --> Worker[Background worker]
+    Worker -->|vision| Claude[Claude API]
+    Worker --> PG
+```
+
+**Key engineering decisions**
+
+| Decision | Why |
+| --- | --- |
+| **Offline-first:** the local Room database is the source of truth on the device | Users are often on poor connections; the app must never block on the network. |
+| **Background sync in dependency order** | Data that other records depend on syncs first, so nothing reaches the server before what it references. Failed work stays queued and retryable, with clear user-facing errors. |
+| **AI drafts, humans confirm** | Financial records can't be wrong silently. AI fills in a draft; nothing is saved until the user reviews it. |
+| **Extraction runs in a background worker**, not in the request | Vision calls are slow; the API stays fast and jobs retry independently. |
+| **Duplicate detection warns, never blocks** | Two genuinely identical payments can exist; the user decides. |
+| **Audit trail** of financial create/edit/delete events | Users can see the edit history behind every number. |
+
+## Testing and quality
+
+- **400+ automated tests:** 238 backend (pytest) and 176 Android unit tests.
+- Every change shipped through a branch and pull request (~50 PRs).
+- Database migrations with Alembic (backend) and versioned Room schemas (Android).
+- Production monitoring with Sentry (errors) and PostHog (product analytics).
+- Upload rate-limiting, currency allowlist, search escaping and CORS hardening on the API.
+
+## Status
+
+- **v1 deployed to production in June 2026** and verified end to end (create business → record money in/out → attach proof → sync).
+- Since v1: project-based tracking (houses, buyers, instalment schedules), PDF offer-letter scanning and offer-letter duplicate detection.
+- Android release prepared for Google Play testing.
 
 ## Fresh-Machine Setup
 
@@ -44,7 +93,7 @@ troubleshooting; this section is the minimal happy path.
 
 - Git
 - Docker Desktop (running before the backend commands below)
-- Python 3.13 + [uv](https://docs.astral.sh/uv/)
+- Python 3.11 or newer + [uv](https://docs.astral.sh/uv/)
 - JDK 17 (Android Gradle Plugin 8.x requirement)
 - Android Studio (Iguana or newer) or the standalone Android command-line
   tools + an emulator image (API 34+ recommended)
@@ -89,11 +138,11 @@ machine's LAN IP and ensure the firewall allows port 8000.
 
 ```powershell
 docker compose up -d                          # restart containers if stopped
-cd backend && uv sync && uv run alembic upgrade head
-cd android && .\gradlew.bat :app:testDebugUnitTest
+cd backend; uv sync; uv run alembic upgrade head
+cd ..\android; .\gradlew.bat :app:testDebugUnitTest
 ```
 
 ## Docs
 
-See `docs/master-plan.md` for the full product and architecture plan.
-See `docs/mobile-development-things-to-know.md` for local mobile/backend development notes.
+See [`docs/master-plan.md`](docs/master-plan.md) for the full product and architecture plan.
+See [`docs/mobile-development-things-to-know.md`](docs/mobile-development-things-to-know.md) for local mobile/backend development notes.
