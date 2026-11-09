@@ -10,6 +10,10 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Daniel-G2026/payment-proof-tracker/actions/workflows/ci.yml"><img src="https://github.com/Daniel-G2026/payment-proof-tracker/actions/workflows/ci.yml/badge.svg" alt="CI status" /></a>
+</p>
+
+<p align="center">
   Kotlin · Jetpack Compose · Room · WorkManager · FastAPI · PostgreSQL · Redis · Supabase Auth · Claude vision
 </p>
 
@@ -72,7 +76,7 @@ flowchart LR
 ## Testing and quality
 
 - **400+ automated tests:** 238 backend (pytest) and 176 Android unit tests.
-- Every change shipped through a branch and pull request (~50 PRs).
+- Every change shipped through a branch and pull request (~50 PRs); GitHub Actions CI runs the backend tests, a fresh-Postgres migration check, and the Android unit tests + build on every PR.
 - Database migrations with Alembic (backend) and versioned Room schemas (Android).
 - Production monitoring with Sentry (errors) and PostHog (product analytics).
 - Upload rate-limiting, currency allowlist, search escaping and CORS hardening on the API.
